@@ -1,0 +1,2 @@
+cpg_workflows==0.1.0
+click
