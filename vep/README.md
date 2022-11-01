@@ -63,12 +63,3 @@ We also have a separate version of the config `dataproc-config-no-exac.json` for
 3. After all is set up, you can start a Dataproc cluster passing the initialization script explicitly with `init`, instead of using the `vep` parameter. See example in [test/test-dataproc-wrapper.py](test/test-dataproc-wrapper.py). Make sure you set larger resources for the workers (the highmem machine type and larger storage). Hail would do that automatically with `--vep`, but with a custom `--init` we have to do that explicitly.
 
 Within scripts that you submit to that cluster, you can call the `hl.vep` function with explicitly provided `config` parameter (otherwise it would attempt to get the VEP_CONFIG environment variable, which is only set with `--vep`). See example in [test/test-dataproc-script.py](test/test-dataproc-script.py).
-
-Note that VEP might print errors messages that it can't find `phylocsf_data` and `gerp_exons` tables in the loftee DB:
-
-```sh
-DBD::SQLite::db prepare failed: no such table: phylocsf_data at /root/micromamba/share/ensembl-vep-105.0-0/LoF.pm line 565, <$fh> line 158458.
-DBD::SQLite::db prepare failed: no such table: gerp_exons at /root/micromamba/share/ensembl-vep-105.0-0/gerp_dist.pl line 129, <$fh> line 158458.
-```
-
-It's expected as those tables are provided by `phylocsf_gerp.sql`, which are only provided for [GRCh37](https://personal.broadinstitute.org/konradk/loftee_data/GRCh37/), but not for [GRCh38](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/). See [this issue](https://github.com/konradjk/loftee/issues/39).
