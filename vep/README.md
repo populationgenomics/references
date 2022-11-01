@@ -7,6 +7,8 @@ Standard Hail Query [hl.vep](https://hail.is/docs/0.2/methods/genetics.html#hail
 * It doesn't support Batch backend;
 * It's limited to VEP version 95 (under the hood it's hardcoded to use the image `konradjk/vep95_loftee:0.2` which is built in 2019 for VEP 95, with no source Dockerfile available).
 
+Eventually `hl.vep` will fully support custom VEP versions and Batch backend, but as a temporary solution, we have an alternative process described below.
+
 ## Preparing reference data
 
 The following steps describe how to prepare reference data for running VEP of any version, both for Hail Batch or Hail Query.
