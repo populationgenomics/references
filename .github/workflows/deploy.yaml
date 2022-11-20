@@ -1,0 +1,41 @@
+name: Deploy references.toml
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'references.toml'
+
+  deploy_config:
+    runs-on: ubuntu-latest
+    needs:
+      - deploy_images
+    env:
+      CLOUDSDK_CORE_DISABLE_PROMPTS: 1
+      CONFIG_DESTINATION: gs://cpg-config/templates
+      REFERENCES_PREFIX: gs://cpg-reference
+    steps:
+      - name: "checkout repo"
+        uses: actions/checkout@v2
+
+      - name: "gcloud setup"
+        uses: google-github-actions/setup-gcloud@v0
+        with:
+          project_id: analysis-runner
+          service_account_key: ${{ secrets.GCP_SERVER_DEPLOY_KEY }}
+
+      - name: "prepare config"
+        id: prepare toml
+        uses: jannekem/run-python-script-action@v1
+        with:
+          script: |
+            import toml, os 
+            prefix = os.environ['REFERENCES_PREFIX']
+            d = tomllib.load(open('references.toml', 'rb'))
+            d = {'references': {k: f'{prefix}/{v}' for k, v in d['references']}
+            tomllib.dump(d, open('references-ready.toml', 'wb')}
+
+      - name: "deploy config"
+        run: |
+          gcloud storage cp references-ready.toml \
+          ${CONFIG_DESTINATION}/references/references.toml

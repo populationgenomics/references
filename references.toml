@@ -1,0 +1,116 @@
+[references]
+# Genome build. Only GRCh38 is currently supported.
+genome_build = 'GRCh38'
+# To cache intervals.
+intervals_prefix = 'intervals'
+
+# Contains uncompressed VEP tarballs for mounting with cloudfuse.
+vep_mount = 'vep/105.0/mount'
+
+# Liftover chain file to translate from GRCh38 to GRCh37 coordinates
+liftover_38_to_37 = 'liftover/grch38_to_grch37.over.chain.gz'
+
+# Site list for somalier https://github.com/brentp/somalier/releases/tag/v0.2.15
+somalier_sites = 'somalier/sites.hg38.vcf.gz'
+# Somalier 1kg data for the "ancestry" command
+somalier_1kg_targz = 'somalier/1kg.somalier.tar.gz'
+# Somalier list of 1kg samples for the "ancestry" command.
+somalier_1kg_labels = 'somalier/ancestry-labels-1kg.tsv'
+
+# Path to DRAGMAP index
+dragmap_prefix = 'hg38/v0/dragen_reference'
+ref_fasta = 'hg38/v0/dragen_reference/Homo_sapiens_assembly38_masked.fasta'
+# For DRAGMAP, also the following files are expected to exist in `dragen_reference`:
+#  ['hash_table.cfg.bin', 'hash_table.cmp', 'reference.bin']
+# For BWA, files with the following indices added to ref_fasta expected:
+# are expected to exist: ['sa', 'amb', 'bwt', 'ann', 'pac', 'alt']
+# Similarly, for bwamem2: ['0123', 'amb', 'bwt.2bit.64', 'ann', 'pac', 'alt']
+
+# Primary contigs BED file
+noalt_bed = 'hg38/v0/sv-resources/resources/v1/primary_contigs_plus_mito.bed.gz'
+
+# Exome calling regions
+exome_bed = 'hg38/v0/Homo_sapiens_assembly38.contam.exome_calling_regions.v1.bed'
+
+# Calling intervals lists
+genome_calling_interval_lists = 'hg38/v0/wgs_calling_regions.hg38.interval_list'
+exome_calling_interval_lists = 'hg38/v0/exome_calling_regions.v1.interval_list'
+genome_evaluation_interval_lists = 'hg38/v0/wgs_evaluation_regions.hg38.interval_list'
+exome_evaluation_interval_lists = 'hg38/v0/exome_evaluation_regions.v1.interval_list'
+genome_coverage_interval_list = 'hg38/v0/wgs_coverage_regions.hg38.interval_list'
+unpadded_intervals_file = 'hg38/v0/hg38.even.handcurated.20k.intervals'  # for SV
+
+# VQSR
+dbsnp_vcf = 'hg38/v0/Homo_sapiens_assembly38.dbsnp138.vcf'
+dbsnp_vcf_index = 'hg38/v0/Homo_sapiens_assembly38.dbsnp138.vcf.idx'
+hapmap_vcf = 'hg38/v0/hapmap_3.3.hg38.vcf.gz'
+hapmap_vcf_index = 'hg38/v0/hapmap_3.3.hg38.vcf.gz.tbi'
+omni_vcf = 'hg38/v0/1000G_omni2.5.hg38.vcf.gz'
+omni_vcf_index = 'hg38/v0/1000G_omni2.5.hg38.vcf.gz.tbi'
+one_thousand_genomes_vcf = 'hg38/v0/1000G_phase1.snps.high_confidence.hg38.vcf.gz'
+one_thousand_genomes_vcf_index = 'hg38/v0/1000G_phase1.snps.high_confidence.hg38.vcf.gz.tbi'
+mills_vcf = 'hg38/v0/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz'
+mills_vcf_index = 'hg38/v0/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz.tbi'
+axiom_poly_vcf = 'hg38/v0/Axiom_Exome_Plus.genotypes.all_populations.poly.hg38.vcf.gz'
+axiom_poly_vcf_index = 'hg38/v0/Axiom_Exome_Plus.genotypes.all_populations.poly.hg38.vcf.gz.tbi'
+
+# Genome contamination check
+genome_contam_ud =  'hg38/v0/contamination-resources/1000g/1000g.phase3.100k.b38.vcf.gz.dat.UD'
+genome_contam_bed = 'hg38/v0/contamination-resources/1000g/1000g.phase3.100k.b38.vcf.gz.dat.bed'
+genome_contam_mu =  'hg38/v0/contamination-resources/1000g/1000g.phase3.100k.b38.vcf.gz.dat.mu'
+# Exome contamination check
+exome_contam_ud = 'hg38/v0/contamination-resources/1000g/whole_exome_illumina_coding_v1.Homo_sapiens_assembly38.1000g.contam.UD'
+exome_contam_bed = 'hg38/v0/contamination-resources/1000g/whole_exome_illumina_coding_v1.Homo_sapiens_assembly38.1000g.contam.bed'
+exome_contam_mu = 'hg38/v0/contamination-resources/1000g/whole_exome_illumina_coding_v1.Homo_sapiens_assembly38.1000g.contam.mu'
+
+wham_include_list_bed_file = 'hg38/v0/sv-resources/resources/v1/wham_whitelist.bed'
+primary_contigs_list = 'hg38/v0/sv-resources/resources/v1/primary_contigs.list'
+primary_contigs_fai = 'hg38/v0/sv-resources/resources/v1/contig.fai'
+preprocessed_intervals = 'hg38/v0/sv-resources/resources/v1/preprocessed_intervals.interval_list'
+manta_region_bed = 'hg38/v0/sv-resources/resources/v1/primary_contigs_plus_mito.bed.gz'
+melt_standard_vcf_header = 'hg38/v0/sv-resources/resources/v1/melt_standard_vcf_header.txt'
+genome_file = 'hg38/v0/sv-resources/resources/v1/hg38.genome'
+wgd_scoring_mask = 'hg38/v0/sv-resources/resources/v1/wgd_scoring_mask.hg38.gnomad_v3.bed'
+allosomal_contigs = 'hg38/v0/sv-resources/resources/v1/allosome.fai'
+contig_ploidy_priors = 'hg38/v0/sv-resources/resources/v1/hg38.contig_ploidy_priors_homo_sapiens.tsv'
+inclusion_bed = 'hg38/v0/sv-resources/resources/v1/hg38_primary_contigs.bed'
+autosome_file = 'hg38/v0/sv-resources/resources/v1/autosome.fai'
+allosome_file = 'hg38/v0/sv-resources/resources/v1/allosome.fai'
+cnmops_exclude_list = 'hg38/v0/sv-resources/resources/v1/GRCh38_Nmask.bed'
+cytoband = 'hg38/v0/sv-resources/resources/v1/cytobands_hg38.bed.gz'
+mei_bed = 'hg38/v0/sv-resources/resources/v1/mei_hg38.bed.gz'
+rmsk = 'hg38.hg38/v0/sv-resources/resources/v1/randomForest_blacklist.withRepMask.bed.gz'
+segdups = 'hg38/v0/sv-resources/resources/v1/hg38.SD_gaps_Cen_Tel_Heter_Satellite_lumpy.blacklist.sorted.merged.bed.gz'
+seed_cutoffs = 'hg38/v0/sv-resources/resources/v1/seed_cutoff.txt'
+pesr_exclude_list = 'hg38/v0/sv-resources/resources/v1/PESR.encode.peri_all.repeats.delly.hg38.blacklist.sorted.bed.gz'
+depth_exclude_list = 'hg38/v0/sv-resources/resources/v1/depth_blacklist.sorted.bed.gz'
+bin_exclude = 'hg38/v0/sv-resources/resources/v1/bin_exclude.hg38.gatkcov.bed.gz'
+empty_file = 'hg38/v0/sv-resources/resources/v1/empty.file'
+protein_coding_gtf = 'hg38/v0/sv-resources/resources/v1/MANE.GRCh38.v0.95.select_ensembl_genomic.gtf'
+
+ped_file = 'hg38/v0/sv-resources/ref-panel/1KG/v1/ped/1kg_ref_panel_v1.ped'
+clean_vcf = 'hg38/v0/sv-resources/ref-panel/1KG/v1/calls/ref_panel_1kg_v1.cleaned.vcf.gz'
+ref_panel_bincov_matrix = 'hg38/v0/sv-resources/ref-panel/1KG/v1/merged_evidence/ref_panel_1kg_v1.bincov.bed.gz'
+qc_definitions = 'hg38/v0/sv-resources/ref-panel/1KG/v2/single_sample.qc_definitions.tsv'
+contig_ploidy_model_tar = 'hg38/v0/sv-resources/ref-panel/1KG/v2/gcnv/ref_panel_1kg_v2-contig-ploidy-model.tar.gz'
+model_tar_tmpl = 'hg38/v0/sv-resources/ref-panel/1KG/v2/gcnv/model_files/ref_panel_1kg_v2-gcnv-model-shard-{shard}.tar.gz'
+ref_panel_PE_file_tmpl = 'hg38/v0/sv-resources/ref-panel/tws_SVEvidence/pe/{sample}.pe.txt.gz'
+ref_panel_SR_file_tmpl = 'hg38/v0/sv-resources/ref-panel/tws_SVEvidence/sr/{sample}.sr.txt.gz'
+ref_panel_SD_file_tmpl = 'hg38/v0/sv-resources/ref-panel/tws_SVEvidence/sd/{sample}.sd.txt.gz'
+
+tel_and_cent_ht = 'gnomad/v0/telomeres_and_centromeres/hg38.telomeresAndMergedCentromeres.ht'
+lcr_intervals_ht = 'gnomad/v0/lcr_intervals/LCRFromHengHg38.ht'
+seg_dup_intervals_ht = 'gnomad/v0/seg_dup_intervals/GRCh38_segdups.ht'
+clinvar_ht = 'gnomad/v0/clinvar/clinvar_20190923.ht'
+hapmap_ht = 'gnomad/v0/hapmap/hapmap_3.3.hg38.ht'
+kgp_omni_ht = 'gnomad/v0/kgp/1000G_omni2.5.hg38.ht'
+kgp_hc_ht = 'gnomad/v0/kgp/1000G_phase1.snps.high_confidence.hg38.ht'
+mills_ht = 'gnomad/v0/mills/Mills_and_1000G_gold_standard.indels.hg38.ht'
+
+combined_reference = 'seqr/combined_reference_data_grch38.ht'
+clinvar = 'seqr/clinvar.GRCh38.2022-09-17.ht'
+
+syndip_truth = 'validation/syndip/full.38.20180222.vcf.gz'
+syndip_regions = 'validation/syndip/syndip.b38_20180222.bed'
+na12878_truth = 'validation/na12878/HG001_GRCh38_GIAB_highconf_CG-IllFB-IllGATKHC-Ion-10X-SOLID_CHROM1-X_v.3.3.2_highconf_PGandRTGphasetransfer.vcf.gz'
+na12878_regions = 'validation/na12878/HG001_GRCh38_GIAB_highconf_CG-IllFB-IllGATKHC-Ion-10X-SOLID_CHROM1-X_v.3.3.2_highconf_nosomaticdel_noCENorHET7.bed'
