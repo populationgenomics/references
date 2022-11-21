@@ -1,6 +1,9 @@
 """
-Read sources described in `references.py`, prepare a TOML config with finalised paths.
+* Read sources described in `references.py`
+* Transfer files to the local bucket
+* Prepare a TOML config with finalised paths
 """
+
 import sys
 import toml
 import os
