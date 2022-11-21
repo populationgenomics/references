@@ -1,5 +1,5 @@
 """
-Copy references in TOML and prepare a ready TOML
+Read sources described in `references.py`, prepare a TOML config with finalised paths.
 """
 import sys
 import toml
