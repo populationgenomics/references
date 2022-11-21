@@ -1,61 +1,41 @@
 # Reference data
 
-Populating common reference resources for bioinformatics analysis. Assuming the Google Cloud infrastructure, but the structure can be replicated on other cloud provider.
+Populating common reference resources for bioinformatics analysis. Assuming the Google Cloud infrastructure, but the structure can be replicated for other cloud providers.
 
-Assuming the destination prefix and the project name are set:
+Script `references.py` describes sources of reference resources. Each object of class `Source` specifies one source location to pull data from (either a GCS bucket or an HTTP URL), along with an optional map of keys/files to expand this source as a section in the finalised config. E.g.
 
-```sh
-export PREFIX=gs://cpg-reference
-export PROJECT=cpg-common
+```py
+Source(
+    'liftover_38_to_37',
+    src='gs://hail-common/references/grch38_to_grch37.over.chain.gz',
+    dst='liftover/grch38_to_grch37.over.chain.gz',
+)
 ```
 
-## VEP
+Is expanded into flat
 
-While VEP for Hail Query [is in progress](https://github.com/hail-is/hail/pull/12428), we provide a temporary solution [described here](vep/README.md). Hopefully to be deprecated soon.
-
-## Broad
-
-The Broad's common hg38 resources.
-
-```sh
-gsutil -u $PROJECT -m rsync -d -r \
-gs://gcp-public-data--broad-references/hg38/v0 \ 
-$PREFIX/hg38/v0
+```toml
+liftover_38_to_37 = "gs://cpg-reference/liftover/grch38_to_grch37.over.chain.gz"
 ```
 
-### GATK-SV
+Whereas
 
-```sh
-gsutil -u $PROJECT -m rsync -d -r \
-gs://gatk-sv-resources-public/hg38/v0/sv-resources \ 
-$PREFIX/hg38/v0/sv-resources
+```py
+Source(
+    'gatk_sv',
+    src='gs://gatk-sv-resources-public/hg38/v0/sv-resources',
+    dst='hg38/v0/sv-resources',
+    files=dict(
+        wham_include_list_bed_file='resources/v1/wham_whitelist.bed',
+        primary_contigs_list='resources/v1/primary_contigs.list',
+    )
+)
 ```
 
-### GnomAD QC
+Is expanded into a section
 
-```sh
-gsutil -u $PROJECT -m rsync -d -r \
-gs://gnomad-public-requester-pays/resources/grch38
-$PREFIX/gnomad/v0
-```
-
-### Seqr annotation
-
-```sh
-gsutil -u $PROJECT -m rsync -d -r \
-gs://seqr-reference-data/GRCh38/all_reference_data/combined_reference_data_grch38.ht
-$PREFIX/seqr/combined_reference_data_grch38.ht
-
-gsutil -u $PROJECT -m rsync -d -r \
-gs://seqr-reference-data/GRCh38/clinvar/clinvar.GRCh38.2022-09-17.ht
-$PREFIX/seqr/clinvar.GRCh38.2022-09-17.ht
-```
-
-
-```sh
-gsutil -u $PROJECT -m rsync -d -r \
-gs://gcp-public-data--gnomad/resources/grch38/syndip $PREFIX/validation/syndip
-
-gsutil -u $PROJECT -m rsync -d -r \
-gs://gcp-public-data--gnomad/resources/grch38/na12878 $PREFIX/validation/na12878
+```toml
+[gatk_sv]
+wham_include_list_bed_file = "gs://cpg-reference/hg38/v0/sv-resources/resources/v1/wham_whitelist.bed"
+primary_contigs_list = "gs://cpg-reference/hg38/v0/sv-resources/resources/v1/primary_contigs.list"
 ```
