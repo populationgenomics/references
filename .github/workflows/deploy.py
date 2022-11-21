@@ -1,3 +1,7 @@
+"""
+Copy references in TOML and prepare a ready TOML
+"""
+
 import sys
 import toml
 import os
@@ -50,4 +54,5 @@ def main(dry_run: bool, project, prefix, toml_path):
     print(toml.dumps(ready_d))
 
 
-main()
+if __name__ == '__main__':
+    main()
