@@ -51,7 +51,6 @@ gs://seqr-reference-data/GRCh38/clinvar/clinvar.GRCh38.2022-09-17.ht
 $PREFIX/seqr/clinvar.GRCh38.2022-09-17.ht
 ```
 
-### Variant calling validation
 
 ```sh
 gsutil -u $PROJECT -m rsync -d -r \

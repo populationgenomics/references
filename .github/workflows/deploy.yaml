@@ -4,7 +4,7 @@ on:
     branches:
       - main
     paths:
-      - 'references.toml'
+      - 'references.py'
 
   deploy_config:
     runs-on: ubuntu-latest
@@ -34,9 +34,9 @@ on:
           --no-dry-run /
           --project ${PROJECT} /
           --prefix ${REFERENCES_PREFIX} /
-          --toml-path references.toml > references-ready.toml
+          > references.toml
   
       - name: "deploy config"
         run: |
-          gcloud storage cp references-ready.toml \
+          gcloud storage cp references.toml \
           ${CONFIG_DESTINATION}/references/references.toml
