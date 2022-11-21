@@ -59,7 +59,4 @@ gs://gcp-public-data--gnomad/resources/grch38/syndip $PREFIX/validation/syndip
 
 gsutil -u $PROJECT -m rsync -d -r \
 gs://gcp-public-data--gnomad/resources/grch38/na12878 $PREFIX/validation/na12878
-
-gsutil -u $PROJECT -m rsync -d -r \
-gs://gcp-public-data--gnomad/resources/grch38/na12878 $PREFIX/validation/na12878
 ```
