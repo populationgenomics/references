@@ -43,13 +43,13 @@ jobs:
         with:
           script: |
             from os.path import join
-            import references.SOURCES as NEW_SOURCES
-            import references.GENOME_BUILD as GENOME_BUILD
-            import references_before.SOURCES as OLD_SOURCES
-            toml = {'genome_build': GENOME_BUILD}
+            import importlib
+            references = importlib.__import__('references')
+            references_before = importlib.__import__('references_before')
+            toml = {'genome_build': references.GENOME_BUILD}
             transfer_commands = {}
-            for source in NEW_SOURCES:
-                old_sources_d = {s.name: s for s in OLD_SOURCES}
+            for source in references.NEW_SOURCES:
+                old_sources_d = {s.name: s for s in references_before.SOURCES}
                 is_changed = (
                     source.name not in old_sources_d 
                     or source != old_sources_d[source.name]
