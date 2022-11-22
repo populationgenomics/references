@@ -9,7 +9,7 @@ on:
 env:
   PROJECT: 'cpg-common'
   REFERENCES_PREFIX: 'gs://cpg-reference/test'
-  CONFIG_DESTINATION: 'gs://cpg-config/templates'
+  CONFIG_DESTINATION: 'gs://cpg-config/templates/references/references.toml'
 
 jobs:
   make_matrix:
@@ -23,7 +23,6 @@ jobs:
       - name: "Checkout revision before change"
         uses: actions/checkout@v2
         with:
-          python-version: '3.11'
           ref: ${{ github.event.before }}
           path: 'before'
 
@@ -59,6 +58,10 @@ jobs:
           project_id: ${{ env.PROJECT }}
           service_account_key: ${{ secrets.GCP_SERVER_DEPLOY_KEY }}
 
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
       - name: "transfer"
         run: |
           export PROJECT=${{ env.PROJECT }}
@@ -81,6 +84,10 @@ jobs:
           project_id: ${{ env.PROJECT }}
           service_account_key: ${{ secrets.GCP_SERVER_DEPLOY_KEY }}
 
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
       - name: "prepare config"
         run: |
           export REFERENCES_PREFIX=${{ env.REFERENCES_PREFIX }}
@@ -89,5 +96,4 @@ jobs:
 
       - name: "deploy config toml"
         run: |
-          gcloud storage cp config.toml \
-            ${{ env.CONFIG_DESTINATION }}/references/references.toml
+          gcloud storage cp config.toml ${{ env.CONFIG_DESTINATION }}
