@@ -10,7 +10,7 @@ import os
 import click
 from cpg_utils import to_path
 
-import SOURCES, GENOME_BUILD
+from references import SOURCES, GENOME_BUILD
 
 PROJECT = 'cpg-common'
 PREFIX = 'gs://cpg-reference'
@@ -30,16 +30,7 @@ def main(dry_run: bool, project, prefix):
     for source in SOURCES:
         dst_path = to_path(prefix) / source.dst
         if source.src:
-            if source.src.startswith('gs://'):
-                _cmd(
-                    f'gsutil -u {project} -m rsync -d -r '
-                    f'{source.src} {dst_path}'
-                )
-            if source.src.startswith('https://'):
-                _cmd(
-                    f'curl {source.src} -o tmp && '
-                    f'gsutil -u {project} cp tmp {dst_path}'
-                )
+            _cmd(source.transfer_cmd(project, dst_path))
         if not source.files:
             d[source.name] = str(dst_path)
         else:

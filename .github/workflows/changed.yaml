@@ -1,0 +1,147 @@
+name: Deploy references.toml
+#on:
+#  push:
+#    branches:
+#      - main
+#    paths:
+#      - 'references.py'
+
+jobs:
+  make_matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set_matrix.outputs.matrix }}
+    steps:
+      - name: "Checkout repo"
+        uses: actions/checkout@v2
+
+      - name: "Checkout ref before change"
+        uses: actions/checkout@v2
+        with:
+          python-version: '3.11'
+          ref: ${{ github.event.before }}
+          path: 'before'
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: "Listing changed sources"
+        id: changed_sources
+        uses: jannekem/run-python-script-action@v1
+        with:
+          script: |
+            from os.path import join
+            from references import SOURCES as NEW_SOURCES, GENOME_BUILD
+            from before.references import SOURCES as OLD_SOURCES
+            toml = {'genome_build': GENOME_BUILD}
+            transfer_commands = {}
+            for source in NEW_SOURCES:
+                old_sources_d = {s.name: s for s in OLD_SOURCES}
+                is_changed = (
+                    source.name not in old_sources_d 
+                    or source != old_sources_d[source.name]
+                )
+                dst_path = join(PREFIX, source.dst)
+                if is_changed and source.src:
+                    type_ = None
+                    if source.src.startswith('gs://'):
+                        type_ = 'gcs'
+                    if source.src.startswith('https://'):
+                        type_ = 'https'
+                    if type_:
+                        transfer_commands[source.name] = {
+                            'src': source.src, 'dst': dst_path, 'type': type_
+                        }
+                if not source.files:
+                    toml[source.name] = str(dst_path)
+                else:
+                    toml[source.name] = {
+                        k: join(dst_path, suffix)
+                        for k, suffix in source.files.items()
+                    }
+                        
+            d = {"include": [{
+                  "name": name, 
+                  "src": data['src'],
+                  "dst": data['dst'],
+                  "type": data['type'],
+                } for name, data in transfer_commands.items()
+            ]}
+            print(str(d).replace(" ", ""), end='')
+ 
+      - name: "Set matrix"
+        id: set_matrix
+        run: |
+          echo "matrix=${{ steps.changed_sources.outputs.stdout }}" >> $GITHUB_OUTPUT
+
+  deploy_references:
+    runs-on: ubuntu-latest
+    needs:
+      - make_matrix
+    strategy:
+      matrix: ${{ fromJson(needs.make_matrix.outputs.matrix) }}
+    env:
+      CLOUDSDK_CORE_DISABLE_PROMPTS: 1
+      PROJECT: 'cpg-common'
+      REFERENCES_PREFIX: gs://cpg-reference-test
+    steps:
+      - name: "checkout repo"
+        uses: actions/checkout@v2
+
+      - name: "gcloud setup"
+        uses: google-github-actions/setup-gcloud@v0
+        with:
+          project_id: analysis-runner
+          service_account_key: ${{ secrets.GCP_SERVER_DEPLOY_KEY }}
+
+      - name: "transfer data"
+        run: |
+          if [[ "${{ matrix.type }}" == "gcs" ]] ; then
+            gsutil -u ${PROJECT} -m rsync -d -r ${{ matrix.src }} ${{ matrix.dst }}
+          elif [[ "${{ matrix.type }}" == "https" ]] ; then ]]
+            curl ${{ matrix.src }} -o tmp
+            gsutil -u ${PROJECT} cp tmp ${{ matrix.dst }}
+          fi
+
+  deploy_config:
+    runs-on: ubuntu-latest
+    needs:
+      - deploy_images
+    env:
+      CLOUDSDK_CORE_DISABLE_PROMPTS: 1
+      CONFIG_DESTINATION: gs://cpg-config/templates
+    steps:
+      - name: "checkout repo"
+        uses: actions/checkout@v2
+
+      - name: "gcloud setup"
+        uses: google-github-actions/setup-gcloud@v0
+        with:
+          project_id: analysis-runner
+          service_account_key: ${{ secrets.GCP_SERVER_DEPLOY_KEY }}
+
+      - name: "prepare config"
+        id: prepare toml
+        uses: jannekem/run-python-script-action@v1
+        with:
+          script: |
+            import toml, os 
+            from os.path import join
+            from references import SOURCES, GENOME_BUILD
+            d = {'genome_build': GENOME_BUILD}
+            for source in SOURCES:
+                dst_path = join(PREFIX, source.dst)
+                if not source.files:
+                    d[source.name] = str(dst_path)
+                else:
+                    d[source.name] = {
+                        k: join(dst_path, suffix)
+                        for k, suffix in source.files.items()
+                    }
+            tomllib.dump({'references': d}, open('references.toml', 'wb')}
+
+      - name: "deploy config toml"
+        run: |
+          gcloud storage cp references.toml \
+            ${CONFIG_DESTINATION}/references/references.toml
