@@ -43,8 +43,9 @@ jobs:
         with:
           script: |
             from os.path import join
-            from references import SOURCES as NEW_SOURCES, GENOME_BUILD
-            from references_before import SOURCES as OLD_SOURCES
+            import references.SOURCES as NEW_SOURCES
+            import references.GENOME_BUILD as GENOME_BUILD
+            import references_before.SOURCES as OLD_SOURCES
             toml = {'genome_build': GENOME_BUILD}
             transfer_commands = {}
             for source in NEW_SOURCES:
