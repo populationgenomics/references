@@ -63,7 +63,7 @@ jobs:
         run: |
           export PROJECT=${{ env.PROJECT }}
           cp references.py .github/workflows/references.py
-          python transfer.py ${{ matrix.name }} ${{ matrix.src }} ${{ matrix.dst }}
+          python .github/workflows/transfer.py ${{ matrix.name }} ${{ matrix.src }} ${{ matrix.dst }}
  
   deploy_config:
     runs-on: ubuntu-latest
@@ -85,7 +85,7 @@ jobs:
         run: |
           export REFERENCES_PREFIX=${{ env.REFERENCES_PREFIX }}
           cp references.py .github/workflows/references.py
-          python prep_config.py > config.toml
+          python .github/workflows/prep_config.py > config.toml
 
       - name: "deploy config toml"
         run: |
