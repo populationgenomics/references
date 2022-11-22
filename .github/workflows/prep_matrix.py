@@ -1,6 +1,6 @@
 import os
 from os.path import join
-from references import SOURCES as NEW_SOURCES, GENOME_BUILD
+from references import SOURCES as NEW_SOURCES
 try:
     from references_before import SOURCES as OLD_SOURCES
 except ImportError:
@@ -18,11 +18,11 @@ for source in NEW_SOURCES:
     dst_path = join(REFERENCES_PREFIX, source.dst)
     if is_changed and source.src:
         transfers[source.name] = {'src': source.src, 'dst': dst_path}
-            
-d = {"include": [{
-      "name": name, 
-      "src": data['src'],
-      "dst": data['dst'],
+
+d = {'include': [{
+      'name': name, 
+      'src': data['src'],
+      'dst': data['dst'],
     } for name, data in transfers.items()
 ]}
-print(str(d).replace(" ", ""), end='')
+print(str(d).replace(' ', ''), end='')

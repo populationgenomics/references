@@ -62,13 +62,36 @@ jobs:
           service_account_key: ${{ secrets.GCP_SERVER_DEPLOY_KEY }}
 
       - name: "transfer"
-        run: |
-          if [[ "${{ matrix.src }}" == gs://* ]] ; then
-            gsutil -u ${{ env.PROJECT }} -m rsync -d -r ${{ matrix.src }} ${{ matrix.dst }}
-          elif [[ "${{ matrix.src }}" == https://* ]] ; then
-            curl ${{ matrix.src }} -o tmp
-            gsutil -u ${{ env.PROJECT }}} cp tmp ${{ matrix.dst }}
-          fi
+        uses: jannekem/run-python-script-action@v1
+        with:
+          script: |
+            import os 
+            from references import SOURCES
+            source = [s for s in SOURCES if s.name == ${{ matrix.name }}][0]
+            cmd = None
+            if source.src.startswith('gs://'):
+                if source.files:
+                    cmd = 'gsutil -u ${{ env.PROJECT }} -m rsync -d -r ${{ matrix.src }} ${{ matrix.dst }}'
+                else:
+                    cmd = 'gsutil -u ${{ env.PROJECT }} cp ${{ matrix.src }} ${{ matrix.dst }}'
+            if source.src.startswith('https://'):
+                cmd = (
+                  f'curl ${{ matrix.src }} -o tmp; ' +
+                  f'gsutil -u ${{ env.PROJECT }}} cp tmp ${{ matrix.dst }}'
+                )
+            if cmd:
+              print(cmd)
+              os.system(cmd)
+            
+#      - name: "transfer"
+#        run: |
+#          python transfer.py ${{ matrix.name }}
+#          if [[ "${{ matrix.src }}" == gs://* ]] ; then
+#            gsutil -u ${{ env.PROJECT }} -m rsync -d -r ${{ matrix.src }} ${{ matrix.dst }}
+#          elif [[ "${{ matrix.src }}" == https://* ]] ; then
+#            curl ${{ matrix.src }} -o tmp
+#            gsutil -u ${{ env.PROJECT }}} cp tmp ${{ matrix.dst }}
+#          fi
 
   deploy_config:
     runs-on: ubuntu-latest
