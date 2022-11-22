@@ -61,7 +61,7 @@ jobs:
         run: |
           if [[ "${{ matrix.type }}" == "gcs" ]] ; then
             gsutil -u ${PROJECT} -m rsync -d -r ${{ matrix.src }} ${{ matrix.dst }}
-          elif [[ "${{ matrix.type }}" == "https" ]] ; then ]]
+          elif [[ "${{ matrix.type }}" == "https" ]] ; then
             curl ${{ matrix.src }} -o tmp
             gsutil -u ${PROJECT} cp tmp ${{ matrix.dst }}
           fi
