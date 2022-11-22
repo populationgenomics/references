@@ -15,7 +15,7 @@ jobs:
       - name: "Checkout repo"
         uses: actions/checkout@v2
 
-      - name: "Checkout ref before change"
+      - name: "Checkout revision before change"
         uses: actions/checkout@v2
         with:
           python-version: '3.11'
@@ -75,7 +75,7 @@ jobs:
         run: |
           echo "matrix=${{ steps.changed_sources.outputs.stdout }}" >> $GITHUB_OUTPUT
 
-  deploy_references:
+  transfer:
     runs-on: ubuntu-latest
     needs:
       - make_matrix
@@ -107,7 +107,7 @@ jobs:
   deploy_config:
     runs-on: ubuntu-latest
     needs:
-      - deploy_images
+      - transfer
     env:
       CLOUDSDK_CORE_DISABLE_PROMPTS: 1
       CONFIG_DESTINATION: gs://cpg-config/templates

@@ -1,12 +1,17 @@
 """
-Copy references in TOML and prepare a ready TOML
+List of sources for reference data
 """
+
 import dataclasses
-from cpg_utils import to_path, Path
 
 
 @dataclasses.dataclass
 class Source:
+    """
+    Specifies one source location to pull data from (either a GCS bucket or an 
+    HTTP URL), along with an optional map of keys/files to expand this source as 
+    a section in the finalised config. E.g.
+    """
     name: str  # name of the resource/section
     dst: str  # destination suffix, to be appended to PREFIX
     src: str | None = None  # fully qualified source URL
@@ -17,23 +22,23 @@ class Source:
 GENOME_BUILD = 'GRCh38'
 
 SOURCES = [
-    # Contains uncompressed VEP tarballs for mounting with cloudfuse. 
-    # No `src` field; the process of building it is described in `vep/README.md`. 
-    # Hopefully to be deprecated once VEP for Hail Query is finalised:
-    # https://github.com/hail-is/hail/pull/12428)
     Source(
         'vep_mount',
+        # Folder with uncompressed VEP tarballs for mounting with cloudfuse. 
+        # No `src` field: the process of building it is described in `vep/README.md`. 
+        # Hopefully to be deprecated once VEP for Hail Query is finalised:
+        # https://github.com/hail-is/hail/pull/12428)
         dst='vep/105.0/mount',
     ),
-    # Liftover chain file to translate from GRCh38 to GRCh37 coordinates
     Source(
         'liftover_38_to_37',
+        # Liftover chain file to translate from GRCh38 to GRCh37 coordinates
         src='gs://hail-common/references/grch38_to_grch37.over.chain.gz',
         dst='liftover/grch38_to_grch37.over.chain.gz',
     ),
-    # Site list for somalier fingerprinting
     Source(
         'somalier_sites',
+        # Site list for somalier fingerprinting
         src='https://github.com/brentp/somalier/files/3412456/sites.hg38.vcf.gz',
         dst='somalier/sites.hg38.vcf.gz',
     ),
@@ -142,7 +147,6 @@ SOURCES = [
         src='gs://seqr-reference-data/GRCh38/clinvar/clinvar.GRCh38.2022-09-17.ht',
         dst='seqr/clinvar.GRCh38.2022-09-17.ht',
     ),
-    # Variant calling validation
     Source(
         'syndip',
         src='gs://gcp-public-data--gnomad/resources/grch38/syndip',
