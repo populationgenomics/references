@@ -124,7 +124,7 @@ SOURCES = [
     ),
     Source(
         'gnomad',
-        src='gs://gnomad-public-requester-pays/resources/grch38',
+        src='gs://gcp-public-data--gnomad/resources/grch38',
         dst='gnomad',
         files=dict(
             tel_and_cent_ht='telomeres_and_centromeres/hg38.telomeresAndMergedCentromeres.ht',

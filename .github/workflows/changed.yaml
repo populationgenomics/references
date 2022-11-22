@@ -6,13 +6,16 @@ on:
 #    paths:
 #      - 'references.py'
 
+env:
+  PROJECT: 'cpg-common'
+  REFERENCES_PREFIX: gs://cpg-reference/test
+  CONFIG_DESTINATION: gs://cpg-config/templates
+
 jobs:
   make_matrix:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
-    env:
-      REFERENCES_PREFIX: gs://cpg-reference/test
     steps:
       - name: "Checkout repo"
         uses: actions/checkout@v2
@@ -45,8 +48,6 @@ jobs:
       matrix: ${{ fromJson(needs.make_matrix.outputs.matrix) }}
     env:
       CLOUDSDK_CORE_DISABLE_PROMPTS: 1
-      PROJECT: 'cpg-common'
-      REFERENCES_PREFIX: gs://cpg-reference/test
     steps:
       - name: "checkout repo"
         uses: actions/checkout@v2
@@ -54,14 +55,14 @@ jobs:
       - name: "gcloud setup"
         uses: google-github-actions/setup-gcloud@v0
         with:
-          project_id: cpg-common
+          project_id: ${PROJECT}
           service_account_key: ${{ secrets.GCP_SERVER_DEPLOY_KEY }}
 
-      - name: "transfer data"
+      - name: "transfer"
         run: |
-          if [[ "${{ matrix.type }}" == "gcs" ]] ; then
+          if [[ "${{ matrix.src }}" == gs://* ]] ; then
             gsutil -u ${PROJECT} -m rsync -d -r ${{ matrix.src }} ${{ matrix.dst }}
-          elif [[ "${{ matrix.type }}" == "https" ]] ; then
+          elif [[ "${{ matrix.src }}" == https://* ]] ; then
             curl ${{ matrix.src }} -o tmp
             gsutil -u ${PROJECT} cp tmp ${{ matrix.dst }}
           fi
@@ -72,7 +73,6 @@ jobs:
       - transfer
     env:
       CLOUDSDK_CORE_DISABLE_PROMPTS: 1
-      CONFIG_DESTINATION: gs://cpg-config/templates
     steps:
       - name: "checkout repo"
         uses: actions/checkout@v2
@@ -80,7 +80,7 @@ jobs:
       - name: "gcloud setup"
         uses: google-github-actions/setup-gcloud@v0
         with:
-          project_id: cpg-common
+          project_id: ${PROJECT}
           service_account_key: ${{ secrets.GCP_SERVER_DEPLOY_KEY }}
 
       - name: "prepare config"
