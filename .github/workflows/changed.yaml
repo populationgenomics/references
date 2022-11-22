@@ -25,6 +25,18 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+          
+      - run: mv before/references.py references_before.py
+
+      - name: "List dir"
+        id: changed_sources
+        uses: jannekem/run-python-script-action@v1
+        with:
+          script: |
+            import os
+            print("Directory contents:")
+            for f in os.listdir():
+                print(f)
 
       - name: "Listing changed sources"
         id: changed_sources
@@ -33,7 +45,7 @@ jobs:
           script: |
             from os.path import join
             from references import SOURCES as NEW_SOURCES, GENOME_BUILD
-            from before.references import SOURCES as OLD_SOURCES
+            from references_before import SOURCES as OLD_SOURCES
             toml = {'genome_build': GENOME_BUILD}
             transfer_commands = {}
             for source in NEW_SOURCES:
