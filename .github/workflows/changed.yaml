@@ -33,8 +33,7 @@ jobs:
       - name: "Set matrix"
         id: set_matrix
         run:
-          python prep_matrix.py > matrix.txt
-          echo "matrix=${ cat matrix.txt }" >> $GITHUB_OUTPUT
+          echo "matrix=$(python prep_matrix.py)" >> $GITHUB_OUTPUT
  
   transfer:
     runs-on: ubuntu-latest
