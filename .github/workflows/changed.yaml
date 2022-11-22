@@ -77,7 +77,7 @@ jobs:
             if source.src.startswith('https://'):
                 cmd = (
                   f'curl ${{ matrix.src }} -o tmp; ' +
-                  f'gsutil -u ${{ env.PROJECT }}} cp tmp ${{ matrix.dst }}'
+                  f'gsutil -u ${{ env.PROJECT }} cp tmp ${{ matrix.dst }}'
                 )
             if cmd:
               print(cmd)
