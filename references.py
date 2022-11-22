@@ -105,7 +105,7 @@ SOURCES = [
     Source(
         'gatk_sv',
         src='gs://gatk-sv-resources-public/hg38/v0/sv-resources',
-        dst='hg38/v0/sv-resources',
+        dst='sv-resources',
         files=dict(
             wham_include_list_bed_file='resources/v1/wham_whitelist.bed',
             primary_contigs_list='resources/v1/primary_contigs.list',
