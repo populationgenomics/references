@@ -65,8 +65,9 @@ jobs:
       - name: "transfer"
         run: |
           export PROJECT=${{ env.PROJECT }}
+          export REFERENCES_PREFIX=${{ env.REFERENCES_PREFIX }}
           cp references.py .github/workflows/references.py
-          python .github/workflows/transfer.py ${{ matrix.name }} ${{ matrix.src }} ${{ matrix.dst }}
+          python .github/workflows/transfer.py ${{ matrix.name }}
  
   deploy_config:
     runs-on: ubuntu-latest

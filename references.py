@@ -3,6 +3,7 @@ List of sources for reference data
 """
 
 import dataclasses
+from os.path import join
 
 
 @dataclasses.dataclass
@@ -16,6 +17,26 @@ class Source:
     dst: str  # destination suffix, to be appended to PREFIX
     src: str | None = None  # fully qualified source URL
     files: dict[str, str] | None = None  # map of other suffixes appended to `dst`
+
+    def is_folder(self) -> bool:
+        return self.files or (
+            self.dst.endswith('.ht') or 
+            self.dst.endswith('.mt') or
+            self.dst.endswith('.vds')
+        )
+   
+    def transfer_cmd(self, project: str, prefix: str) -> str | None:
+        dst = join(prefix, self.dst)
+        if self.src.startswith('gs://'):
+            if self.is_folder():
+                return f'gsutil -u {project} -m rsync -d -r {self.src} {dst}'
+            else:
+                return f'gsutil -u {project} cp {self.src} {dst}'
+        if self.src.startswith('https://'):
+            return (
+                f'curl {self.src} -o tmp; gsutil -u {project} cp tmp {dst}'
+            )
+        return None
 
 
 # Genome build. Only GRCh38 is currently supported.
