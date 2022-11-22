@@ -30,9 +30,7 @@ jobs:
           
       - run: |
           cp references.py .github/workflows/references.py
-          if [[ -e before/references.py ]] ; then \
-            cp before/references.py .github/workflows/references_before.py \
-          fi
+          if [[ -e before/references.py ]]; then cp before/references.py .github/workflows/references_before.py; fi
 
       - name: "Set matrix"
         id: set_matrix
