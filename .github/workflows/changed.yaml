@@ -16,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
+    env:
+        REFERENCES_PREFIX: ${{ env.REFERENCES_PREFIX }}
     steps:
       - name: "Checkout repo"
         uses: actions/checkout@v2
@@ -33,7 +35,9 @@ jobs:
           
       - run: |
           cp references.py .github/workflows/references.py
-          if [[ -e before/references.py ]]; then cp before/references.py .github/workflows/references_before.py; fi
+          if [[ -e before/references.py ]]; then 
+            cp before/references.py .github/workflows/references_before.py;
+          fi
 
       - name: "Set matrix"
         id: set_matrix
@@ -55,16 +59,16 @@ jobs:
       - name: "gcloud setup"
         uses: google-github-actions/setup-gcloud@v0
         with:
-          project_id: ${PROJECT}
+          project_id: ${{ env.PROJECT }}
           service_account_key: ${{ secrets.GCP_SERVER_DEPLOY_KEY }}
 
       - name: "transfer"
         run: |
           if [[ "${{ matrix.src }}" == gs://* ]] ; then
-            gsutil -u ${PROJECT} -m rsync -d -r ${{ matrix.src }} ${{ matrix.dst }}
+            gsutil -u ${{ env.PROJECT }} -m rsync -d -r ${{ matrix.src }} ${{ matrix.dst }}
           elif [[ "${{ matrix.src }}" == https://* ]] ; then
             curl ${{ matrix.src }} -o tmp
-            gsutil -u ${PROJECT} cp tmp ${{ matrix.dst }}
+            gsutil -u ${{ env.PROJECT }}} cp tmp ${{ matrix.dst }}
           fi
 
   deploy_config:
@@ -80,7 +84,7 @@ jobs:
       - name: "gcloud setup"
         uses: google-github-actions/setup-gcloud@v0
         with:
-          project_id: ${PROJECT}
+          project_id: ${{ env.PROJECT }}
           service_account_key: ${{ secrets.GCP_SERVER_DEPLOY_KEY }}
 
       - name: "prepare config"
@@ -92,7 +96,7 @@ jobs:
             from references import SOURCES, GENOME_BUILD
             d = {'genome_build': GENOME_BUILD}
             for source in SOURCES:
-                dst_path = join(PREFIX, source.dst)
+                dst_path = join(${{ env.REFERENCES_PREFIX }}, source.dst)
                 if not source.files:
                     d[source.name] = str(dst_path)
                 else:
@@ -105,4 +109,4 @@ jobs:
       - name: "deploy config toml"
         run: |
           gcloud storage cp references.toml \
-            ${CONFIG_DESTINATION}/references/references.toml
+            ${{ env.CONFIG_DESTINATION }}/references/references.toml

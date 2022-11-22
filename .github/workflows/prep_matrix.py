@@ -6,7 +6,7 @@ try:
 except ImportError:
     OLD_SOURCES = []
 
-PREFIX = os.environ['REFERENCES_PREFIX']
+REFERENCES_PREFIX = os.environ['REFERENCES_PREFIX']
 
 transfers = {}
 for source in NEW_SOURCES:
@@ -15,7 +15,7 @@ for source in NEW_SOURCES:
         source.name not in old_sources_d 
         or source != old_sources_d[source.name]
     )
-    dst_path = join(PREFIX, source.dst)
+    dst_path = join(REFERENCES_PREFIX, source.dst)
     if is_changed and source.src:
         transfers[source.name] = {'src': source.src, 'dst': dst_path}
             
