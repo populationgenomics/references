@@ -31,15 +31,13 @@ jobs:
         with:
           python-version: '3.11'
           
-      - run: |
+      - name: "Set matrix"
+        id: set_matrix
+        run: |
           cp references.py .github/workflows/references.py
           if [[ -e before/references.py ]]; then 
             cp before/references.py .github/workflows/references_before.py;
           fi
-
-      - name: "Set matrix"
-        id: set_matrix
-        run: |
           export REFERENCES_PREFIX=${{ env.REFERENCES_PREFIX }}
           echo "matrix=$(python .github/workflows/prep_matrix.py)" >> $GITHUB_OUTPUT
  
@@ -61,40 +59,12 @@ jobs:
           project_id: ${{ env.PROJECT }}
           service_account_key: ${{ secrets.GCP_SERVER_DEPLOY_KEY }}
 
-      - run: cp references.py .github/workflows/references.py
-
       - name: "transfer"
-        uses: jannekem/run-python-script-action@v1
-        with:
-          script: |
-            import os 
-            from references import SOURCES
-            source = [s for s in SOURCES if s.name == ${{ matrix.name }}][0]
-            cmd = None
-            if source.src.startswith('gs://'):
-                if source.files:
-                    cmd = 'gsutil -u ${{ env.PROJECT }} -m rsync -d -r ${{ matrix.src }} ${{ matrix.dst }}'
-                else:
-                    cmd = 'gsutil -u ${{ env.PROJECT }} cp ${{ matrix.src }} ${{ matrix.dst }}'
-            if source.src.startswith('https://'):
-                cmd = (
-                  f'curl ${{ matrix.src }} -o tmp; ' +
-                  f'gsutil -u ${{ env.PROJECT }} cp tmp ${{ matrix.dst }}'
-                )
-            if cmd:
-              print(cmd)
-              os.system(cmd)
-            
-#      - name: "transfer"
-#        run: |
-#          python transfer.py ${{ matrix.name }}
-#          if [[ "${{ matrix.src }}" == gs://* ]] ; then
-#            gsutil -u ${{ env.PROJECT }} -m rsync -d -r ${{ matrix.src }} ${{ matrix.dst }}
-#          elif [[ "${{ matrix.src }}" == https://* ]] ; then
-#            curl ${{ matrix.src }} -o tmp
-#            gsutil -u ${{ env.PROJECT }}} cp tmp ${{ matrix.dst }}
-#          fi
-
+        run: |
+          export PROJECT=${{ env.PROJECT }}
+          cp references.py .github/workflows/references.py
+          python transfer.py ${{ matrix.name }} ${{ matrix.src }} ${{ matrix.dst }}
+ 
   deploy_config:
     runs-on: ubuntu-latest
     needs:
@@ -111,28 +81,13 @@ jobs:
           project_id: ${{ env.PROJECT }}
           service_account_key: ${{ secrets.GCP_SERVER_DEPLOY_KEY }}
 
-      - run: cp references.py .github/workflows/references.py
-  
       - name: "prepare config"
-        uses: jannekem/run-python-script-action@v1
-        with:
-          script: |
-            import toml, os 
-            from os.path import join
-            from references import SOURCES, GENOME_BUILD
-            d = {'genome_build': GENOME_BUILD}
-            for source in SOURCES:
-                dst_path = join(${{ env.REFERENCES_PREFIX }}, source.dst)
-                if not source.files:
-                    d[source.name] = str(dst_path)
-                else:
-                    d[source.name] = {
-                        k: join(dst_path, suffix)
-                        for k, suffix in source.files.items()
-                    }
-            tomllib.dump({'references': d}, open('references.toml', 'wb')}
+        run: |
+          export REFERENCES_PREFIX=${{ env.REFERENCES_PREFIX }}
+          cp references.py .github/workflows/references.py
+          python prep_config.py > config.toml
 
       - name: "deploy config toml"
         run: |
-          gcloud storage cp references.toml \
+          gcloud storage cp config.toml \
             ${{ env.CONFIG_DESTINATION }}/references/references.toml
