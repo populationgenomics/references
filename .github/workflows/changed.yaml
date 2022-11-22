@@ -61,6 +61,8 @@ jobs:
           project_id: ${{ env.PROJECT }}
           service_account_key: ${{ secrets.GCP_SERVER_DEPLOY_KEY }}
 
+      - run: cp references.py .github/workflows/references.py
+
       - name: "transfer"
         uses: jannekem/run-python-script-action@v1
         with:
@@ -109,6 +111,8 @@ jobs:
           project_id: ${{ env.PROJECT }}
           service_account_key: ${{ secrets.GCP_SERVER_DEPLOY_KEY }}
 
+      - run: cp references.py .github/workflows/references.py
+  
       - name: "prepare config"
         uses: jannekem/run-python-script-action@v1
         with:
