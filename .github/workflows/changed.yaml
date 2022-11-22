@@ -12,7 +12,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     env:
-      REFERENCES_PREFIX: gs://cpg-reference-test
+      REFERENCES_PREFIX: gs://cpg-reference/test
     steps:
       - name: "Checkout repo"
         uses: actions/checkout@v2
@@ -30,8 +30,8 @@ jobs:
           
       - run: |
           cp references.py .github/workflows/references.py
-          if [[ -e before/references.py ]] ; then
-            cp before/references.py .github/workflows/references_before.py
+          if [[ -e before/references.py ]] ; then \
+            cp before/references.py .github/workflows/references_before.py \
           fi
 
       - name: "Set matrix"
@@ -48,7 +48,7 @@ jobs:
     env:
       CLOUDSDK_CORE_DISABLE_PROMPTS: 1
       PROJECT: 'cpg-common'
-      REFERENCES_PREFIX: gs://cpg-reference-test
+      REFERENCES_PREFIX: gs://cpg-reference/test
     steps:
       - name: "checkout repo"
         uses: actions/checkout@v2
