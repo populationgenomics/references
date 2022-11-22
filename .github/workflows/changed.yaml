@@ -1,6 +1,6 @@
 name: Deploy references.toml
-#on:
-#  push:
+on:
+  push:
 #    branches:
 #      - main
 #    paths:
