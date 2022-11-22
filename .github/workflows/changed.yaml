@@ -8,16 +8,14 @@ on:
 
 env:
   PROJECT: 'cpg-common'
-  REFERENCES_PREFIX: gs://cpg-reference/test
-  CONFIG_DESTINATION: gs://cpg-config/templates
+  REFERENCES_PREFIX: 'gs://cpg-reference/test'
+  CONFIG_DESTINATION: 'gs://cpg-config/templates'
 
 jobs:
   make_matrix:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
-    env:
-        REFERENCES_PREFIX: ${{ env.REFERENCES_PREFIX }}
     steps:
       - name: "Checkout repo"
         uses: actions/checkout@v2
@@ -41,7 +39,8 @@ jobs:
 
       - name: "Set matrix"
         id: set_matrix
-        run:
+        run: |
+          export REFERENCES_PREFIX=${{ env.REFERENCES_PREFIX }}
           echo "matrix=$(python .github/workflows/prep_matrix.py)" >> $GITHUB_OUTPUT
  
   transfer:
