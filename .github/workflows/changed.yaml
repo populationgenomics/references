@@ -54,7 +54,7 @@ jobs:
       - name: "gcloud setup"
         uses: google-github-actions/setup-gcloud@v0
         with:
-          project_id: analysis-runner
+          project_id: cpg-common
           service_account_key: ${{ secrets.GCP_SERVER_DEPLOY_KEY }}
 
       - name: "transfer data"
@@ -80,7 +80,7 @@ jobs:
       - name: "gcloud setup"
         uses: google-github-actions/setup-gcloud@v0
         with:
-          project_id: analysis-runner
+          project_id: cpg-common
           service_account_key: ${{ secrets.GCP_SERVER_DEPLOY_KEY }}
 
       - name: "prepare config"
