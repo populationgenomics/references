@@ -28,7 +28,11 @@ jobs:
         with:
           python-version: '3.11'
           
-      - run: mv before/references.py references_before.py
+      - run: |
+          cp references.py .github/workflows/references.py
+          if [[ -e before/references.py ]] ; then
+            cp before/references.py .github/workflows/references_before.py
+          fi
 
       - name: "Set matrix"
         id: set_matrix
