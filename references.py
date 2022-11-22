@@ -65,7 +65,8 @@ SOURCES = [
     ),
     Source(
         'broad',
-        src='gs://gcp-public-data--broad-references/hg38/v0',
+        # src='gs://gcp-public-data--broad-references/hg38/v0',
+        src='gs://cpg-reference/hg38/v0',
         dst='hg38/v0',
         files=dict(
             dragmap_prefix='dragen_reference',
@@ -104,8 +105,9 @@ SOURCES = [
     ),
     Source(
         'gatk_sv',
-        src='gs://gatk-sv-resources-public/hg38/v0/sv-resources',
-        dst='sv-resources',
+        # src='gs://gatk-sv-resources-public/hg38/v0/sv-resources',
+        # src='gs://cpg-reference/hg38/v0/sv-resources',
+        dst='gatk-sv/hg38/v0/sv-resources',
         files=dict(
             wham_include_list_bed_file='resources/v1/wham_whitelist.bed',
             primary_contigs_list='resources/v1/primary_contigs.list',
@@ -145,7 +147,8 @@ SOURCES = [
     ),
     Source(
         'gnomad',
-        src='gs://gcp-public-data--gnomad/resources/grch38',
+        src='gs://cpg-reference/gnomad/v0',
+        # src='gs://gcp-public-data--gnomad/resources/grch38',
         dst='gnomad',
         files=dict(
             tel_and_cent_ht='telomeres_and_centromeres/hg38.telomeresAndMergedCentromeres.ht',
