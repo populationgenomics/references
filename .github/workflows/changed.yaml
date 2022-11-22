@@ -29,7 +29,6 @@ jobs:
       - run: mv before/references.py references_before.py
 
       - name: "List dir"
-        id: changed_sources
         uses: jannekem/run-python-script-action@v1
         with:
           script: |
