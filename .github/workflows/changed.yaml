@@ -1,4 +1,4 @@
-name: Deploy config
+name: Deploy resources and config
 on:
   push:
 #    branches:
