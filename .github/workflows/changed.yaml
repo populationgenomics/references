@@ -1,10 +1,10 @@
 name: Deploy resources and config
 on:
   push:
-#    branches:
-#      - main
-#    paths:
-#      - 'references.py'
+    branches:
+      - main
+    paths:
+      - 'references.py'
 
 env:
   PROJECT: 'cpg-common'
