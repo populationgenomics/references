@@ -33,10 +33,9 @@ jobs:
       - name: "Set matrix"
         id: set_matrix
         run: |
+          pip install cloudpathlib[all]
           cp references.py .github/workflows/references.py
-          if [[ -e before/references.py ]]; then 
-            cp before/references.py .github/workflows/references_before.py;
-          fi
+          cp before/references.py .github/workflows/references_before.py;
           export REFERENCES_PREFIX=${{ env.REFERENCES_PREFIX }}
           echo "matrix=$(python .github/workflows/prep_matrix.py)" >> $GITHUB_OUTPUT
  
