@@ -2,8 +2,8 @@
 Prepare ready contig TOML
 """
 
-import tomllib
 import os
+import toml
 from references import SOURCES, GENOME_BUILD
 
 REFERENCES_PREFIX = os.environ['REFERENCES_PREFIX']
@@ -19,4 +19,4 @@ for source in SOURCES:
             k: os.path.join(dst_path, suffix) for k, suffix in source.files.items()
         }
 
-print(tomllib.dumps({'references': d}))
+print(toml.dumps({'references': d}))
