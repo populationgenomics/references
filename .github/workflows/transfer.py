@@ -9,8 +9,8 @@ NAME = sys.argv[1]
 source = {s.name: s for s in SOURCES}[NAME]
 if source.transfer_cmd:
     cmd = source.transfer_cmd(
-        source.src,
-        os.path.join(REFERENCES_PREFIX, source.dst),
+        src=source.src,
+        dst=os.path.join(REFERENCES_PREFIX, source.dst),
     )
     print(cmd)
     subprocess.run(cmd, shell=True)

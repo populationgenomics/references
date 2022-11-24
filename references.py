@@ -10,17 +10,17 @@ from typing import Callable
 PROJECT = os.environ['PROJECT']
 
 
-def gcs_rsync(self, src: str, dst: str) -> str:
+def gcs_rsync(src: str, dst: str) -> str:
     assert src.startswith('gs://')
     return f'gsutil -u {PROJECT} -m rsync -d -r {src} {dst}'
 
 
-def gcs_cp_r(self, src: str, dst: str) -> str:
+def gcs_cp_r(src: str, dst: str) -> str:
     assert src.startswith('gs://')
     return f'gcloud --billing-project {PROJECT} storage cp -r {src} {dst}'
 
 
-def curl(self, src: str, dst: str) -> str:
+def curl(src: str, dst: str) -> str:
     assert src.startswith('https://')
     return (
         f'curl {src} -o tmp && '
