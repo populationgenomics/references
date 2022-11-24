@@ -3,40 +3,51 @@ List of sources for reference data
 """
 
 import dataclasses
-from os.path import join
+import os
+from typing import Callable
+
+
+PROJECT = os.environ['PROJECT']
+
+
+def gcs_rsync(self, src: str, dst: str) -> str:
+    assert src.startswith('gs://')
+    return f'gsutil -u {PROJECT} -m rsync -d -r {src} {dst}'
+
+
+def gcs_cp_r(self, src: str, dst: str) -> str:
+    assert src.startswith('gs://')
+    return f'gcloud --billing-project {PROJECT} storage cp -r {src} {dst}'
+
+
+def curl(self, src: str, dst: str) -> str:
+    assert src.startswith('https://')
+    return (
+        f'curl {src} -o tmp && '
+        f'gcloud --billing-project {PROJECT} storage cp -r tmp {dst}'
+    )
 
 
 @dataclasses.dataclass
 class Source:
     """
-    Specifies one source location to pull data from (either a GCS bucket or an 
-    HTTP URL), along with an optional map of keys/files to expand this source as 
+    Specifies one source location to pull data from (either a GCS bucket or an
+    HTTP URL), along with an optional map of keys/files to expand this source as
     a section in the finalised config. E.g.
     """
+
     name: str  # name of the resource/section
     dst: str  # destination suffix, to be appended to PREFIX
     src: str | None = None  # fully qualified source URL
     files: dict[str, str] | None = None  # map of other suffixes appended to `dst`
+    transfer_cmd: Callable[[str, str], str] | None = None
 
     def is_folder(self) -> bool:
         return self.files or (
-            self.dst.endswith('.ht') or 
-            self.dst.endswith('.mt') or
-            self.dst.endswith('.vds')
+            self.dst.endswith('.ht')
+            or self.dst.endswith('.mt')
+            or self.dst.endswith('.vds')
         )
-   
-    def transfer_cmd(self, project: str, prefix: str) -> str | None:
-        dst = join(prefix, self.dst)
-        if self.src.startswith('gs://'):
-            if self.is_folder():
-                return f'gsutil -u {project} -m rsync -d -r {self.src} {dst}'
-            else:
-                return f'gsutil -u {project} cp {self.src} {dst}'
-        if self.src.startswith('https://'):
-            return (
-                f'curl {self.src} -o tmp; gsutil -u {project} cp tmp {dst}'
-            )
-        return None
 
 
 # Genome build. Only GRCh38 is currently supported.
@@ -45,8 +56,8 @@ GENOME_BUILD = 'GRCh38'
 SOURCES = [
     Source(
         'vep_mount',
-        # Folder with uncompressed VEP tarballs for mounting with cloudfuse. 
-        # No `src` field: the process of building it is described in `vep/README.md`. 
+        # Folder with uncompressed VEP tarballs for mounting with cloudfuse.
+        # No `src` field: the process of building it is described in `vep/README.md`.
         # Hopefully to be deprecated once VEP for Hail Query is finalised:
         # https://github.com/hail-is/hail/pull/12428)
         dst='vep/105.0/mount',
@@ -56,18 +67,21 @@ SOURCES = [
         # Liftover chain file to translate from GRCh38 to GRCh37 coordinates
         src='gs://hail-common/references/grch38_to_grch37.over.chain.gz',
         dst='liftover/grch38_to_grch37.over.chain.gz',
+        transfer_cmd=gcs_rsync,
     ),
     Source(
         'somalier_sites',
         # Site list for somalier fingerprinting
         src='https://github.com/brentp/somalier/files/3412456/sites.hg38.vcf.gz',
         dst='somalier/sites.hg38.vcf.gz',
+        transfer_cmd=curl,
     ),
     Source(
         'broad',
         # src='gs://gcp-public-data--broad-references/hg38/v0',
         src='gs://cpg-reference/hg38/v0',
         dst='hg38/v0',
+        transfer_cmd=gcs_rsync,
         files=dict(
             dragmap_prefix='dragen_reference',
             ref_fasta='dragen_reference/Homo_sapiens_assembly38_masked.fasta',
@@ -101,13 +115,14 @@ SOURCES = [
             exome_contam_ud='contamination-resources/1000g/whole_exome_illumina_coding_v1.Homo_sapiens_assembly38.1000g.contam.UD',
             exome_contam_bed='contamination-resources/1000g/whole_exome_illumina_coding_v1.Homo_sapiens_assembly38.1000g.contam.bed',
             exome_contam_mu='contamination-resources/1000g/whole_exome_illumina_coding_v1.Homo_sapiens_assembly38.1000g.contam.mu',
-        )
+        ),
     ),
     Source(
         'gatk_sv',
         # src='gs://gatk-sv-resources-public/hg38/v0/sv-resources',
-        # src='gs://cpg-reference/hg38/v0/sv-resources',
+        src='gs://cpg-reference/hg38/v0/sv-resources',
         dst='gatk-sv/hg38/v0/sv-resources',
+        transfer_cmd=gcs_rsync,
         files=dict(
             wham_include_list_bed_file='resources/v1/wham_whitelist.bed',
             primary_contigs_list='resources/v1/primary_contigs.list',
@@ -143,13 +158,14 @@ SOURCES = [
             ref_panel_PE_file_tmpl='ref-panel/tws_SVEvidence/pe/{sample}.pe.txt.gz',
             ref_panel_SR_file_tmpl='ref-panel/tws_SVEvidence/sr/{sample}.sr.txt.gz',
             ref_panel_SD_file_tmpl='ref-panel/tws_SVEvidence/sd/{sample}.sd.txt.gz',
-        )
+        ),
     ),
     Source(
         'gnomad',
         src='gs://cpg-reference/gnomad/v0',
         # src='gs://gcp-public-data--gnomad/resources/grch38',
-        dst='gnomad',
+        dst='gnomad/v0',
+        transfer_cmd=gcs_cp_r,
         files=dict(
             tel_and_cent_ht='telomeres_and_centromeres/hg38.telomeresAndMergedCentromeres.ht',
             lcr_intervals_ht='lcr_intervals/LCRFromHengHg38.ht',
@@ -159,38 +175,42 @@ SOURCES = [
             kgp_omni_ht='kgp/1000G_omni2.5.hg38.ht',
             kgp_hc_ht='kgp/1000G_phase1.snps.high_confidence.hg38.ht',
             mills_ht='mills/Mills_and_1000G_gold_standard.indels.hg38.ht',
-        )
+        ),
     ),
     Source(
         'seqr_combined_reference_data',
         src='gs://seqr-reference-data/GRCh38/all_reference_data/combined_reference_data_grch38.ht',
-        dst='seqr/combined_reference_data_grch38.ht',
+        dst='seqr/v0/combined_reference_data_grch38.ht',
+        transfer_cmd=gcs_cp_r,
     ),
     Source(
         'seqr_clinvar',
         src='gs://seqr-reference-data/GRCh38/clinvar/clinvar.GRCh38.2022-09-17.ht',
         dst='seqr/clinvar.GRCh38.2022-09-17.ht',
+        transfer_cmd=gcs_cp_r,
     ),
     Source(
         'syndip',
         src='gs://gcp-public-data--gnomad/resources/grch38/syndip',
         dst='validation/syndip',
+        transfer_cmd=gcs_rsync,
         files=dict(
             truth_vcf='full.38.20180222.vcf.gz',
             regions_bed='syndip.b38_20180222.bed',
             truth_mt='syndip.b38_20180222.mt',
             regions_ht='syndip_b38_20180222_hc_regions.ht',
-        )
+        ),
     ),
     Source(
         'na12878',
         src='gs://gcp-public-data--gnomad/resources/grch38/na12878',
         dst='validation/na12878',
+        transfer_cmd=gcs_rsync,
         files=dict(
             truth_vcf='HG001_GRCh38_GIAB_highconf_CG-IllFB-IllGATKHC-Ion-10X-SOLID_CHROM1-X_v.3.3.2_highconf_PGandRTGphasetransfer.vcf.gz',
             regions_bed='HG001_GRCh38_GIAB_highconf_CG-IllFB-IllGATKHC-Ion-10X-SOLID_CHROM1-X_v.3.3.2_highconf_nosomaticdel_noCENorHET7.bed',
             truth_mt='HG001_GRCh38_GIAB_highconf_CG-IllFB-IllGATKHC-Ion-10X-SOLID_CHROM1-X_v.3.3.2_highconf_PGandRTGphasetransfer.mt',
             regions_ht='HG001_GRCh38_GIAB_highconf_CG-IllFB-IllGATKHC-Ion-10X-SOLID_CHROM1-X_v.3.3.2_highconf_nosomaticdel_noCENorHET7_hc_regions.ht',
-        )
-    )
+        ),
+    ),
 ]

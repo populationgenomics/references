@@ -8,7 +8,7 @@ on:
 
 env:
   PROJECT: 'cpg-common'
-  REFERENCES_PREFIX: 'gs://cpg-common-main'
+  REFERENCES_PREFIX: 'gs://cpg-common-main/references'
   CONFIG_DESTINATION: 'gs://cpg-config/templates/references/references.toml'
 
 jobs:
