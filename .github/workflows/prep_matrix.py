@@ -43,6 +43,6 @@ if transfers:
         ]
     }
 else:
-    matrix = {}
-print(str(matrix or '').replace(' ', ''), end='', file=sys.stderr)
-print(str(matrix or '').replace(' ', ''), end='')
+    matrix = ''
+print(str(matrix).replace(' ', ''), end='', file=sys.stderr)
+print(str(matrix).replace(' ', ''), end='')
