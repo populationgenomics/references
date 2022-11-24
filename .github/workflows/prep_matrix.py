@@ -1,3 +1,7 @@
+"""
+Prepare test matrix (to transfer references in parallel)
+"""
+
 import os
 import sys
 from os.path import join

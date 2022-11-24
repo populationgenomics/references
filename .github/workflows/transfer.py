@@ -1,3 +1,7 @@
+"""
+Transfer one reference source
+"""
+
 import os
 import sys
 import subprocess
