@@ -1,0 +1,22 @@
+name: Linting
+on: [push]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.11"
+
+      - name: pre-commit
+        run: |
+          # pre-commit should install all the dependencies
+          pip install -r requirements-dev.txt
+          pre-commit run --all-files
