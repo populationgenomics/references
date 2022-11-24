@@ -27,14 +27,18 @@ for source in NEW_SOURCES:
     else:
         print(f'{source.name} has not changed since previous revision', file=sys.stderr)
 
-d = {
-    'include': [
-        {
-            'name': name,
-            'src': data['src'],
-            'dst': data['dst'],
-        }
-        for name, data in transfers.items()
-    ]
-}
-print(str(d).replace(' ', ''), end='')
+if transfers:
+    matrix = {
+        'include': [
+            {
+                'name': name,
+                'src': data['src'],
+                'dst': data['dst'],
+            }
+            for name, data in transfers.items()
+        ]
+    }
+else:
+    matrix = {}
+print(str(matrix or '').replace(' ', ''), end='', file=sys.stderr)
+print(str(matrix or '').replace(' ', ''), end='')
