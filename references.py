@@ -186,7 +186,7 @@ SOURCES = [
     Source(
         'seqr_clinvar',
         src='gs://seqr-reference-data/GRCh38/clinvar/clinvar.GRCh38.ht',
-        dst='seqr/v0/clinvar.GRCh38.ht',
+        dst='seqr/v1/clinvar.GRCh38.ht',
         transfer_cmd=gcs_cp_r,
     ),
     Source(
