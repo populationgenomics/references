@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - make_matrix
-    if: ${{ needs.make_matrix.outputs.matrix != '' }}
+    if: ${{ needs.make_matrix.outputs.matrix != '{}' }}
     strategy:
       matrix: ${{ fromJson(needs.make_matrix.outputs.matrix) }}
     env:

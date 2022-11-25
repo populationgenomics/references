@@ -43,5 +43,6 @@ if transfers:
         ]
     }
 else:
-    matrix = ''
+    matrix = {}
+print(str(matrix).replace(' ', ''), end='', file=sys.stderr)
 print(str(matrix).replace(' ', ''), end='')
