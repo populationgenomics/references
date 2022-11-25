@@ -76,8 +76,8 @@ jobs:
  
   deploy_config:
     runs-on: ubuntu-latest
-    needs:
-      - transfer
+#    needs:
+#      - transfer
     env:
       CLOUDSDK_CORE_DISABLE_PROMPTS: 1
     steps:
