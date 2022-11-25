@@ -25,7 +25,7 @@ for source in NEW_SOURCES:
         or source.dst != old_sources_d[source.name].dst
         or not AnyPath(dst_path).exists()
     )
-    if is_changed and source.src:
+    if is_changed and source.src and source.transfer_cmd:
         print(f'{source.name} has changed, will transfer', file=sys.stderr)
         transfers[source.name] = {'src': source.src, 'dst': dst_path}
     else:
@@ -43,5 +43,6 @@ if transfers:
         ]
     }
 else:
-    matrix = ''
+    matrix = {}
+print(str(matrix).replace(' ', ''), end='', file=sys.stderr)
 print(str(matrix).replace(' ', ''), end='')
