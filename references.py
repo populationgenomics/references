@@ -115,6 +115,7 @@ SOURCES = [
             exome_contam_ud='contamination-resources/1000g/whole_exome_illumina_coding_v1.Homo_sapiens_assembly38.1000g.contam.UD',
             exome_contam_bed='contamination-resources/1000g/whole_exome_illumina_coding_v1.Homo_sapiens_assembly38.1000g.contam.bed',
             exome_contam_mu='contamination-resources/1000g/whole_exome_illumina_coding_v1.Homo_sapiens_assembly38.1000g.contam.mu',
+            protein_coding_gtf='sv-resources/resources/v1/MANE.GRCh38.v0.95.select_ensembl_genomic.gtf',
         ),
     ),
     Source(
@@ -175,6 +176,7 @@ SOURCES = [
             kgp_omni_ht='kgp/1000G_omni2.5.hg38.ht',
             kgp_hc_ht='kgp/1000G_phase1.snps.high_confidence.hg38.ht',
             mills_ht='mills/Mills_and_1000G_gold_standard.indels.hg38.ht',
+            predetermined_qc_variants='sample_qc/pre_ld_pruning_qc_variants.ht',
         ),
     ),
     Source(
