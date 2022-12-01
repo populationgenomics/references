@@ -60,6 +60,7 @@ SOURCES = [
         # No `src` field: the process of building it is described in `vep/README.md`.
         # Hopefully to be deprecated once VEP for Hail Query is finalised:
         # https://github.com/hail-is/hail/pull/12428)
+        src='gs://cpg-reference/vep/105.0/mount',
         dst='vep/105.0/mount',
     ),
     Source(
