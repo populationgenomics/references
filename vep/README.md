@@ -11,23 +11,33 @@ Eventually `hl.vep` will fully support custom VEP versions and Batch backend, bu
 
 ## Preparing reference data
 
-The following steps describe how to prepare reference data for running VEP of any version, both for Hail Batch or Hail Query.
+The following steps describe how to prepare reference data for running VEP of any version, both for Hail Batch and Hail Query.
 
-1. Choose the VEP version you want to use. Make sure it's available on [Bioconda](https://anaconda.org/bioconda/ensembl-vep/files). Set the selected version to the environment variable `export VEP_VERSION=104.3`.
+1. Choose the VEP version you want to use. Make sure it's available on [Bioconda](https://anaconda.org/bioconda/ensembl-vep/files). Replace `$VEP_VERSION` below accordingly (e.g. `105.0`).
 
-2. Update the VEP Docker image:
-   * Add (or update) the `vep` Dockerfile in the [`images` repository](https://github.com/populationgenomics/images/blob/07a2580c67886412ce1f0293274e7bd5e202a868/images/vep/Dockerfile), and trigger the GitHub CI workflow using $VEP_VERSION as a `tag` parameter.
-   * Add (or update) a line `vep = 'vep:104.3'` in the images names map `[images]` in the [workflows config TOML](https://github.com/populationgenomics/production-pipelines/blob/main/configs/defaults/workflows.toml#L93) to reflect this new version. This map translates into `cpg_utils.image_path('vep')` used in Hail Batch workflows.
+1. Update the VEP Docker image: Trigger the [`Deploy container` GitHub CI workflow](https://github.com/populationgenomics/images/actions/workflows/deploy.yaml) in the [`images` repository](https://github.com/populationgenomics/images) using `vep` as the `Name of image` and `$VEP_VERSION` as the `Tag of image` parameter.
 
-3. Rebuild the VEP cache and LOFTEE reference data bundles:
-   * The VEP cache bundle is huge, so we use Hail Batch to copy it from Ensemble FTP servers and the Broad Institute servers to the CPG reference GCP bucket:
+1. Rebuild the VEP cache and LOFTEE reference data bundles:
+
+   Create a local config for the new version, e.g. in `$HOME/tmp/vep_$VEP_VERSION.toml`, making sure to replace the version literals below:
+
+   ```toml
+   [images]
+   vep = "australia-southeast1-docker.pkg.dev/cpg-common/images/vep:105.0"
+
+   [references]
+   vep_mount = "gs://cpg-common-main/references/vep/105.0/mount"
+   ```
+
+   The VEP cache bundle is huge, so we use Hail Batch to copy it from Ensemble FTP servers and the Broad Institute servers to the CPG reference GCP bucket:
 
     ```bash
-    python copy-references.py $VEP_VERSION
+    analysis-runner --dataset common --access-level standard --description "Build resources for VEP $VEP_VERSION" --output-dir=vep/$VEP_VERSION --config=$HOME/tmp/vep_$VEP_VERSION.toml python3 copy-references.py $VEP_VERSION
     ```
-    
-    * Add (or update) a line `vep_mount = 'vep/105.0/mount'` in the reference data map `[references]` in the [workflows config TOML](https://github.com/populationgenomics/production-pipelines/blob/main/configs/defaults/workflows.toml#L111) to reflect this new version. This map translates into `cpg_utils.reference_path('vep_mount')` used in Hail Batch workflows.
 
+1. If you want to permanently update the default VEP version for [`production-pipelines`](https://github.com/populationgenomics/production-pipelines) workflows:
+   * Update the version for `vep` in [`images.toml`](https://github.com/populationgenomics/images/blob/main/images.toml). This map translates to `cpg_utils.image_path('vep')` used in Hail Batch workflows.
+   * Update the version for `vep_mount` in [`references.py`](https://github.com/populationgenomics/references/blob/main/references.py). This map translates to `cpg_utils.reference_path('vep_mount')` used in Hail Batch workflows.
 
 ## Running using Hail Batch
 
