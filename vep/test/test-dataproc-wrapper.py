@@ -13,9 +13,9 @@ def main(vep_version: str):
     """
     from analysis_runner import dataproc
 
-    mt_path = f'gs://cpg-reference-test/vep/test/sample.vcf.mt'
+    mt_path = f'gs://cpg-common-main/references-test/vep/test/sample.vcf.mt'
     out_mt_path = (
-        f'gs://cpg-reference-test/vep/test/dataproc/sample-vep.vcf.mt'
+        f'gs://cpg-common-main/references-test/vep/test/dataproc/sample-vep.vcf.mt'
     )
 
     b = get_batch(f'Test VEP with Spark backend, VEP v{vep_version}')
@@ -24,7 +24,7 @@ def main(vep_version: str):
         f'test-dataproc-script.py {mt_path} {out_mt_path}',
         max_age='4h',
         job_name=f'Test VEP {vep_version}',
-        init=[f'gs://cpg-reference/vep/{vep_version}/dataproc/init.sh'],
+        init=[f'gs://cpg-common-main/references/vep/{vep_version}/dataproc/init.sh'],
         worker_machine_type='n1-highmem-8',
         worker_boot_disk_size=200,
         secondary_worker_boot_disk_size=200,

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Use Hail Batch to transfer VEP cache bundle into the cpg-reference bucket,
+Use Hail Batch to transfer VEP cache bundle into the cpg-common-main bucket,
 and prepare a GCP mount for cloudfuse.
 """
 
