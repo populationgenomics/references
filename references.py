@@ -60,7 +60,7 @@ SOURCES = [
         # No `src` field: the process of building it is described in `vep/README.md`.
         # Hopefully to be deprecated once VEP for Hail Query is finalised:
         # https://github.com/hail-is/hail/pull/12428)
-        src='gs://cpg-reference/vep/105.0/mount',
+        src='gs://cpg-common-main/references/vep/105.0/mount',
         dst='vep/105.0/mount',
     ),
     Source(
@@ -80,7 +80,7 @@ SOURCES = [
     Source(
         'broad',
         # src='gs://gcp-public-data--broad-references/hg38/v0',
-        src='gs://cpg-reference/hg38/v0',
+        src='gs://cpg-common-main/references/hg38/v0',
         dst='hg38/v0',
         transfer_cmd=gcs_rsync,
         files=dict(
@@ -122,7 +122,7 @@ SOURCES = [
     Source(
         'gatk_sv',
         # src='gs://gatk-sv-resources-public/hg38/v0/sv-resources',
-        src='gs://cpg-reference/hg38/v0/sv-resources',
+        src='gs://cpg-common-main/references/hg38/v0/sv-resources',
         dst='gatk-sv/hg38/v0/sv-resources',
         transfer_cmd=gcs_rsync,
         files=dict(
@@ -164,7 +164,7 @@ SOURCES = [
     ),
     Source(
         'gnomad',
-        src='gs://cpg-reference/gnomad/v0',
+        src='gs://cpg-common-main/references/gnomad/v0',
         # src='gs://gcp-public-data--gnomad/resources/grch38',
         dst='gnomad/v0',
         transfer_cmd=gcs_cp_r,

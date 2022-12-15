@@ -59,7 +59,7 @@ The Query's `hl.vep` function works only with the Spark backend on a Dataproc cl
 Script is parametrised with `__VEP_VERSION__`, so pass it through `sed` when copying to the bucket:
 
 ```shell
-cat dataproc-init.sh | sed "s/__VEP_VERSION__/${VEP_VERSION}/g" | gsutil cp - gs://cpg-reference/vep/${VEP_VERSION}/dataproc/init.sh
+cat dataproc-init.sh | sed "s/__VEP_VERSION__/${VEP_VERSION}/g" | gsutil cp - gs://cpg-common-main/references/vep/${VEP_VERSION}/dataproc/init.sh
 ```
 
 2. Similarly, the JSON config script for dataproc [dataproc-config.json](dataproc-config.json) is also copied from the [Hail codebase](https://github.com/hail-is/hail/blob/cc0a051740f4de08408e6a2094ffcb1c3158ee9c/hail/python/hailtop/hailctl/hdinsight/resources/vep-GRCh38.json) and modified to reflect the newer VEP versions, and additionally has `mane_select:String,mane_plus_clinical:String` in schema to load MANE IDs that are supported by modern versions of VEP.
@@ -67,7 +67,7 @@ cat dataproc-init.sh | sed "s/__VEP_VERSION__/${VEP_VERSION}/g" | gsutil cp - gs
 The config is parametrised with `__VEP_VERSION__`, so pass it through `sed` when copying to the bucket:
 
 ```sh
-cat dataproc-config.json | sed "s/__VEP_VERSION__/${VEP_VERSION}/g" | gsutil cp - gs://cpg-reference/vep/${VEP_VERSION}/dataproc/config.json
+cat dataproc-config.json | sed "s/__VEP_VERSION__/${VEP_VERSION}/g" | gsutil cp - gs://cpg-common-main/references/vep/${VEP_VERSION}/dataproc/config.json
 ```
 
 We also have a separate version of the config `dataproc-config-no-exac.json` for older VEP versions (before v88). In this version, ExAC fields are excluded: they used to contain non-numerical format for ExAC frequencies, e.g. `"exac_adj_maf":"-:0.2934,-:8.292e-06", "exac_maf":"-:0.293,-:8.261e-06"`, which would break parsing into Hail using the schema where those fields are specified as floats. 

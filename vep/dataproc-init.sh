@@ -4,7 +4,7 @@
 ## Modified copy of https://github.com/hail-is/hail/blob/main/hail/python/hailtop/hailctl/dataproc/resources/vep-GRCh38.sh:
 # * allow using a more recent VEP (e.g. 105), parametrised with $VEP_VERSION
 # * using the CPG artifact registry VEP image, based on biocontainers image
-# * changed the bucket to gs://cpg-reference/vep
+# * changed the bucket to gs://cpg-common-main/references/vep
 ##############
 
 set -ex
@@ -16,9 +16,9 @@ if [[ -z "$VEP_VERSION" ]]; then
 fi
 
 export IMAGE=australia-southeast1-docker.pkg.dev/cpg-common/images/vep:${VEP_VERSION}
-export CONFIG_PATH=gs://cpg-reference/vep/${VEP_VERSION}/dataproc/config.json
-export CACHE_PATH=gs://cpg-reference/vep/${VEP_VERSION}/cache.tar
-export LOFTEE_PATH=gs://cpg-reference/vep/loftee.tar
+export CONFIG_PATH=gs://cpg-common-main/references/vep/${VEP_VERSION}/dataproc/config.json
+export CACHE_PATH=gs://cpg-common-main/references/vep/${VEP_VERSION}/cache.tar
+export LOFTEE_PATH=gs://cpg-common-main/references/vep/loftee.tar
 
 mkdir -p /vep_data/loftee/
 

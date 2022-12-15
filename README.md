@@ -15,7 +15,7 @@ Source(
 Is expanded into flat
 
 ```toml
-liftover_38_to_37 = "gs://cpg-reference/liftover/grch38_to_grch37.over.chain.gz"
+liftover_38_to_37 = "gs://cpg-common-main/references/liftover/grch38_to_grch37.over.chain.gz"
 ```
 
 Whereas
@@ -36,6 +36,6 @@ Is expanded into a section
 
 ```toml
 [gatk_sv]
-wham_include_list_bed_file = "gs://cpg-reference/hg38/v0/sv-resources/resources/v1/wham_whitelist.bed"
-primary_contigs_list = "gs://cpg-reference/hg38/v0/sv-resources/resources/v1/primary_contigs.list"
+wham_include_list_bed_file = "gs://cpg-common-main/references/hg38/v0/sv-resources/resources/v1/wham_whitelist.bed"
+primary_contigs_list = "gs://cpg-common-main/references/hg38/v0/sv-resources/resources/v1/primary_contigs.list"
 ```
