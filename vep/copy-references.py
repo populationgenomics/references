@@ -55,7 +55,7 @@ def _make_vep_cache_tar(b: hb.Batch) -> Job | None:
 
     j = b.new_job('Copy VEP cache with vep_install')
     j.image(image_path('vep'))
-    j.storage(f'30G')
+    j.storage(f'100G')
     j.cpu(16)
 
     cmd = f"""\
