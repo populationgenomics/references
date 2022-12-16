@@ -32,7 +32,7 @@ The following steps describe how to prepare reference data for running VEP of an
    The VEP cache bundle is huge, so we use Hail Batch to copy it from Ensemble FTP servers and the Broad Institute servers to the CPG reference GCP bucket:
 
     ```bash
-    analysis-runner --dataset common --access-level standard --description "Build resources for VEP $VEP_VERSION" --output-dir=vep/$VEP_VERSION --config=$HOME/tmp/vep_$VEP_VERSION.toml python3 copy-references.py $VEP_VERSION
+    analysis-runner --dataset common --access-level full --description "Build resources for VEP $VEP_VERSION" --output-dir=vep/$VEP_VERSION --config=$HOME/tmp/vep_$VEP_VERSION.toml python3 copy-references.py $VEP_VERSION
     ```
 
 1. If you want to permanently update the default VEP version for [`production-pipelines`](https://github.com/populationgenomics/production-pipelines) workflows:
