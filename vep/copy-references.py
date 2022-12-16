@@ -57,6 +57,7 @@ def _make_vep_cache_tar(b: hb.Batch) -> Job | None:
     j.image(image_path('vep'))
     j.storage(f'100G')
     j.cpu(16)
+    j._preemptible = False  # Ensembl FTP downloads can be very slow.
 
     cmd = f"""\
     cd $BATCH_TMPDIR
