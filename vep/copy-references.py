@@ -40,9 +40,7 @@ def main(vep_version: str):
     if j3:
         j4.depends_on(j3)
 
-    res = b.run()
-    res_status = res.status()
-    assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+    b.run(wait=False)
 
 
 def _make_vep_cache_tar(b: hb.Batch) -> Job | None:
