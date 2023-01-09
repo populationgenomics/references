@@ -1,6 +1,19 @@
 # Reference data
 
-Populating common reference resources for bioinformatics analysis. Assuming the Google Cloud infrastructure, but the structure can be replicated for other cloud providers.
+The aim of this repository is to track common reference resources for bioinformatics pipelines. The `references.py` script describes sources of reference resources, and the [CI workflow](https://github.com/populationgenomics/references/blob/main/.github/workflows/changed.yaml) uses it to populate the CPG references bucket and write a TOML template with fully qualified paths to resources for the analysis runner to use.
+
+## Usage in analysis scripts
+
+In analysis scripts that are run in the [analysis runner](https://github.com/populationgenomics/analysis-runner) environment, paths can be retrieved using the [reference_path](https://github.com/populationgenomics/cpg-utils/blob/main/cpg_utils/hail_batch.py#L252) helper function. For example, you can run the following code to retrieve the path to the GRCh38 reference fasta file:
+
+```python
+from cpg_utils.hail_batch import reference_path
+path = reference_path('broad/ref_fasta')
+```
+
+In this case, `path` would resolve into `CloudPath('gs://cpg-common-main/references/hg38/v0/dragen_reference/Homo_sapiens_assembly38_masked.fasta')`
+
+## Adding new sources
 
 Script `references.py` describes sources of reference resources. Each object of class `Source` specifies one source location to pull data from (either a GCS bucket or an HTTP URL), along with an optional map of keys/files to expand this source as a section in the finalised config. E.g.
 
@@ -39,3 +52,5 @@ Is expanded into a section
 wham_include_list_bed_file = "gs://cpg-common-main/references/hg38/v0/sv-resources/resources/v1/wham_whitelist.bed"
 primary_contigs_list = "gs://cpg-common-main/references/hg38/v0/sv-resources/resources/v1/primary_contigs.list"
 ```
+
+The script assumes the Google Cloud infrastructure, but the structure can be replicated for other cloud providers.
