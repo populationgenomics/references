@@ -23,7 +23,7 @@ def gcs_cp_r(src: str, dst: str) -> str:
 def curl(src: str, dst: str) -> str:
     assert src.startswith('https://')
     return (
-        f'curl {src} -o tmp && '
+        f'curl -L {src} -o tmp && '
         f'gcloud --billing-project {PROJECT} storage cp -r tmp {dst}'
     )
 
