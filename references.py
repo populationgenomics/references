@@ -85,7 +85,7 @@ SOURCES = [
         files=dict(
             dragmap_prefix='dragen_reference',
             ref_fasta='dragen_reference/Homo_sapiens_assembly38_masked.fasta',
-            ref_fasta_unmasked = 'Homo_sapiens_assembly38.fasta',
+            ref_fasta_unmasked='Homo_sapiens_assembly38.fasta',
             # Primary contigs BED file
             noalt_bed='sv-resources/resources/v1/primary_contigs_plus_mito.bed.gz',
             # Calling intervals lists
