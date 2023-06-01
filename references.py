@@ -219,4 +219,61 @@ SOURCES = [
             regions_ht='HG001_GRCh38_GIAB_highconf_CG-IllFB-IllGATKHC-Ion-10X-SOLID_CHROM1-X_v.3.3.2_highconf_nosomaticdel_noCENorHET7_hc_regions.ht',
         ),
     ),
+    # validation related content
+    Source(
+        'HG001_NA12878',
+        dst='validation/HG001_NA12878',
+        files=dict(
+            vcf='HG001_GRCh38_1_22_v4.2.1_benchmark.vcf.gz',
+            index='HG001_GRCh38_1_22_v4.2.1_benchmark.vcf.gz.tbi',
+            bed='HG001_GRCh38_1_22_v4.2.1_benchmark.bed'
+        )
+    ),
+    Source(
+        'SYNDIP',
+        dst='validation/SYNDIP',
+        files=dict(
+            vcf='syndip_truth.vcf.gz',
+            index='syndip_truth.vcf.gz.tbi',
+            bed='syndip.b38_20180222.bed'
+        )
+    ),
+    Source(
+        'HG002_NA24385',
+        dst='validation/HG002_NA24385',
+        files=dict(
+            vcf='HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz',
+            index='HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz.tbi',
+            bed='HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed'
+        )
+    ),
+    Source(
+        'HG003_NA24149',
+        dst='validation/HG003_NA24149',
+        files=dict(
+            vcf='HG003_GRCh38_1_22.vcf.gz',
+            index='HG003_GRCh38_1_22.vcf.gz.tbi',
+            bed='HG003_GRCh38_1_22.bed'
+        )
+    ),
+    Source(
+        'HG004_NA24143',
+        dst='validation/HG004_NA24143',
+        files=dict(
+            vcf='HG004_GRCh38_1_22.vcf.gz',
+            index='HG004_GRCh38_1_22.vcf.gz.tbi',
+            bed='HG004_GRCh38_1_22.bed'
+        )
+    ),
+    Source(
+        'VCGS_NA12878',
+        dst='validation/VCGS_NA12878',
+        files=dict(
+            vcf='twist_exome_benchmark_truth.vcf.gz',
+            index='twist_exome_benchmark_truth.vcf.gz.tbi',
+            bed='Twist_Exome_Core_Covered_Targets_hg38.bed'
+        )
+    ),
+    Source('stratification', dst='validation/stratification'),
+    Source('refgenome_sdf', dst='validation/masked_reference_sdf'),
 ]
