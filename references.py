@@ -276,4 +276,35 @@ SOURCES = [
     ),
     Source('stratification', dst='validation/stratification'),
     Source('refgenome_sdf', dst='validation/masked_reference_sdf'),
+    Source(
+        'gnomad_mito',
+        # The Broad resources for running the gnomAD mitochondrial pipeline.
+        # Contains two versions of the mito genome + bwa indexes. One wt and one
+        # wtih the linearisation point "shited" by 8000nt
+        src='gs://gcp-public-data--broad-references/hg38/v0/chrM/',
+        dst='hg38/v0/chrM',
+        transfer_cmd=gcs_rsync,
+        files=dict(
+            dict='Homo_sapiens_assembly38.chrM.dict',
+            fasta='Homo_sapiens_assembly38.chrM.fasta',
+            amb='Homo_sapiens_assembly38.chrM.fasta.amb',
+            ann='Homo_sapiens_assembly38.chrM.fasta.ann',
+            bwt='Homo_sapiens_assembly38.chrM.fasta.bwt',
+            fai='Homo_sapiens_assembly38.chrM.fasta.fai',
+            pac='Homo_sapiens_assembly38.chrM.fasta.pac',
+            sa='Homo_sapiens_assembly38.chrM.fasta.sa',
+            shifted_dict='Homo_sapiens_assembly38.chrM.shifted_by_8000_bases.dict',
+            shifted_fasta='Homo_sapiens_assembly38.chrM.shifted_by_8000_bases.fasta',
+            shifted_amb='Homo_sapiens_assembly38.chrM.shifted_by_8000_bases.fasta.amb',
+            shifted_ann='Homo_sapiens_assembly38.chrM.shifted_by_8000_bases.fasta.ann',
+            shifted_bwt='Homo_sapiens_assembly38.chrM.shifted_by_8000_bases.fasta.bwt',
+            shifted_fai='Homo_sapiens_assembly38.chrM.shifted_by_8000_bases.fasta.fai',
+            shifted_pac='Homo_sapiens_assembly38.chrM.shifted_by_8000_bases.fasta.pac',
+            shifted_sa='Homo_sapiens_assembly38.chrM.shifted_by_8000_bases.fasta.sa',
+            shift_back_chain='ShiftBack.chain',
+            shifted_control_region_interval='control_region_shifted.chrM.interval_list',
+            non_control_region_interval='non_control_region.chrM.interval_list',
+        ),
+    ),
+
 ]
