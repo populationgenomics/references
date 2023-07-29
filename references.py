@@ -292,7 +292,7 @@ SOURCES = [
             shift_back_chain='ShiftBack.chain',
             shifted_control_region_interval='control_region_shifted.chrM.interval_list',
             non_control_region_interval='non_control_region.chrM.interval_list',
-            blacklist_sites='blacklist_sites.hg38.chrM.bed'
+            blacklist_sites='blacklist_sites.hg38.chrM.bed',
         ),
     ),
 
