@@ -160,6 +160,7 @@ SOURCES = [
             ref_panel_PE_file_tmpl='ref-panel/tws_SVEvidence/pe/{sample}.pe.txt.gz',
             ref_panel_SR_file_tmpl='ref-panel/tws_SVEvidence/sr/{sample}.sr.txt.gz',
             ref_panel_SD_file_tmpl='ref-panel/tws_SVEvidence/sd/{sample}.sd.txt.gz',
+            external_af_ref_bed='resources/v1/gnomad_AF/gnomad_v2.1_sv.sites.GRCh38.bed.gz',
             recalibrate_gq_repeatmasker='resources/v1/ucsc-genome-tracks/hg38-RepeatMasker.bed.gz',
             recalibrate_gq_segmental_dups='resources/v1/ucsc-genome-tracks/hg38-Segmental-Dups.bed.gz',
             recalibrate_gq_simple_reps='resources/v1/ucsc-genome-tracks/hg38-Simple-Repeats.bed.gz',
