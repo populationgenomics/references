@@ -11,16 +11,19 @@ PROJECT = os.environ['PROJECT']
 
 
 def gcs_rsync(src: str, dst: str) -> str:
+    """method to run GCS rsync command"""
     assert src.startswith('gs://')
     return f'gsutil -u {PROJECT} -m rsync -d -r {src} {dst}'
 
 
 def gcs_cp_r(src: str, dst: str) -> str:
+    """method to run GCS recursive cp command"""
     assert src.startswith('gs://')
     return f'gcloud --billing-project {PROJECT} storage cp -r {src} {dst}'
 
 
 def curl(src: str, dst: str) -> str:
+    """method to run GCS curl command"""
     assert src.startswith('https://')
     return (
         f'curl -L {src} -o tmp && '
@@ -43,6 +46,7 @@ class Source:
     transfer_cmd: Callable[[str, str], str] | None = None
 
     def is_folder(self) -> bool:
+        """is target destination a folder?"""
         return self.files or (
             self.dst.endswith('.ht')
             or self.dst.endswith('.mt')
@@ -133,6 +137,7 @@ SOURCES = [
             ped_file='sv-resources/ref-panel/1KG/v1/ped/1kg_ref_panel_v1.ped',
             clean_vcf='sv-resources/ref-panel/1KG/v1/calls/ref_panel_1kg_v1.cleaned.vcf.gz',
             ref_panel_bincov_matrix='sv-resources/ref-panel/1KG/v1/merged_evidence/ref_panel_1kg_v1.bincov.bed.gz',
+            noncoding_bed='sv-resources/resources/v1/noncoding.sort.hg38.bed'
         ),
     ),
     Source(
