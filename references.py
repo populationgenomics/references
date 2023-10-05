@@ -11,16 +11,30 @@ PROJECT = os.environ['PROJECT']
 
 
 def gcs_rsync(src: str, dst: str) -> str:
+    """
+    defines a gcs rsync function
+    this should be updated to use gcloud storage rsync
+    -u sets the billing project
+    -m for multiple (parallel) transfer
+    -d for deleting files in the destination that are not in the source
+    -r for recursive
+    """
     assert src.startswith('gs://')
     return f'gsutil -u {PROJECT} -m rsync -d -r {src} {dst}'
 
 
 def gcs_cp_r(src: str, dst: str) -> str:
+    """
+    defines a recursive gcs copy function
+    """
     assert src.startswith('gs://')
     return f'gcloud --billing-project {PROJECT} storage cp -r {src} {dst}'
 
 
 def curl(src: str, dst: str) -> str:
+    """
+    defines a curl & recursive copy upload function
+    """
     assert src.startswith('https://')
     return (
         f'curl -L {src} -o tmp && '
@@ -43,6 +57,7 @@ class Source:
     transfer_cmd: Callable[[str, str], str] | None = None
 
     def is_folder(self) -> bool:
+        """simple folder check using known extensions"""
         return self.files or (
             self.dst.endswith('.ht')
             or self.dst.endswith('.mt')
@@ -61,6 +76,12 @@ SOURCES = [
         # Hopefully to be deprecated once VEP for Hail Query is finalised:
         # https://github.com/hail-is/hail/pull/12428)
         dst='vep/105.0/mount',
+    ),
+    Source(
+        # Folder with uncompressed VEP 110 tarballs for mounting with cloudfuse.
+        # see documentation in vep/README.md
+        'vep_110_mount',
+        dst='vep/110/mount',
     ),
     Source(
         'liftover_38_to_37',
