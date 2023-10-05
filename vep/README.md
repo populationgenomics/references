@@ -89,3 +89,22 @@ and any other changes required can be actioned. Examples of other actions:
   but will be silent if a specified field is not provided.
 - Updating AnnotateCohort to pull annotations from slightly different locations, or obtaining 
   values from a list instead of a single value (related to schema changes, [link](https://github.com/populationgenomics/production-pipelines/blob/main/cpg_workflows/query_modules/seqr_loader.py#L76))
+
+## Production
+
+Once testing is complete, the new VEP cache can be moved into production. The companion script
+[prod_sync_script.sh](prod_sync_script.sh) can be used to move the data from the test location into
+the main version of the same bucket. The script takes one argument - the VEP version to action. It
+does a minimal check that the source location `gs://cpg-common-test/references/vep/${VERSION}/mount`
+exists, and the target location `gs://cpg-common-main/references/vep/${VERSION}/mount` does not. It 
+then initiates the rsync between the two locations. This should be run using analysis-runner, at the
+`full` access level:
+
+```bash
+analysis-runner \\
+    --dataset seqr \\
+    --access-level full \\
+    --description "VEP: Sync 110 to production" \\
+    --output-dir vep_110 \\
+    bash scripts/prod_sync_script.sh 110
+```
