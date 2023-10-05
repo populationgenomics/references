@@ -1,77 +1,91 @@
-# Preparing VEP to run with Hail
+# Preparing a new VEP release
 
-## Motivation
+## Context
 
-Standard Hail Query [hl.vep](https://hail.is/docs/0.2/methods/genetics.html#hail.methods.vep) function has 2 drawbacks:
+The following steps describe how to prepare reference data for obtaining and new version of VEP, 
+and preparing the corresponding cache data. This is based on our desire to side-step the ability
+of Hail to run VEP directly on MatrixTable data, which is currently limited to VEP version 95.
 
-* It doesn't support Batch backend;
-* It's limited to VEP version 95 (under the hood it's hardcoded to use the image `konradjk/vep95_loftee:0.2` which is built in 2019 for VEP 95, with no source Dockerfile available).
+This approach is less streamlined than the process in [previous_process](previous_process/README.md), 
+but it's cheaper, more flexible, and can be used to prepare VEP versions not available on Bioconda.
 
-Eventually `hl.vep` will fully support custom VEP versions and Batch backend, but as a temporary solution, we have an alternative process described below.
+At time of writing (5/10/2023) the Ensembl cache is avaialble from a FTP server which only delivers 
+~200kb/s, which necessitates using non-preeemptible VMs to avoid job termination over the >24hr 
+runtime. This expensive process can be side-stepped using an asynchronus download facilitated by 
+Globus, a secondary provider for accessing the same data.
 
-## Preparing reference data
+This process describes a cheap, asynchronous download of the cache data, unwrapping locally, and 
+syncing the contents to a GCP bucket where testing can take place prior to transfer of the relevant 
+cache content into main/production.
 
-The following steps describe how to prepare reference data for running VEP of any version, both for Hail Batch and Hail Query.
+## VEP Image
 
-1. Choose the VEP version you want to use. Make sure it's available on [Bioconda](https://anaconda.org/bioconda/ensembl-vep/files). Replace `$VEP_VERSION` below accordingly (e.g. `105.0`).
+Create a new image in the populationgenomics `Images` repository, either using a new name 
+(`ensembl-vep-VERSION`) or replacing the current build instructions (`vep`/`ensembl-vep`).
 
-1. Update the VEP Docker image: Trigger the [`Deploy container` GitHub CI workflow](https://github.com/populationgenomics/images/actions/workflows/deploy.yaml) in the [`images` repository](https://github.com/populationgenomics/images) using `vep` as the `Name of image` and `$VEP_VERSION` as the `Tag of image` parameter.
+## Obtaining Cache files
 
-1. Rebuild the VEP cache and LOFTEE reference data bundles:
+1. Choose the VEP version you want to use. Make sure it's available on both the ensembl-vep
+   DockerHub, and the Ensembl FTP server
 
-   Create a local config for the new version, e.g. in `$HOME/tmp/vep_$VEP_VERSION.toml`, making sure to replace the version literals below:
+ - DockerHub: e.g. https://hub.docker.com/r/ensemblorg/ensembl-vep/tags
+ - FTP: e.g. https://ftp.ensembl.org/pub/release-110/variation/indexed_vep_cache/
 
-   ```toml
-   [images]
-   vep = "australia-southeast1-docker.pkg.dev/cpg-common/images/vep:105.0"
+2. Create/Log in to an account on [Globus](https://www.globus.org/) 
+3. Download Globus Connect Personal and install it on your computer
+4. Navigate to the Collection `Shared EMBL-EBI public endpoint`
+5. Navigate to the Path `/gridftp/ensemblorg/pub/release-110/variation/indexed_vep_cache/` 
+   (substituting for the version required)
+6. Scroll to the Homo Sapiens cache file (~20GB in size. Choose the regular version, rather
+   than the RefSeq or Merged versions)
+7. Start transferring this file to a local directory. Once initiated this will continue
+   in the background while your computer is on and the Globus app is running. You will
+   receive an email once the transfer is completed.
 
-   [references]
-   vep_mount = "gs://cpg-common-main/references/vep/105.0/mount"
-   ```
+## Processing Local Cache
 
-   The VEP cache bundle is huge, so we use Hail Batch to copy it from Ensemble FTP servers and the Broad Institute servers to the CPG reference GCP bucket:
+1. Open the cache tarball 
 
-    ```bash
-    analysis-runner --dataset common --access-level full --description "Build resources for VEP $VEP_VERSION" --output-dir=vep/$VEP_VERSION --config=$HOME/tmp/vep_$VEP_VERSION.toml python3 copy-references.py $VEP_VERSION
-    ```
-
-1. If you want to permanently update the default VEP version for [`production-pipelines`](https://github.com/populationgenomics/production-pipelines) workflows:
-   * Update the version for `vep` in [`images.toml`](https://github.com/populationgenomics/images/blob/main/images.toml). This map translates to `cpg_utils.image_path('vep')` used in Hail Batch workflows.
-   * Update the version for `vep_mount` in [`references.py`](https://github.com/populationgenomics/references/blob/main/references.py). This map translates to `cpg_utils.reference_path('vep_mount')` used in Hail Batch workflows.
-
-## Running using Hail Batch
-
-Standard Hail Query `hl.vep` does not support Batch Backend, so we use a workaround for that:
-
-* Split input VCF into partitions using an interval list generated by Picard tools; 
-* Submit Hail Batch jobs that call VEP with reference data in a mounted volume `vep_mount`, as well as the previously built `vep` image;
-* For the VEP command, we parametrise it to write results using JSON format; 
-* Finally, we gather the JSON results into a Hail Table using a pre-prepared schema, which is borrowed from Hail Query's `hl.vep`. 
-
-The whole method is implemented in [CPG workflows](https://github.com/populationgenomics/production-pipelines/blob/main/cpg_workflows/jobs/vep.py) as part of the Seqr Loader workflow. See example of usage in [test/test-batch-backend.py](test/test-batch-backend.py).
-
-## Running using `hl.vep`
-
-The Query's `hl.vep` function works only with the Spark backend on a Dataproc cluster. To make it work with a custom VEP version, the following extra steps are required.
-
-1. The dataproc initialisation script in this repository [dataproc-init.sh](dataproc-init.sh) is copied from the [Hail codebase](https://github.com/hail-is/hail/blob/cc0a051740f4de08408e6a2094ffcb1c3158ee9c/hail/python/hailtop/hailctl/dataproc/resources/vep-GRCh38.sh) and adjusted to pull the image from CPG artefact registry, and parameterised by `VEP_VERSION`.
-
-Script is parametrised with `__VEP_VERSION__`, so pass it through `sed` when copying to the bucket:
-
-```shell
-cat dataproc-init.sh | sed "s/__VEP_VERSION__/${VEP_VERSION}/g" | gsutil cp - gs://cpg-common-main/references/vep/${VEP_VERSION}/dataproc/init.sh
+```commandline
+tar xzf homo_sapiens_vep_110_GRCh38.tar.gz
 ```
 
-2. Similarly, the JSON config script for dataproc [dataproc-config.json](dataproc-config.json) is also copied from the [Hail codebase](https://github.com/hail-is/hail/blob/cc0a051740f4de08408e6a2094ffcb1c3158ee9c/hail/python/hailtop/hailctl/hdinsight/resources/vep-GRCh38.json) and modified to reflect the newer VEP versions, and additionally has `mane_select:String,mane_plus_clinical:String` in schema to load MANE IDs that are supported by modern versions of VEP.
+2. The resulting directory should be called `homo_sapiens`, containing a subdirectory called
+   `VERSION_GRCh38`. Within that subdirectory there will be a directory for each contig, and
+   a number of LRGs. Each of these folders should contain a range of region-specific cache files,
+   as well as a single `all_vars.gz` and corresponding index. The `all_vars.gz` files are a result
+   of downloading the indexed version of the vep cache, and result in much faster VEP runtimes.
 
-The config is parametrised with `__VEP_VERSION__`, so pass it through `sed` when copying to the bucket:
+3. Sync the data to a test location in GCP (after first checking that no data exists in the target
+   location). This requires the `gcloud` library to be installed locally (see team-docs). Follow
+   this structure to prevent any code changes when VEP cache is accessed by pipeline stages.
+   The `cpg-common-test` bucket is typically writeable by staff.
 
-```sh
-cat dataproc-config.json | sed "s/__VEP_VERSION__/${VEP_VERSION}/g" | gsutil cp - gs://cpg-common-main/references/vep/${VEP_VERSION}/dataproc/config.json
+```commandline
+gcloud storage rsync --recursive homo_sapiens gs://cpg-common-test/references/vep/VERSION/mount/vep/homo_sapiens
 ```
 
-We also have a separate version of the config `dataproc-config-no-exac.json` for older VEP versions (before v88). In this version, ExAC fields are excluded: they used to contain non-numerical format for ExAC frequencies, e.g. `"exac_adj_maf":"-:0.2934,-:8.292e-06", "exac_maf":"-:0.293,-:8.261e-06"`, which would break parsing into Hail using the schema where those fields are specified as floats. 
+4. Copy in additional files relating to the LOFTEE plugin and general running of VEP. The VEP
+   stage uses cloudfuse to mount this whole path as a readable directory, so the relative location of
+   the files is important to the successful running of vep
 
-3. After all is set up, you can start a Dataproc cluster passing the initialization script explicitly with `init`, instead of using the `vep` parameter. See example in [test/test-dataproc-wrapper.py](test/test-dataproc-wrapper.py). Make sure you set larger resources for the workers (the highmem machine type and larger storage). Hail would do that automatically with `--vep`, but with a custom `--init` we have to do that explicitly.
+```bash
+gcloud storage cp "gs://cpg-common-test/references/vep/110/mount/AlphaMissense_hg38.tsv.gz*" \\
+   gs://cpg-common-test/references/vep/110/mount/gerp_conservation_scores.homo_sapiens.GRCh38.bw \\
+   "gs://cpg-common-test/references/vep/110/mount/human_ancestor.fa.gz*" \\
+   gs://cpg-common-test/references/vep/110/mount/loftee.sql \\
+   gs://cpg-common-test/references/vep/VERSION/mount/
+```
 
-Within scripts that you submit to that cluster, you can call the `hl.vep` function with explicitly provided `config` parameter (otherwise it would attempt to get the VEP_CONFIG environment variable, which is only set with `--vep`). See example in [test/test-dataproc-script.py](test/test-dataproc-script.py).
+## Testing
+
+This data should then be ready to test. The new VEP cache location can be chosen instead of the 
+current standard VEP mount, the new VEP image can be used instead of the previous standard one,
+and any other changes required can be actioned. Examples of other actions:
+
+- Modifying the command sent to VEP (e.g. adding in new Plugins & corresponding data, or modifying output options) [link](https://github.com/populationgenomics/production-pipelines/blob/main/cpg_workflows/jobs/vep.py#L239)
+- Updating the schema required when parsing the JSON output of VEP into a Hail Table [link](https://github.com/populationgenomics/production-pipelines/blob/main/cpg_workflows/query_modules/vep.py). 
+  This can be trial and error, this schema definition will fail when an input is not specified, 
+  but will be silent if a specified field is not provided.
+- Updating AnnotateCohort to pull annotations from slightly different locations, or obtaining 
+  values from a list instead of a single value (related to schema changes, [link](https://github.com/populationgenomics/production-pipelines/blob/main/cpg_workflows/query_modules/seqr_loader.py#L76))
