@@ -9,10 +9,10 @@ of Hail to run VEP directly on MatrixTable data, which is currently limited to V
 This approach is less streamlined than the process in [previous_process](previous_process/README.md), 
 but it's cheaper, more flexible, and can be used to prepare VEP versions not available on Bioconda.
 
-At time of writing (5/10/2023) the Ensembl cache is avaialble from a FTP server which only delivers 
+At time of writing (5/10/2023) the Ensembl cache is available from a FTP server which only delivers 
 ~200kb/s, which necessitates using non-preeemptible VMs to avoid job termination over the >24hr 
 runtime. This expensive process can be side-stepped using an asynchronus download facilitated by 
-Globus, a secondary provider for accessing the same data.
+[Globus](https://www.globus.org/), a secondary provider for accessing the same data.
 
 This process describes a cheap, asynchronous download of the cache data, unwrapping locally, and 
 syncing the contents to a GCP bucket where testing can take place prior to transfer of the relevant 
@@ -42,9 +42,13 @@ Create a new image in the populationgenomics `Images` repository, either using a
    in the background while your computer is on and the Globus app is running. You will
    receive an email once the transfer is completed.
 
+![globus_path](images/globus.png)
+
 ## Processing Local Cache
 
-1. Open the cache tarball 
+1. Open the cache tarball. In VEP 110, this tarchive is approximately 20GB, and 
+   unpacks to a second 20GB directory, so you will need approximately 2.5x the
+   size to un-tar including any intermediate/swap files during decompression.
 
 ```commandline
 tar xzf homo_sapiens_vep_110_GRCh38.tar.gz
@@ -102,7 +106,7 @@ then initiates the rsync between the two locations. This should be run using ana
 
 ```bash
 analysis-runner \\
-    --dataset seqr \\
+    --dataset common \\
     --access-level full \\
     --description "VEP: Sync 110 to production" \\
     --output-dir vep_110 \\
