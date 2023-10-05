@@ -74,10 +74,10 @@ gcloud storage rsync --recursive homo_sapiens gs://cpg-common-test/references/ve
    the files is important to the successful running of vep
 
 ```bash
-gcloud storage cp "gs://cpg-common-test/references/vep/110/mount/AlphaMissense_hg38.tsv.gz*" \\
-   gs://cpg-common-test/references/vep/110/mount/gerp_conservation_scores.homo_sapiens.GRCh38.bw \\
-   "gs://cpg-common-test/references/vep/110/mount/human_ancestor.fa.gz*" \\
-   gs://cpg-common-test/references/vep/110/mount/loftee.sql \\
+gcloud storage cp "gs://cpg-common-test/references/vep/110/mount/AlphaMissense_hg38.tsv.gz*" \
+   gs://cpg-common-test/references/vep/110/mount/gerp_conservation_scores.homo_sapiens.GRCh38.bw \
+   "gs://cpg-common-test/references/vep/110/mount/human_ancestor.fa.gz*" \
+   gs://cpg-common-test/references/vep/110/mount/loftee.sql \
    gs://cpg-common-test/references/vep/VERSION/mount/
 ```
 
@@ -105,10 +105,10 @@ then initiates the rsync between the two locations. This should be run using ana
 `full` access level:
 
 ```bash
-analysis-runner \\
-    --dataset common \\
-    --access-level full \\
-    --description "VEP: Sync 110 to production" \\
-    --output-dir vep_110 \\
+analysis-runner \
+    --dataset common \
+    --access-level full \
+    --description "VEP: Sync 110 to production" \
+    --output-dir vep_110 \
     bash scripts/prod_sync_script.sh 110
 ```
