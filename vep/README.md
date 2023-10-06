@@ -111,5 +111,5 @@ analysis-runner \
     --access-level full \
     --description "VEP: Sync 110 to production" \
     --output-dir vep_110 \
-    bash scripts/prod_sync_script.sh 110
+    bash vep/prod_sync_script.sh 110
 ```
