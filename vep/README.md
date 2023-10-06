@@ -2,7 +2,7 @@
 
 ## Context
 
-The following steps describe how to prepare reference data for obtaining and new version of VEP, 
+The following steps describe how to prepare reference data for obtaining a new version of [VEP](https://github.com/Ensembl/ensembl-vep), 
 and preparing the corresponding cache data. This is based on our desire to side-step the ability
 of Hail to run VEP directly on MatrixTable data, which is currently limited to VEP version 95.
 
@@ -61,8 +61,9 @@ tar xzf homo_sapiens_vep_110_GRCh38.tar.gz
    of downloading the indexed version of the vep cache, and result in much faster VEP runtimes.
 
 3. Sync the data to a test location in GCP (after first checking that no data exists in the target
-   location). This requires the `gcloud` library to be installed locally (see team-docs). Follow
-   this structure to prevent any code changes when VEP cache is accessed by pipeline stages.
+   location). This requires the `gcloud` library to be installed locally (see [team-docs](https://github.com/populationgenomics/team-docs/blob/main/getting_started.md)), 
+   or [How To Cloud](https://github.com/danking/hail-cloud-docs/blob/master/how-to-cloud.md#interacting-with-gcp). 
+   Follow this structure to prevent any code changes when VEP cache is accessed by pipeline stages.
    The `cpg-common-test` bucket is typically writeable by staff.
 
 ```commandline
