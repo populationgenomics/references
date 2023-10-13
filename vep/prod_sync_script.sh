@@ -20,5 +20,5 @@ if gcloud storage ls "gs://cpg-common-main/references/vep/${VERSION}/mount" > /d
     exit 1
 else
     echo "Target location vacant, copying"
-    gcloud storage rsync --recursive "gs://cpg-common-test/references/vep/${VERSION}/mount" "gs://cpg-common-main/references/vep/${VERSION}/mount"
+    gsutil rsync -r -m "gs://cpg-common-test/references/vep/${VERSION}/mount" "gs://cpg-common-main/references/vep/${VERSION}/mount"
 fi
