@@ -70,7 +70,7 @@ GENOME_BUILD = 'GRCh38'
 
 SOURCES = [
     Source(
-        'vep_mount',
+        'vep_105_mount',
         # Folder with uncompressed VEP tarballs for mounting with cloudfuse.
         # No `src` field: the process of building it is described in `vep/README.md`.
         # Hopefully to be deprecated once VEP for Hail Query is finalised:
