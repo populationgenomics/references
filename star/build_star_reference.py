@@ -18,10 +18,10 @@ STORAGE = config['workflow'].get('storage', '150Gi')
 SJDB_OVERHANG = int(config['workflow'].get('sjdb_overhang', 100))
 GENCODE_VERSION = str(config['workflow'].get('gencode_version', 44))
 GENCODE_BASE_URL = f'https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_{GENCODE_VERSION}'
-GENCODE_FASTA_BASENAME = 'GRCh38.primary_assembly.genome.fa'
 GENCODE_GTF_BASENAME = f'gencode.v{GENCODE_VERSION}.primary_assembly.annotation.gtf'
-GENCODE_FASTA_URL = f'{GENCODE_BASE_URL}/{GENCODE_FASTA_BASENAME}.gz'
 GENCODE_GTF_URL = f'{GENCODE_BASE_URL}/{GENCODE_GTF_BASENAME}.gz'
+# GENCODE_FASTA_BASENAME = 'GRCh38.primary_assembly.genome.fa'
+# GENCODE_FASTA_URL = f'{GENCODE_BASE_URL}/{GENCODE_FASTA_BASENAME}.gz'
 
 sb = hb.ServiceBackend(billing_project=BILLING_PROJECT, remote_tmpdir=remote_tmpdir())
 b = hb.Batch(backend=sb, default_image=DEFAULT_IMAGE)
@@ -65,15 +65,15 @@ j.declare_resource_group(star_ref=star_ref_files)
 cmd = f"""\
     mkdir -p {TMP_DL_DIR}
     cd {TMP_DL_DIR}
-    wget {GENCODE_FASTA_URL}
     wget {GENCODE_GTF_URL}
+    gunzip {GENCODE_GTF_BASENAME}.gz
     mkdir -p {TMP_MKREF_DIR}
     cd {TMPDIR}
     STAR
         --runThreadN {str(CPU)}
         --runMode genomeGenerate
         --genomeDir hg38
-        --genomeFastaFiles {TMP_DL_DIR / GENCODE_FASTA_BASENAME}
+        --genomeFastaFiles {reference_path('broad/fasta')}
         --sjdbGTFfile {TMP_DL_DIR / GENCODE_GTF_BASENAME}
         --sjdbOverhang {str(SJDB_OVERHANG)}
     """
