@@ -12,11 +12,13 @@ config = get_config()
 BILLING_PROJECT = config['hail']['billing_project']
 DEFAULT_IMAGE = config['workflow']['driver_image']
 TMP_BUCKET = config['storage']['common']['tmp']
+TEST_BUCKET = config['storage']['common']['test']
 CPU = int(config['workflow'].get('n_cpu', 8))
 MEMORY = config['workflow'].get('memory', 'standard')
 STORAGE = config['workflow'].get('storage', '150Gi')
-SJDB_OVERHANG = int(config['workflow'].get('sjdb_overhang', 100))
-GENCODE_VERSION = str(config['workflow'].get('gencode_version', 44))
+STAR_VERSION = str(config['star']['version'])
+SJDB_OVERHANG = int(config['star'].get('sjdb_overhang', 100))
+GENCODE_VERSION = str(config['star'].get('gencode_version', 44))
 GENCODE_BASE_URL = f'https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_{GENCODE_VERSION}'
 GENCODE_GTF_BASENAME = f'gencode.v{GENCODE_VERSION}.primary_assembly.annotation.gtf'
 GENCODE_GTF_URL = f'{GENCODE_BASE_URL}/{GENCODE_GTF_BASENAME}.gz'
@@ -36,7 +38,7 @@ TMPDIR = Path("$BATCH_TMPDIR")
 TMP_DL_DIR = TMPDIR / 'dl'
 TMP_MKREF_DIR = TMPDIR / 'mkref'
 TMP_GENOME_DIR = TMP_MKREF_DIR / 'hg38'
-OUT_GENOME_DIR = Path(TMP_BUCKET) / 'star' / 'hg38'
+OUT_GENOME_DIR = Path(TEST_BUCKET) / 'references' / 'star' / 'hg38'
 
 star_ref_file_basenames = {
     'chr_len': 'chrLength.txt',
