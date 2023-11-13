@@ -2,7 +2,7 @@
 Builds a STAR reference genome index through Hail batch.
 """
 import hailtop.batch as hb
-from cpg_utils import Path
+from cpg_utils import Path, to_path
 from cpg_utils.config import get_config
 from cpg_utils.hail_batch import remote_tmpdir, image_path, reference_path
 from textwrap import dedent
@@ -39,7 +39,7 @@ TMP_DL_DIR = f'{TMPDIR}/dl'
 TMP_FASTA_DIR = f'{TMPDIR}/fasta'
 TMP_MKREF_DIR = f'{TMPDIR}/mkref'
 TMP_GENOME_DIR = f'{TMP_MKREF_DIR}/hg38'
-OUT_GENOME_DIR = Path(TEST_BUCKET) / 'references' / 'star' / 'hg38'
+OUT_GENOME_DIR = to_path(TEST_BUCKET) / 'references' / 'star' / 'hg38'
 
 star_ref_file_basenames = {
     'chr_len': 'chrLength.txt',
