@@ -81,7 +81,7 @@ cmd = f"""\
 
     # Strip FASTA down to just the major chromosomes
     cd {TMP_FASTA_DIR}
-    samtools faidx {reference_path('broad/fasta')} {major_chromosomes} > hg38.fa
+    samtools faidx {reference_path('broad/ref_fasta')} {major_chromosomes} > hg38.fa
     samtools faidx hg38.fa
 
     # Build reference
