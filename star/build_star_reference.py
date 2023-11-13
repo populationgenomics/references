@@ -11,10 +11,8 @@ from textwrap import dedent
 config = get_config()
 BILLING_PROJECT = config['hail']['billing_project']
 DEFAULT_IMAGE = config['workflow']['driver_image']
-TMP_BUCKET = config['storage']['common']['tmp']
-TEST_TMP_BUCKET = config['storage']['common']['test']['tmp']
 IS_TEST = config['workflow']['access_level'] == 'test'
-TEST_BUCKET = TMP_BUCKET if IS_TEST else TEST_TMP_BUCKET
+TEST_BUCKET = config['storage']['common']['tmp'] if IS_TEST else config['storage']['common']['test']['tmp']
 CPU = int(config['workflow'].get('n_cpu', 8))
 MEMORY = config['workflow'].get('memory', 'standard')
 STORAGE = config['workflow'].get('storage', '150Gi')
