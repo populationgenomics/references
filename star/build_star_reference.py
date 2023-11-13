@@ -59,7 +59,7 @@ star_ref_file_basenames = {
     'transcript_info': 'transcriptInfo.tab',
 }
 star_ref_files = {
-    key: f'{TMP_GENOME_DIR}/file'
+    key: f'{TMP_GENOME_DIR}/{file}'
     for key, file in star_ref_file_basenames.items()
 }
 j.declare_resource_group(star_ref=star_ref_files)
