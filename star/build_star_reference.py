@@ -101,6 +101,6 @@ j.command(cmd)
 # Write outputs
 # Have to do this one-by-one since the output files don't have a simple naming convention
 for key in star_ref_files:
-    b.write_output(j[key], str(OUT_GENOME_DIR / star_ref_file_basenames[key]))
+    b.write_output(j.star_ref[key], str(OUT_GENOME_DIR / star_ref_file_basenames[key]))
 
 b.run(wait=False)
