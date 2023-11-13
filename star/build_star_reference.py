@@ -36,6 +36,7 @@ j.storage(STORAGE)
 
 TMPDIR = Path("$BATCH_TMPDIR")
 TMP_DL_DIR = TMPDIR / 'dl'
+TMP_FASTA_DIR = TMPDIR / 'fasta'
 TMP_MKREF_DIR = TMPDIR / 'mkref'
 TMP_GENOME_DIR = TMP_MKREF_DIR / 'hg38'
 OUT_GENOME_DIR = Path(TEST_BUCKET) / 'references' / 'star' / 'hg38'
@@ -63,20 +64,30 @@ star_ref_files = {
 }
 j.declare_resource_group(star_ref=star_ref_files)
 
+major_chromosomes = ' '.join([f'chr{str(i)}' for i in range(1, 23)] + ['chrX', 'chrY', 'chrM'])
+
 # Build command
 cmd = f"""\
+    # Download GTF and strip down to just the major chromosomes
     mkdir -p {TMP_DL_DIR}
     cd {TMP_DL_DIR}
     wget {GENCODE_GTF_URL}
     gunzip {GENCODE_GTF_BASENAME}.gz
+    awk -v FS="\\t" '$0~/^#/ || $1~/^chr([1-9]|1[0-9]|2[0-2]|X|Y|M)/' {GENCODE_GTF_BASENAME} > hg38.gtf
+    # Strip FASTA down to just the major chromosomes
+    mkdir -p {TMP_FASTA_DIR}
+    cd {TMP_FASTA_DIR}
+    samtools faidx {reference_path('broad/fasta')} {major_chromosomes} > hg38.fa
+    samtools faidx hg38.fa
+    # Build reference
     mkdir -p {TMP_MKREF_DIR}
     cd {TMPDIR}
     STAR
         --runThreadN {str(CPU)}
         --runMode genomeGenerate
         --genomeDir hg38
-        --genomeFastaFiles {reference_path('broad/fasta')}
-        --sjdbGTFfile {TMP_DL_DIR / GENCODE_GTF_BASENAME}
+        --genomeFastaFiles {TMP_FASTA_DIR / 'hg38.fa'}
+        --sjdbGTFfile {TMP_DL_DIR / 'hg38.gtf'}
         --sjdbOverhang {str(SJDB_OVERHANG)}
     """
 cmd = dedent(cmd)
