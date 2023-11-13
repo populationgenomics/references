@@ -37,11 +37,9 @@ j.storage(STORAGE)
 TMPDIR = '$BATCH_TMPDIR'
 TMP_DL_DIR = f'{TMPDIR}/dl'
 TMP_FASTA_DIR = f'{TMPDIR}/fasta'
-TMP_MKREF_DIR = f'{TMPDIR}/mkref'
-TMP_GENOME_DIR = f'{TMP_MKREF_DIR}/hg38'
 OUT_GENOME_DIR = to_path(TEST_BUCKET) / 'references' / 'star' / 'hg38'
 
-star_ref_file_basenames = {
+star_ref_files = {
     'chr_len': 'chrLength.txt',
     'chr_name_len': 'chrNameLength.txt',
     'chr_name': 'chrName.txt',
@@ -58,10 +56,6 @@ star_ref_file_basenames = {
     'sjdb_list': 'sjdbList.out.tab',
     'transcript_info': 'transcriptInfo.tab',
 }
-star_ref_files = {
-    key: f'{TMP_GENOME_DIR}/{file}'
-    for key, file in star_ref_file_basenames.items()
-}
 j.declare_resource_group(star_ref=star_ref_files)
 
 major_chromosomes = ' '.join([f'chr{str(i)}' for i in range(1, 23)] + ['chrX', 'chrY', 'chrM'])
@@ -71,7 +65,7 @@ cmd = f"""\
     # Create directories
     mkdir -p {TMP_DL_DIR}
     mkdir -p {TMP_FASTA_DIR}
-    mkdir -p {TMP_GENOME_DIR}
+    mkdir -p {j.star_ref}
 
     # Download GTF and strip down to just the major chromosomes
     cd {TMP_DL_DIR}
@@ -89,10 +83,12 @@ cmd = f"""\
     STAR
         --runThreadN {str(CPU)}
         --runMode genomeGenerate
-        --genomeDir hg38
+        --genomeDir {j.star_ref}
         --genomeFastaFiles {TMP_FASTA_DIR}/hg38.fa
         --sjdbGTFfile {TMP_DL_DIR}/hg38.gtf
         --sjdbOverhang {str(SJDB_OVERHANG)}
+
+    # ls ea
     """
 cmd = dedent(cmd)
 
@@ -100,7 +96,7 @@ j.command(cmd)
 
 # Write outputs
 # Have to do this one-by-one since the output files don't have a simple naming convention
-for key in star_ref_files:
-    b.write_output(j.star_ref[key], str(OUT_GENOME_DIR / star_ref_file_basenames[key]))
+for key, file in star_ref_files.items():
+    b.write_output(j.star_ref[key], str(OUT_GENOME_DIR / file))
 
 b.run(wait=False)
