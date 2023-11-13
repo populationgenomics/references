@@ -59,7 +59,7 @@ star_ref_file_basenames = {
     'transcript_info': 'transcriptInfo.tab',
 }
 star_ref_files = {
-    key: TMP_GENOME_DIR / file
+    key: f'{TMP_GENOME_DIR}/file'
     for key, file in star_ref_file_basenames.items()
 }
 j.declare_resource_group(star_ref=star_ref_files)
@@ -90,8 +90,8 @@ cmd = f"""\
         --runThreadN {str(CPU)}
         --runMode genomeGenerate
         --genomeDir hg38
-        --genomeFastaFiles {TMP_FASTA_DIR / 'hg38.fa'}
-        --sjdbGTFfile {TMP_DL_DIR / 'hg38.gtf'}
+        --genomeFastaFiles {TMP_FASTA_DIR}/hg38.fa
+        --sjdbGTFfile {TMP_DL_DIR}/hg38.gtf
         --sjdbOverhang {str(SJDB_OVERHANG)}
     """
 cmd = dedent(cmd)
