@@ -34,11 +34,11 @@ j.cpu(CPU)
 j.memory(MEMORY)
 j.storage(STORAGE)
 
-TMPDIR = Path("$BATCH_TMPDIR")
-TMP_DL_DIR = TMPDIR / 'dl'
-TMP_FASTA_DIR = TMPDIR / 'fasta'
-TMP_MKREF_DIR = TMPDIR / 'mkref'
-TMP_GENOME_DIR = TMP_MKREF_DIR / 'hg38'
+TMPDIR = '$BATCH_TMPDIR'
+TMP_DL_DIR = f'{TMPDIR}/dl'
+TMP_FASTA_DIR = f'{TMPDIR}/fasta'
+TMP_MKREF_DIR = f'{TMPDIR}/mkref'
+TMP_GENOME_DIR = f'{TMP_MKREF_DIR}/hg38'
 OUT_GENOME_DIR = Path(TEST_BUCKET) / 'references' / 'star' / 'hg38'
 
 star_ref_file_basenames = {
@@ -59,7 +59,7 @@ star_ref_file_basenames = {
     'transcript_info': 'transcriptInfo.tab',
 }
 star_ref_files = {
-    key: TMP_MKREF_DIR / file
+    key: TMP_GENOME_DIR / file
     for key, file in star_ref_file_basenames.items()
 }
 j.declare_resource_group(star_ref=star_ref_files)
@@ -68,19 +68,23 @@ major_chromosomes = ' '.join([f'chr{str(i)}' for i in range(1, 23)] + ['chrX', '
 
 # Build command
 cmd = f"""\
-    # Download GTF and strip down to just the major chromosomes
+    # Create directories
     mkdir -p {TMP_DL_DIR}
+    mkdir -p {TMP_FASTA_DIR}
+    mkdir -p {TMP_GENOME_DIR}
+
+    # Download GTF and strip down to just the major chromosomes
     cd {TMP_DL_DIR}
     wget {GENCODE_GTF_URL}
     gunzip {GENCODE_GTF_BASENAME}.gz
     awk -v FS="\\t" '$0~/^#/ || $1~/^chr([1-9]|1[0-9]|2[0-2]|X|Y|M)/' {GENCODE_GTF_BASENAME} > hg38.gtf
+
     # Strip FASTA down to just the major chromosomes
-    mkdir -p {TMP_FASTA_DIR}
     cd {TMP_FASTA_DIR}
     samtools faidx {reference_path('broad/fasta')} {major_chromosomes} > hg38.fa
     samtools faidx hg38.fa
+
     # Build reference
-    mkdir -p {TMP_MKREF_DIR}
     cd {TMPDIR}
     STAR
         --runThreadN {str(CPU)}
@@ -96,7 +100,7 @@ j.command(cmd)
 
 # Write outputs
 # Have to do this one-by-one since the output files don't have a simple naming convention
-for key, file in star_ref_files.items():
-    j.write_output(file, str(OUT_GENOME_DIR / star_ref_file_basenames[key]))
+for key in star_ref_files:
+    b.write_output(j[key], str(OUT_GENOME_DIR / star_ref_file_basenames[key]))
 
 b.run(wait=False)
