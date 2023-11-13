@@ -37,6 +37,8 @@ j.storage(STORAGE)
 TMPDIR = '$BATCH_TMPDIR'
 TMP_DL_DIR = f'{TMPDIR}/dl'
 TMP_FASTA_DIR = f'{TMPDIR}/fasta'
+TMP_MKREF_DIR = f'{TMPDIR}/mkref'
+TMP_GENOME_DIR = f'{TMP_MKREF_DIR}/hg38'
 OUT_GENOME_DIR = to_path(TEST_BUCKET) / 'references' / 'star' / 'hg38'
 
 star_ref_files = {
@@ -65,7 +67,7 @@ cmd = f"""\
     # Create directories
     mkdir -p {TMP_DL_DIR}
     mkdir -p {TMP_FASTA_DIR}
-    mkdir -p {j.star_ref}
+    mkdir -p {TMP_GENOME_DIR}
 
     # Download GTF and strip down to just the major chromosomes
     cd {TMP_DL_DIR}
@@ -83,14 +85,16 @@ cmd = f"""\
     STAR
         --runThreadN {str(CPU)}
         --runMode genomeGenerate
-        --genomeDir {j.star_ref}
+        --genomeDir {TMP_GENOME_DIR}
         --genomeFastaFiles {TMP_FASTA_DIR}/hg38.fa
         --sjdbGTFfile {TMP_DL_DIR}/hg38.gtf
         --sjdbOverhang {str(SJDB_OVERHANG)}
-
-    # ls ea
     """
 cmd = dedent(cmd)
+
+# Move reference files to resource group
+for key, file in star_ref_files.items():
+    cmd += f'mv {TMP_GENOME_DIR}/{file} {j.star_ref[key]}\n'
 
 j.command(cmd)
 
