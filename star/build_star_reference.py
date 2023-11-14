@@ -28,15 +28,54 @@ GENCODE_GTF_URL = f'{GENCODE_BASE_URL}/{GENCODE_GTF_BASENAME}.gz'
 sb = hb.ServiceBackend(billing_project=BILLING_PROJECT, remote_tmpdir=remote_tmpdir())
 b = hb.Batch(backend=sb, default_image=DEFAULT_IMAGE)
 
+# Job to get and subset reference files
+get_ref_j = b.new_job('get-ref-files')
+get_ref_j.image(image_path('samtools'))
+get_ref_j.cpu(CPU)
+get_ref_j.memory(MEMORY)
+get_ref_j.storage(STORAGE)
+
+TMPDIR = '$BATCH_TMPDIR'
+TMP_DL_DIR = f'{TMPDIR}/dl'
+TMP_FASTA_DIR = f'{TMPDIR}/fasta'
+
+major_chromosomes = ' '.join([f'chr{str(i)}' for i in range(1, 23)] + ['chrX', 'chrY', 'chrM'])
+
+get_ref_j.declare_resource_group(
+    ref_files={
+        'fa': 'hg38.fa',
+        'fa_idx': 'hg38.fa.fai',
+        'gtf': 'hg38.gtf',
+    },
+)
+
+cmd = f"""\
+    # Create directories
+    mkdir -p {TMP_DL_DIR}
+    mkdir -p {TMP_FASTA_DIR}
+
+    # Download GTF and strip down to just the major chromosomes
+    cd {TMP_DL_DIR}
+    wget {GENCODE_GTF_URL}
+    gunzip {GENCODE_GTF_BASENAME}.gz
+    awk -v FS="\\t" '$0~/^#/ || $1~/^chr([1-9]|1[0-9]|2[0-2]|X|Y|M)/' {GENCODE_GTF_BASENAME} > {get_ref_j.ref_files.gtf}
+
+    # Strip FASTA down to just the major chromosomes
+    cd {TMP_FASTA_DIR}
+    samtools faidx {reference_path('broad/ref_fasta')} {major_chromosomes} > {get_ref_j.ref_files.fa}
+    samtools faidx hg38.fa && mv hg38.fa.fai {get_ref_j.ref_files.fa_idx}
+    """
+cmd = dedent(cmd)
+
+get_ref_j.command(cmd)
+
+# Job to build reference
 j = b.new_job('build-star-reference')
 j.image(image_path('star'))
 j.cpu(CPU)
 j.memory(MEMORY)
 j.storage(STORAGE)
 
-TMPDIR = '$BATCH_TMPDIR'
-TMP_DL_DIR = f'{TMPDIR}/dl'
-TMP_FASTA_DIR = f'{TMPDIR}/fasta'
 TMP_MKREF_DIR = f'{TMPDIR}/mkref'
 TMP_GENOME_DIR = f'{TMP_MKREF_DIR}/hg38'
 OUT_GENOME_DIR = to_path(TEST_BUCKET) / 'references' / 'star' / 'hg38'
@@ -60,34 +99,20 @@ star_ref_files = {
 }
 j.declare_resource_group(star_ref=star_ref_files)
 
-major_chromosomes = ' '.join([f'chr{str(i)}' for i in range(1, 23)] + ['chrX', 'chrY', 'chrM'])
 
 # Build command
 cmd = f"""\
     # Create directories
-    mkdir -p {TMP_DL_DIR}
-    mkdir -p {TMP_FASTA_DIR}
     mkdir -p {TMP_GENOME_DIR}
 
-    # Download GTF and strip down to just the major chromosomes
-    cd {TMP_DL_DIR}
-    wget {GENCODE_GTF_URL}
-    gunzip {GENCODE_GTF_BASENAME}.gz
-    awk -v FS="\\t" '$0~/^#/ || $1~/^chr([1-9]|1[0-9]|2[0-2]|X|Y|M)/' {GENCODE_GTF_BASENAME} > hg38.gtf
-
-    # Strip FASTA down to just the major chromosomes
-    cd {TMP_FASTA_DIR}
-    samtools faidx {reference_path('broad/ref_fasta')} {major_chromosomes} > hg38.fa
-    samtools faidx hg38.fa
-
     # Build reference
-    cd {TMPDIR}
+    cd {TMP_MKREF_DIR}
     STAR
         --runThreadN {str(CPU)}
         --runMode genomeGenerate
         --genomeDir {TMP_GENOME_DIR}
-        --genomeFastaFiles {TMP_FASTA_DIR}/hg38.fa
-        --sjdbGTFfile {TMP_DL_DIR}/hg38.gtf
+        --genomeFastaFiles {get_ref_j.ref_files.fa}
+        --sjdbGTFfile {get_ref_j.ref_files.gtf}
         --sjdbOverhang {str(SJDB_OVERHANG)}
     """
 cmd = dedent(cmd)
