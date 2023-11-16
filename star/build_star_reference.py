@@ -67,8 +67,10 @@ cmd = f"""\
     # Strip FASTA down to just the major chromosomes
     cd {TMP_FASTA_DIR}
     samtools faidx {ref_fasta.fa}
-    samtools faidx {ref_fasta.fa} {major_chromosomes} > {get_ref_j.ref_files.fa}
-    samtools faidx hg38.fa && mv hg38.fa.fai {get_ref_j.ref_files.fa_idx}
+    samtools faidx {ref_fasta.fa} {major_chromosomes} > hg38.fa
+    samtools faidx hg38.fa
+    mv hg38.fa {get_ref_j.ref_files.fa}
+    mv hg38.fa.fai {get_ref_j.ref_files.fa_idx}
     """
 cmd = dedent(cmd)
 
