@@ -114,12 +114,12 @@ cmd = f"""\
 
     # Build reference
     cd {TMP_MKREF_DIR}
-    STAR
-        --runThreadN {str(CPU)}
-        --runMode genomeGenerate
-        --genomeDir {TMP_GENOME_DIR}
-        --genomeFastaFiles {get_ref_j.ref_files.fa}
-        --sjdbGTFfile {get_ref_j.ref_files.gtf}
+    STAR \
+        --runThreadN {str(CPU)} \
+        --runMode genomeGenerate \
+        --genomeDir {TMP_GENOME_DIR} \
+        --genomeFastaFiles {get_ref_j.ref_files.fa} \
+        --sjdbGTFfile {get_ref_j.ref_files.gtf} \
         --sjdbOverhang {str(SJDB_OVERHANG)}
     """
 cmd = dedent(cmd)
