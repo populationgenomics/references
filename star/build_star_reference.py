@@ -50,7 +50,7 @@ get_ref_j.declare_resource_group(
 )
 
 ref_fasta = b.read_input_group(
-    fa=reference_path('broad/ref_fasta'),
+    fa=str(reference_path('broad/ref_fasta')),
 )
 
 cmd = f"""\
