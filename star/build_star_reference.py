@@ -49,6 +49,10 @@ get_ref_j.declare_resource_group(
     },
 )
 
+ref_fasta = b.read_input_group(
+    fa=reference_path('broad/ref_fasta'),
+)
+
 cmd = f"""\
     # Create directories
     mkdir -p {TMP_DL_DIR}
@@ -62,7 +66,8 @@ cmd = f"""\
 
     # Strip FASTA down to just the major chromosomes
     cd {TMP_FASTA_DIR}
-    samtools faidx {reference_path('broad/ref_fasta')} {major_chromosomes} > {get_ref_j.ref_files.fa}
+    samtools faidx {ref_fasta.fa}
+    samtools faidx {ref_fasta.fa} {major_chromosomes} > {get_ref_j.ref_files.fa}
     samtools faidx hg38.fa && mv hg38.fa.fai {get_ref_j.ref_files.fa_idx}
     """
 cmd = dedent(cmd)
