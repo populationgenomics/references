@@ -14,7 +14,7 @@ DEFAULT_IMAGE = config['workflow']['driver_image']
 IS_TEST = config['workflow']['access_level'] == 'test'
 TEST_BUCKET = config['storage']['common']['tmp'] if IS_TEST else config['storage']['common']['test']['tmp']
 CPU = int(config['workflow'].get('n_cpu', 8))
-MEMORY = config['workflow'].get('memory', 'standard')
+MEMORY = config['workflow'].get('memory', 'highmem')
 STORAGE = config['workflow'].get('storage', '150Gi')
 STAR_VERSION = str(config['star']['version'])
 SJDB_OVERHANG = int(config['star'].get('sjdb_overhang', 100))
