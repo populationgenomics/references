@@ -85,7 +85,7 @@ j.storage(STORAGE)
 
 TMP_MKREF_DIR = f'{TMPDIR}/mkref'
 TMP_GENOME_DIR = f'{TMP_MKREF_DIR}/hg38'
-OUT_GENOME_DIR = to_path(TEST_BUCKET) / 'references' / 'star' / 'hg38'
+OUT_GENOME_DIR = to_path(TEST_BUCKET) / 'references' / 'star' / str(STAR_VERSION) / 'hg38'
 
 star_ref_files = {
     'chr_len': 'chrLength.txt',
