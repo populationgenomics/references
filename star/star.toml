@@ -1,0 +1,4 @@
+[star]
+version = '2.7.10b'
+gencode_version = 44
+sjdb_overhang = 100
