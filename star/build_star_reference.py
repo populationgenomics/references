@@ -1,16 +1,13 @@
 """
 Builds a STAR reference genome index through Hail batch.
 """
-import hailtop.batch as hb
 from cpg_utils import Path, to_path
 from cpg_utils.config import get_config
-from cpg_utils.hail_batch import remote_tmpdir, image_path, reference_path
+from cpg_utils.hail_batch import image_path, reference_path, get_batch
 from textwrap import dedent
 
 # Get config and parameters
 config = get_config()
-BILLING_PROJECT = config['hail']['billing_project']
-DEFAULT_IMAGE = config['workflow']['driver_image']
 # IS_TEST = config['workflow']['access_level'] == 'test'
 TEST_BUCKET = config['storage']['common']['tmp']
 CPU = int(config['workflow'].get('n_cpu', 8))
@@ -25,8 +22,7 @@ GENCODE_GTF_URL = f'{GENCODE_BASE_URL}/{GENCODE_GTF_BASENAME}.gz'
 # GENCODE_FASTA_BASENAME = 'GRCh38.primary_assembly.genome.fa'
 # GENCODE_FASTA_URL = f'{GENCODE_BASE_URL}/{GENCODE_FASTA_BASENAME}.gz'
 
-sb = hb.ServiceBackend(billing_project=BILLING_PROJECT, remote_tmpdir=remote_tmpdir())
-b = hb.Batch(backend=sb, default_image=DEFAULT_IMAGE)
+b = get_batch('Build Star Reference', default_image=config['workflow']['driver_image'])
 
 # Job to get and subset reference files
 get_ref_j = b.new_job('get-ref-files')
