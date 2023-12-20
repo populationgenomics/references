@@ -72,6 +72,12 @@ cmd = dedent(cmd)
 
 get_ref_j.command(cmd)
 
+# Write outputs
+OUT_REF_DIR = to_path(TEST_BUCKET) / 'references' / 'star' / 'hg38'
+b.write_output(get_ref_j.ref_files.fa, str(OUT_REF_DIR / 'hg38.fa'))
+b.write_output(get_ref_j.ref_files.fa_idx, str(OUT_REF_DIR / 'hg38.fa.fai'))
+b.write_output(get_ref_j.ref_files.gtf, str(OUT_REF_DIR / 'hg38.gtf'))
+
 # Job to build reference
 j = b.new_job('build-star-reference')
 j.image(image_path('star'))
