@@ -20,5 +20,5 @@ if gcloud storage ls "gs://cpg-common-main/references/star/${STAR_VERSION}/hg38"
     exit 1
 else
     echo "Target location vacant, copying"
-    gsutil rsync -r -m "gs://cpg-common-main-tmp/references/star/${STAR_VERSION}/hg38" "gs://cpg-common-main/references/star/${STAR_VERSION}/hg38"
+    gsutil -m rsync -r "gs://cpg-common-main-tmp/references/star/${STAR_VERSION}/hg38" "gs://cpg-common-main/references/star/${STAR_VERSION}/hg38"
 fi
