@@ -328,5 +328,15 @@ SOURCES = [
             blacklist_sites='blacklist_sites.hg38.chrM.bed',
         ),
     ),
+    Source(
+        'star',
+        # References for STAR
+        dst='star',
+        files=dict(
+            ref_dir='2.7.10b/hg38',
+            gtf='hg38/hg38.gtf',
+            fasta='hg38/hg38.fa'
+        ),
+    ),
 
 ]
