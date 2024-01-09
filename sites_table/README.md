@@ -9,6 +9,6 @@ The code used to generate this table can be found [here](https://github.com/popu
 The sites table can be found in `gs://cpg-common-main/references/ancestry/` and was copied from the `hgdp-1kg-main` bucket using the following command:
 
 ```bash
-analysis-runner --dataset reference --access-level full --output-dir "references/ancestry" --description "copy sites table" sites_table/copy_sites_table.sh 
+analysis-runner --dataset hgdp-1kg --access-level full --output-dir "references/ancestry" --description "copy sites table" sites_table/copy_sites_table.sh 
 ```
 
