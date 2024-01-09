@@ -339,7 +339,7 @@ SOURCES = [
         ),
     ),
     Source(
-        'representative_sites_table',
+        'ancestry',
         # representative sites table for PCA
         # generated using the HGDP+1KG dataset
         dst='ancestry',
