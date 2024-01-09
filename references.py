@@ -338,5 +338,14 @@ SOURCES = [
             fasta='hg38/hg38.fa'
         ),
     ),
+    Source(
+        'ancestry',
+        # representative sites table for PCA
+        # generated using the HGDP+1KG dataset
+        dst='ancestry',
+        files=dict(
+            sites_table='pruned_variants.ht',
+        ),
+    ),
 
 ]
