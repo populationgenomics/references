@@ -44,6 +44,8 @@ if transfers:
     }
 else:
     matrix = {}
-print(str(matrix).replace(' ', ''), file=sys.stderr)
-print(' '.join(str(matrix).replace(' ', '')), file=sys.stderr)
-print(str(matrix).replace(' ', ''), end='')
+
+matrix_str = str(matrix).replace(' ', '').replace('{', '%<').replace('}', '%>')
+
+print(matrix_str, file=sys.stderr)
+print(matrix_str, end='')
