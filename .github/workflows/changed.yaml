@@ -45,6 +45,7 @@ jobs:
           # needed for AnyPath
           export_environment_variables: true
           create_credentials_file: true
+          id_token_include_email: true
 
       - id: "google-cloud-sdk-setup"
         name: "Set up Cloud SDK"
