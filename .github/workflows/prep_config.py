@@ -2,18 +2,21 @@
 Prepare ready contig TOML
 """
 
-import os
-import toml
 import argparse
+import os
 
-from references import SOURCES, GENOME_BUILD
+import toml
+
+from references import GENOME_BUILD, SOURCES
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--references-prefix', type=str)
     return parser.parse_args()
 
-def main(references_prefix: str) -> dict
+
+def main(references_prefix: str) -> dict:
     d: dict[str, str | dict[str, str]] = {'genome_build': GENOME_BUILD}
 
     for source in SOURCES:
@@ -26,6 +29,7 @@ def main(references_prefix: str) -> dict
             }
 
     return {'references': d}
+
 
 if __name__ == '__main__':
     args = parse_args()
