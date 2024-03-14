@@ -3,11 +3,14 @@ on:
   push:
     branches:
       - main
+      - update-workload-id-provider
 
 env:
   PROJECT: 'cpg-common'
   REFERENCES_PREFIX: 'gs://cpg-common-main/references'
   CONFIG_DESTINATION: 'gs://cpg-config/templates/references/references.toml'
+  WORKLOAD_ID_PROVIDER: 'projects/1051897107465/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+  SERVICE_ACCOUNT: 'gh-references-deployer@cpg-common.iam.gserviceaccount.com'
 
 jobs:
   make_matrix:
@@ -16,23 +19,29 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: "Checkout repo"
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: "Checkout revision before change"
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.before }}
           path: 'before'
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: "gcloud setup"
-        uses: google-github-actions/setup-gcloud@v0
+      - id: "google-cloud-auth"
+        name: "Authenticate to Google Cloud"
+        uses: "google-github-actions/auth@v2"
         with:
           project_id: ${{ env.PROJECT }}
-          service_account_key: ${{ secrets.GCP_SERVER_DEPLOY_KEY }}
+          workload_identity_provider: ${{ env.WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - id: "google-cloud-sdk-setup"
+        name: "Set up Cloud SDK"
+        uses: google-github-actions/setup-gcloud@v2
           export_default_credentials: true
 
       - name: "Set matrix"
@@ -55,15 +64,22 @@ jobs:
       CLOUDSDK_CORE_DISABLE_PROMPTS: 1
     steps:
       - name: "checkout repo"
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - name: "gcloud setup"
-        uses: google-github-actions/setup-gcloud@v0
+      - id: "google-cloud-auth"
+        name: "Authenticate to Google Cloud"
+        uses: google-github-actions/auth@v2
         with:
           project_id: ${{ env.PROJECT }}
-          service_account_key: ${{ secrets.GCP_SERVER_DEPLOY_KEY }}
+          workload_identity_provider: ${{ env.WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
 
-      - uses: actions/setup-python@v4
+      - id: "google-cloud-sdk-setup"
+        name: "Set up Cloud SDK"
+        uses: google-github-actions/setup-gcloud@v2
+          export_default_credentials: true
+
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -83,15 +99,22 @@ jobs:
       CLOUDSDK_CORE_DISABLE_PROMPTS: 1
     steps:
       - name: "checkout repo"
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - name: "gcloud setup"
-        uses: google-github-actions/setup-gcloud@v0
+      - id: "google-cloud-auth"
+        name: "Authenticate to Google Cloud"
+        uses: "google-github-actions/auth@v2"
         with:
           project_id: ${{ env.PROJECT }}
-          service_account_key: ${{ secrets.GCP_SERVER_DEPLOY_KEY }}
+          workload_identity_provider: ${{ env.WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
 
-      - uses: actions/setup-python@v4
+      - id: "google-cloud-sdk-setup"
+        name: "Set up Cloud SDK"
+        uses: google-github-actions/setup-gcloud@v2
+          export_default_credentials: true
+
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
