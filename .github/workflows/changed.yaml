@@ -43,9 +43,9 @@ jobs:
           workload_identity_provider: ${{ env.WORKLOAD_ID_PROVIDER }}
           service_account: ${{ env.SERVICE_ACCOUNT }}
           # needed for AnyPath
+          token_format: "access_token"
           export_environment_variables: true
           create_credentials_file: true
-          id_token_include_email: true
 
       - id: "google-cloud-sdk-setup"
         name: "Set up Cloud SDK"
