@@ -42,6 +42,9 @@ jobs:
           project_id: ${{ env.PROJECT }}
           workload_identity_provider: ${{ env.WORKLOAD_ID_PROVIDER }}
           service_account: ${{ env.SERVICE_ACCOUNT }}
+          # needed for AnyPath
+          export_environment_variables: true
+          create_credentials_file: true
 
       - id: "google-cloud-sdk-setup"
         name: "Set up Cloud SDK"
