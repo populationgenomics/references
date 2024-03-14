@@ -5,6 +5,10 @@ on:
       - main
       - update-workload-id-provider
 
+permissions:
+  id-token: write
+  contents: read
+
 env:
   PROJECT: 'cpg-common'
   REFERENCES_PREFIX: 'gs://cpg-common-main/references'
