@@ -6,7 +6,7 @@ import argparse
 import sys
 from os.path import join
 
-from cloudpathlib import AnyPath
+from google.cloud import storage
 
 from references import SOURCES as NEW_SOURCES
 
@@ -15,6 +15,24 @@ try:
     from references_before import SOURCES as OLD_SOURCES
 except ImportError:
     OLD_SOURCES = []
+
+GCS_CLIENT = storage.Client()
+
+
+def gcs_file_exists(path: str) -> bool:
+    """Check if file exists in GCS
+
+    Args:
+        path (str): A path to a file in GCS
+
+    Returns:
+        bool: True if the file exists, else False
+    """
+    assert path.startswith('gs://'), f'Invalid path: {path}, must start with gs://'
+    bucket_name, blob_name = path.removeprefix('gs://').split('/', maxsplit=1)
+    bucket = GCS_CLIENT.get_bucket(bucket_name)
+    blob = bucket.get_blob(blob_name)
+    return blob.exists()
 
 
 def generate_matrix(references_prefix: str) -> dict:
@@ -34,7 +52,7 @@ def generate_matrix(references_prefix: str) -> dict:
             source.name not in old_sources_d
             or source.src != old_sources_d[source.name].src
             or source.dst != old_sources_d[source.name].dst
-            or not AnyPath(dst_path).exists()
+            or not gcs_file_exists(dst_path)
         )
         if is_changed and source.src and source.transfer_cmd:
             print(f'{source.name} has changed, will transfer', file=sys.stderr)

@@ -42,10 +42,6 @@ jobs:
           project_id: ${{ env.PROJECT }}
           workload_identity_provider: ${{ env.WORKLOAD_ID_PROVIDER }}
           service_account: ${{ env.SERVICE_ACCOUNT }}
-          # needed for AnyPath
-          token_format: "access_token"
-          export_environment_variables: true
-          create_credentials_file: true
 
       - id: "google-cloud-sdk-setup"
         name: "Set up Cloud SDK"
@@ -54,7 +50,7 @@ jobs:
       - name: "Set matrix"
         id: set_matrix
         run: |
-          pip install cloudpathlib[all]
+          pip install google-cloud-storage
           cp references.py .github/workflows/references.py
           cp before/references.py .github/workflows/references_before.py;
           result=$(python .github/workflows/prep_matrix.py --references-prefix ${{ env.REFERENCES_PREFIX }})
