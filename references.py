@@ -20,7 +20,7 @@ def gcs_rsync(src: str, dst: str) -> str:
     -r for recursive
     """
     assert src.startswith('gs://')
-    return f'gsutil -u {PROJECT} -m rsync -d -r {src} {dst}'
+    return f'gcloud --billing-project {PROJECT} storage rsync -r {src} {dst}'
 
 
 def gcs_cp_r(src: str, dst: str) -> str:
@@ -347,5 +347,44 @@ SOURCES = [
             sites_table='pruned_variants.ht',
         ),
     ),
+
+    Source(
+        'exomiser_core',
+        # The Broad resources for running Exomiser (Default)
+        src='gs://gcp-public-data--broad-references/hg38/v0/exomiser/2302_hg38',
+        dst='exomiser/core',
+        transfer_cmd=gcs_rsync,
+        files=dict(
+            clinvar_whitelist='2302_hg38_clinvar_whitelist.tsv.gz',
+            clinvar_index='2302_hg38_clinvar_whitelist.tsv.gz.tbi',
+            genome_h2='2302_hg38_genome.h2.db',
+            ensembl_transcripts='2302_hg38_transcripts_ensembl.ser',
+            refseq_transcripts='2302_hg38_transcripts_refseq.ser',
+            ucsc_transcripts='2302_hg38_transcripts_ucsc.ser',
+            variants='2302_hg38_variants.mv.db',
+        ),
+    ),
+    Source(
+        'exomiser_cadd',
+        # The Broad resources for running Exomiser (CADD)
+        src='gs://gcp-public-data--broad-references/hg38/v0/CADD/1.6',
+        dst='exomiser/cadd',
+        transfer_cmd=gcs_rsync,
+        files=dict(
+            indel_tsv='gnomad.genomes.r3.0.indel.tsv.gz',
+            indel_index='gnomad.genomes.r3.0.indel.tsv.gz.tbi',
+            snv_tsv='whole_genome_SNVs.tsv.gz.gz',
+            snv_index='whole_genome_SNVs.tsv.gz.tbi',
+        ),
+    ),
+    Source(
+        'exomiser_remm',
+        # The Broad resources for running Exomiser (REMM)
+        dst='exomiser/remm',
+        files=dict(
+            remm_tsv='ReMM.v0.3.1.tsv.gz',
+            remm_index='ReMM.v0.3.1.tsv.gz.tbi',
+        ),
+    )
 
 ]
