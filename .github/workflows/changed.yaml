@@ -53,7 +53,7 @@ jobs:
           pip install cloudpathlib[all]
           cp references.py .github/workflows/references.py
           cp before/references.py .github/workflows/references_before.py;
-          result=$(python .github/workflows/make_matrix.py --references-prefix ${{ env.REFERENCES_PREFIX }})
+          result=$(python .github/workflows/prep_matrix.py --references-prefix ${{ env.REFERENCES_PREFIX }})
           echo "matrix=$result" >> $GITHUB_OUTPUT
  
   transfer:
