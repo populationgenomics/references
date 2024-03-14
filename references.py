@@ -20,7 +20,7 @@ def gcs_rsync(src: str, dst: str) -> str:
     -r for recursive
     """
     assert src.startswith('gs://')
-    return f'gsutil -u {PROJECT} -m rsync -d -r {src} {dst}'
+    return f'gcloud --billing-project {PROJECT} storage rsync -r {src} {dst}'
 
 
 def gcs_cp_r(src: str, dst: str) -> str:
