@@ -32,7 +32,7 @@ def gcs_file_exists(path: str) -> bool:
     bucket_name, blob_name = path.removeprefix('gs://').split('/', maxsplit=1)
     bucket = GCS_CLIENT.get_bucket(bucket_name)
     blob = bucket.get_blob(blob_name)
-    return blob.exists()
+    return blob is not None and blob.exists()
 
 
 def generate_matrix(references_prefix: str) -> dict:
