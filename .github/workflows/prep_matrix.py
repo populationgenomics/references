@@ -16,7 +16,7 @@ try:
 except ImportError:
     OLD_SOURCES = []
 
-GCS_CLIENT = storage.Client()
+GCS_CLIENT: storage.Client = storage.Client()
 
 
 def gcs_file_exists(path: str) -> bool:
@@ -32,7 +32,33 @@ def gcs_file_exists(path: str) -> bool:
     bucket_name, blob_name = path.removeprefix('gs://').split('/', maxsplit=1)
     bucket = GCS_CLIENT.get_bucket(bucket_name)
     blob = bucket.get_blob(blob_name)
-    return blob is not None and blob.exists()
+    if not blob:
+        # fallback to see if it's a directory
+        return gcs_directory_exists(path)
+    return blob.exists()
+
+
+def gcs_directory_exists(path: str) -> bool:
+    """Check if directory exists in GCS
+
+    Args:
+        path (str): A path to a directory in GCS
+
+    Returns:
+        bool: True if the directory exists, else False
+    """
+    assert path.startswith('gs://'), f'Invalid path: {path}, must start with gs://'
+    bucket_name, blob_name = path.removeprefix('gs://').split('/', maxsplit=1)
+    bucket = GCS_CLIENT.get_bucket(bucket_name)
+    if not blob_name.endswith('/'):
+        # this is surprisingly important
+        blob_name = blob_name + '/'
+
+    query = bucket.list_blobs(prefix=blob_name, delimiter='/')
+    if next(query, False):
+        # has at least one blob
+        return True
+    return False
 
 
 def generate_matrix(references_prefix: str) -> dict:
@@ -48,20 +74,24 @@ def generate_matrix(references_prefix: str) -> dict:
     for source in NEW_SOURCES:
         old_sources_d = {s.name: s for s in OLD_SOURCES}
         dst_path = join(references_prefix, source.dst)
-        is_changed = (
-            source.name not in old_sources_d
-            or source.src != old_sources_d[source.name].src
-            or source.dst != old_sources_d[source.name].dst
-            or not gcs_file_exists(dst_path)
-        )
-        if is_changed and source.src and source.transfer_cmd:
-            print(f'{source.name} has changed, will transfer', file=sys.stderr)
-            transfers[source.name] = {'src': source.src, 'dst': dst_path}
-        else:
-            print(
-                f'{source.name} has not changed since previous revision',
-                file=sys.stderr,
-            )
+
+        if source.src and source.transfer_cmd:
+            if not gcs_file_exists(dst_path):
+                print(f'{dst_path} does not exist, will transfer', file=sys.stderr)
+                transfers[source.name] = {'src': source.src, 'dst': dst_path}
+                continue
+            elif (
+                source.name not in old_sources_d
+                or source.src != old_sources_d[source.name].src
+                or source.dst != old_sources_d[source.name].dst
+            ):
+                print(f'{source.name} has changed, will transfer', file=sys.stderr)
+                transfers[source.name] = {'src': source.src, 'dst': dst_path}
+            else:
+                print(
+                    f'{source.name} has not changed since previous revision',
+                    file=sys.stderr,
+                )
 
     if not transfers:
         return {}
