@@ -89,7 +89,7 @@ jobs:
         run: |
           cp references.py .github/workflows/references.py
           python .github/workflows/transfer.py \
-            --project ${{env.PROJECT}} \
+            --gcp-project ${{env.PROJECT}} \
             --references-prefix ${{ env.REFERENCES_PREFIX }} \
             ${{ matrix.name }}
  
