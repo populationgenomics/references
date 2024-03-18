@@ -393,11 +393,11 @@ SOURCES = [
     Source(
         'exomiser_remm',
         # The Broad resources for running Exomiser (REMM)
-        src='gs://gcp-public-data--broad-references/hg38/v0/ReMM/v0.3.1',
+        src='gs://gcp-public-data--broad-references/hg38/v0/ReMM',
         dst='exomiser/remm',
         files=dict(
-            remm_tsv='ReMM.v0.3.1.post1.hg38.tsv.gz',
-            remm_index='ReMM.v0.3.1.post1.hg38.tsv.gz.tbi',
+            remm_tsv='v0.3.1/ReMM.v0.3.1.post1.hg38.tsv.gz',
+            remm_index='v0.3.1/ReMM.v0.3.1.post1.hg38.tsv.gz.tbi',
         ),
     )
 
