@@ -378,12 +378,26 @@ SOURCES = [
         ),
     ),
     Source(
+        'exomiser_phenotype',
+        # The Broad resources for running Exomiser (Phenotype)
+        src='gs://gcp-public-data--broad-references/hg38/v0/exomiser/2302_phenotype',
+        dst='exomiser/phenotype',
+        transfer_cmd=gcs_rsync,
+        files=dict(
+            pheno_db='2302_phenotype.h2.db',
+            hpo_obo='hp.obo',
+            rw_string='rw_string_10.mv',
+            phenix='phenix'
+        ),
+    ),
+    Source(
         'exomiser_remm',
         # The Broad resources for running Exomiser (REMM)
+        src='gs://gcp-public-data--broad-references/hg38/v0/ReMM',
         dst='exomiser/remm',
         files=dict(
-            remm_tsv='ReMM.v0.3.1.tsv.gz',
-            remm_index='ReMM.v0.3.1.tsv.gz.tbi',
+            remm_tsv='v0.3.1/ReMM.v0.3.1.post1.hg38.tsv.gz',
+            remm_index='v0.3.1/ReMM.v0.3.1.post1.hg38.tsv.gz.tbi',
         ),
     )
 
