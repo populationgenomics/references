@@ -373,7 +373,7 @@ SOURCES = [
         files=dict(
             indel_tsv='gnomad.genomes.r3.0.indel.tsv.gz',
             indel_index='gnomad.genomes.r3.0.indel.tsv.gz.tbi',
-            snv_tsv='whole_genome_SNVs.tsv.gz.gz',
+            snv_tsv='whole_genome_SNVs.tsv.gz',
             snv_index='whole_genome_SNVs.tsv.gz.tbi',
         ),
     ),
@@ -387,17 +387,18 @@ SOURCES = [
             pheno_db='2302_phenotype.h2.db',
             hpo_obo='hp.obo',
             rw_string='rw_string_10.mv',
-            phenix='phenix'
+            phenix='phenix',
+            phenix_tar='phenix.tar.gz'
         ),
     ),
     Source(
         'exomiser_remm',
         # The Broad resources for running Exomiser (REMM)
-        src='gs://gcp-public-data--broad-references/hg38/v0/ReMM',
+        src='gs://gcp-public-data--broad-references/hg38/v0/ReMM/v0.3.1',
         dst='exomiser/remm',
         files=dict(
-            remm_tsv='v0.3.1/ReMM.v0.3.1.post1.hg38.tsv.gz',
-            remm_index='v0.3.1/ReMM.v0.3.1.post1.hg38.tsv.gz.tbi',
+            remm_tsv='ReMM.v0.3.1.post1.hg38.tsv.gz',
+            remm_index='ReMM.v0.3.1.post1.hg38.tsv.gz.tbi',
         ),
     )
 
