@@ -3,14 +3,19 @@ List of sources for reference data
 """
 
 import dataclasses
-import os
-from typing import Callable
+from shlex import quote
+from typing import Protocol
 
 
-PROJECT = os.environ['PROJECT']
+class SyncCommandProtocol(Protocol):
+    def __call__(self, src: str, dst: str, project: str) -> str: ...
 
 
-def gcs_rsync(src: str, dst: str) -> str:
+def quote_command(cmd: list[str]) -> str:
+    return ' '.join(map(quote, cmd))
+
+
+def gcs_rsync(src: str, dst: str, project: str) -> str:
     """
     defines a gcs rsync function
     this should be updated to use gcloud storage rsync
@@ -20,26 +25,25 @@ def gcs_rsync(src: str, dst: str) -> str:
     -r for recursive
     """
     assert src.startswith('gs://')
-    return f'gcloud --billing-project {PROJECT} storage rsync -r {src} {dst}'
+    c = ['gcloud', '--billing-project', project, 'storage', 'rsync', '-r', src, dst]
+    return quote_command(c)
 
 
-def gcs_cp_r(src: str, dst: str) -> str:
+def gcs_cp_r(src: str, dst: str, project: str) -> str:
     """
     defines a recursive gcs copy function
     """
     assert src.startswith('gs://')
-    return f'gcloud --billing-project {PROJECT} storage cp -r {src} {dst}'
+    c = ['gcloud', '--billing-project', project, 'storage', 'cp', '-r', src, dst]
+    return quote_command(c)
 
 
-def curl(src: str, dst: str) -> str:
+def curl(src: str, dst: str, project: str) -> str:
     """
     defines a curl & recursive copy upload function
     """
     assert src.startswith('https://')
-    return (
-        f'curl -L {src} -o tmp && '
-        f'gcloud --billing-project {PROJECT} storage cp -r tmp {dst}'
-    )
+    return f'curl -L {quote(src)} -o tmp && gcloud --billing-project {quote(project)} storage cp -r tmp {quote(dst)}'
 
 
 @dataclasses.dataclass
@@ -54,11 +58,14 @@ class Source:
     dst: str  # destination suffix, to be appended to PREFIX
     src: str | None = None  # fully qualified source URL
     files: dict[str, str] | None = None  # map of other suffixes appended to `dst`
-    transfer_cmd: Callable[[str, str], str] | None = None
+    transfer_cmd: SyncCommandProtocol | None = None
 
     def is_folder(self) -> bool:
         """simple folder check using known extensions"""
-        return self.files or (
+        if self.files:
+            return True
+
+        return (
             self.dst.endswith('.ht')
             or self.dst.endswith('.mt')
             or self.dst.endswith('.vds')
@@ -259,8 +266,8 @@ SOURCES = [
         files=dict(
             vcf='HG001_GRCh38_1_22_v4.2.1_benchmark.vcf.gz',
             index='HG001_GRCh38_1_22_v4.2.1_benchmark.vcf.gz.tbi',
-            bed='HG001_GRCh38_1_22_v4.2.1_benchmark.bed'
-        )
+            bed='HG001_GRCh38_1_22_v4.2.1_benchmark.bed',
+        ),
     ),
     Source(
         'SYNDIP',
@@ -268,8 +275,8 @@ SOURCES = [
         files=dict(
             vcf='syndip_truth.vcf.gz',
             index='syndip_truth.vcf.gz.tbi',
-            bed='syndip.b38_20180222.bed'
-        )
+            bed='syndip.b38_20180222.bed',
+        ),
     ),
     Source(
         'HG002_NA24385',
@@ -277,8 +284,8 @@ SOURCES = [
         files=dict(
             vcf='HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz',
             index='HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz.tbi',
-            bed='HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed'
-        )
+            bed='HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed',
+        ),
     ),
     Source(
         'HG003_NA24149',
@@ -286,8 +293,8 @@ SOURCES = [
         files=dict(
             vcf='HG003_GRCh38_1_22.vcf.gz',
             index='HG003_GRCh38_1_22.vcf.gz.tbi',
-            bed='HG003_GRCh38_1_22.bed'
-        )
+            bed='HG003_GRCh38_1_22.bed',
+        ),
     ),
     Source(
         'HG004_NA24143',
@@ -295,8 +302,8 @@ SOURCES = [
         files=dict(
             vcf='HG004_GRCh38_1_22.vcf.gz',
             index='HG004_GRCh38_1_22.vcf.gz.tbi',
-            bed='HG004_GRCh38_1_22.bed'
-        )
+            bed='HG004_GRCh38_1_22.bed',
+        ),
     ),
     Source(
         'VCGS_NA12878',
@@ -304,8 +311,8 @@ SOURCES = [
         files=dict(
             vcf='twist_exome_benchmark_truth.vcf.gz',
             index='twist_exome_benchmark_truth.vcf.gz.tbi',
-            bed='Twist_Exome_Core_Covered_Targets_hg38.bed'
-        )
+            bed='Twist_Exome_Core_Covered_Targets_hg38.bed',
+        ),
     ),
     Source('stratification', dst='validation/stratification'),
     Source('refgenome_sdf', dst='validation/masked_reference_sdf'),
@@ -332,11 +339,7 @@ SOURCES = [
         'star',
         # References for STAR
         dst='star',
-        files=dict(
-            ref_dir='2.7.10b/hg38',
-            gtf='hg38/hg38.gtf',
-            fasta='hg38/hg38.fa'
-        ),
+        files=dict(ref_dir='2.7.10b/hg38', gtf='hg38/hg38.gtf', fasta='hg38/hg38.fa'),
     ),
     Source(
         'ancestry',
@@ -347,7 +350,6 @@ SOURCES = [
             sites_table='pruned_variants.ht',
         ),
     ),
-
     Source(
         'exomiser_core',
         # The Broad resources for running Exomiser (Default)
@@ -388,7 +390,7 @@ SOURCES = [
             hpo_obo='hp.obo',
             rw_string='rw_string_10.mv',
             phenix='phenix',
-            phenix_tar='phenix.tar.gz'
+            phenix_tar='phenix.tar.gz',
         ),
     ),
     Source(
@@ -405,6 +407,6 @@ SOURCES = [
         'hg38_telomeres_and_centromeres',
         # gnomAD v3 hg38 coordinates for telomeres and centromeres
         src='gs://gcp-public-data--gnomad/resources/grch38/telomeres_and_centromeres/hg38.telomeresAndMergedCentromeres.bed',
-        dst='hg38/v0/hg38.telomeresAndMergedCentromeres.bed'
-    )
+        dst='hg38/v0/hg38.telomeresAndMergedCentromeres.bed',
+    ),
 ]
