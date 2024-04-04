@@ -400,6 +400,11 @@ SOURCES = [
             remm_tsv='ReMM.v0.3.1.post1.hg38.tsv.gz',
             remm_index='ReMM.v0.3.1.post1.hg38.tsv.gz.tbi',
         ),
+    ),
+    Source(
+        'hg38_telomeres_and_centromeres',
+        # gnomAD v3 hg38 coordinates for telomeres and centromeres
+        src='gs://gcp-public-data--gnomad/resources/grch38/telomeres_and_centromeres/hg38.telomeresAndMergedCentromeres.bed',
+        dst='hg38/v0/hg38.telomeresAndMergedCentromeres.bed'
     )
-
 ]
