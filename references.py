@@ -8,8 +8,7 @@ from typing import Protocol
 
 
 class SyncCommandProtocol(Protocol):
-    def __call__(self, src: str, dst: str, project: str) -> str:
-        ...
+    def __call__(self, src: str, dst: str, project: str) -> str: ...
 
 
 def quote_command(cmd: list[str]) -> str:
@@ -376,17 +375,38 @@ SOURCES = [
         files=dict(
             indel_tsv='gnomad.genomes.r3.0.indel.tsv.gz',
             indel_index='gnomad.genomes.r3.0.indel.tsv.gz.tbi',
-            snv_tsv='whole_genome_SNVs.tsv.gz.gz',
+            snv_tsv='whole_genome_SNVs.tsv.gz',
             snv_index='whole_genome_SNVs.tsv.gz.tbi',
+        ),
+    ),
+    Source(
+        'exomiser_phenotype',
+        # The Broad resources for running Exomiser (Phenotype)
+        src='gs://gcp-public-data--broad-references/hg38/v0/exomiser/2302_phenotype',
+        dst='exomiser/phenotype',
+        transfer_cmd=gcs_rsync,
+        files=dict(
+            pheno_db='2302_phenotype.h2.db',
+            hpo_obo='hp.obo',
+            rw_string='rw_string_10.mv',
+            phenix='phenix',
+            phenix_tar='phenix.tar.gz',
         ),
     ),
     Source(
         'exomiser_remm',
         # The Broad resources for running Exomiser (REMM)
+        src='gs://gcp-public-data--broad-references/hg38/v0/ReMM/v0.3.1',
         dst='exomiser/remm',
         files=dict(
-            remm_tsv='ReMM.v0.3.1.tsv.gz',
-            remm_index='ReMM.v0.3.1.tsv.gz.tbi',
+            remm_tsv='ReMM.v0.3.1.post1.hg38.tsv.gz',
+            remm_index='ReMM.v0.3.1.post1.hg38.tsv.gz.tbi',
         ),
+    ),
+    Source(
+        'hg38_telomeres_and_centromeres',
+        # gnomAD v3 hg38 coordinates for telomeres and centromeres
+        src='gs://gcp-public-data--gnomad/resources/grch38/telomeres_and_centromeres/hg38.telomeresAndMergedCentromeres.bed',
+        dst='hg38/v0/hg38.telomeresAndMergedCentromeres.bed',
     ),
 ]
