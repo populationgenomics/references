@@ -408,5 +408,6 @@ SOURCES = [
         # gnomAD v3 hg38 coordinates for telomeres and centromeres
         src='gs://gcp-public-data--gnomad/resources/grch38/telomeres_and_centromeres/hg38.telomeresAndMergedCentromeres.bed',
         dst='hg38/v0/hg38.telomeresAndMergedCentromeres.bed',
+        transfer_cmd=gcs_cp_r,
     ),
 ]
