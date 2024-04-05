@@ -54,3 +54,13 @@ primary_contigs_list = "gs://cpg-common-main/references/hg38/v0/sv-resources/res
 ```
 
 The script assumes the Google Cloud infrastructure, but the structure can be replicated for other cloud providers.
+
+## Transfer Type
+
+When adding a new source `transfer_cmd` can be specified to indicate the type of transfer that should be used to bring the resource(s) into our reference bucket. Without a specified `transfer_cmd` the config entries will still be populated, but no new transfer will be actioned. This can still be useful if the resource is already in the reference bucket, but the config entry is missing.
+
+The transfer commands are actioned in CI using appropriate credentials, and the following commands are supported:
+
+* `gcs_rsync`: Uses a recursive, non-destructive, `gcloud storage rsync` to copy the source to the destination. i.e. it doesn't delete files in the destination that are not in the source.
+* `gcs_cp_r`: Uses a recursive `gcloud storage cp` to copy the source to the destination
+* `curl`: uses a `curl` & `gcloud storage cp` to pull resources from an HTTP URL
