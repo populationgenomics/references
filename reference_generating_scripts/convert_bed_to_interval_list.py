@@ -34,14 +34,16 @@ def get_ref_files(bed_ref: str, sd_ref: str, outfile_path: str) -> None:
 @click.command()
 @click.option('--bed-ref', required=True, help='String identifier for the BED file from the references.', default='hg38_telomeres_and_centromeres')
 @click.option('--sd-ref', required=True, help='String identifier for the sequence dictionary file from the references.', default='broad/genome_calling_interval_lists')
-@click.option('--outfile', required=True, help='Path to save the output .interval_list file.', default='gs://cpg-common-main/references/hg38/v0/hg38.telomeresAndMergedCentromeres.interval_list')
-def main(bed_ref, sd_ref, outfile):
+@click.option('--out-ref', required=True, help='Reference path to save the output .interval_list file.', default='hg38_telomeres_and_centromeres_intervals/interval_list')
+def main(bed_ref, sd_ref, out_ref):
     """
     Converts a BED file to a .interval_list file using Picard BedToIntervalList.
+    The output file must have been added to references.py.
     """
-    if not outfile.endswith('.interval_list'):
-        raise ValueError('Output file must be a .interval_list file.')
-    get_ref_files(bed_ref, sd_ref, outfile)
+    out_ref = reference_path(out_ref)
+    if not out_ref.endswith('.interval_list'):
+        raise ValueError('Output reference file must have a .interval_list extension.')
+    get_ref_files(bed_ref, sd_ref, out_ref)
 
 
 if __name__ == '__main__':
