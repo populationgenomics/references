@@ -413,6 +413,7 @@ SOURCES = [
     Source(
         'hg38_telomeres_and_centromeres_intervals',
         # gnomAD v3 hg38 coordinates for telomeres and centromeres converted to interval_list
+        # Created with the convert_bed_to_interval_list_file.py script
         dst='hg38/v0',
         files=dict(
             interval_list='hg38.telomeresAndMergedCentromeres.interval_list'
