@@ -39,3 +39,7 @@ def main(bed_ref, sd_ref):
     Converts a BED file to a .interval_list file using Picard BedToIntervalList.
     """
     get_ref_files(bed_ref, sd_ref)
+
+
+if __name__ == '__main__':
+    main()
