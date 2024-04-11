@@ -40,7 +40,7 @@ def main(bed_ref, sd_ref, out_ref):
     Converts a BED file to a .interval_list file using Picard BedToIntervalList.
     The output file must have been added to references.py.
     """
-    out_ref = reference_path(out_ref)
+    out_ref = str(reference_path(out_ref))
     if not out_ref.endswith('.interval_list'):
         raise ValueError('Output reference file must have a .interval_list extension.')
     get_ref_files(bed_ref, sd_ref, out_ref)
