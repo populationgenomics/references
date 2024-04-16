@@ -209,6 +209,7 @@ SOURCES = [
         transfer_cmd=gcs_cp_r,
         files=dict(
             tel_and_cent_ht='telomeres_and_centromeres/hg38.telomeresAndMergedCentromeres.ht',
+            tel_and_cent_bed='telomeres_and_centromeres/hg38.telomeresAndMergedCentromeres.bed',
             lcr_intervals_ht='lcr_intervals/LCRFromHengHg38.ht',
             seg_dup_intervals_ht='seg_dup_intervals/GRCh38_segdups.ht',
             clinvar_ht='clinvar/clinvar_20190923.ht',
@@ -402,13 +403,6 @@ SOURCES = [
             remm_tsv='ReMM.v0.3.1.post1.hg38.tsv.gz',
             remm_index='ReMM.v0.3.1.post1.hg38.tsv.gz.tbi',
         ),
-    ),
-    Source(
-        'hg38_telomeres_and_centromeres',
-        # gnomAD v3 hg38 coordinates for telomeres and centromeres
-        src='gs://gcp-public-data--gnomad/resources/grch38/telomeres_and_centromeres/hg38.telomeresAndMergedCentromeres.bed',
-        dst='hg38/v0/hg38.telomeresAndMergedCentromeres.bed',
-        transfer_cmd=gcs_cp_r,
     ),
     Source(
         'hg38_telomeres_and_centromeres_intervals',
