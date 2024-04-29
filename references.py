@@ -405,6 +405,20 @@ SOURCES = [
         ),
     ),
     Source(
+        # monarch annotations for running Exomiser 14.X+
+        'exomiser_2402_pheno',
+        src='https://data.monarchinitiative.org/exomiser/latest/2402_phenotype.zip',
+        dst='exomiser_2402/phenotype',
+        transfer_cmd=curl,
+    ),
+    Source(
+        # monarch annotations for running Exomiser 14.X+
+        'exomiser_2402_core',
+        src='https://data.monarchinitiative.org/exomiser/latest/2402_hg38.zip',
+        dst='exomiser_2402/core',
+        transfer_cmd=curl,
+    ),
+    Source(
         'hg38_telomeres_and_centromeres_intervals',
         # gnomAD v3 hg38 coordinates for telomeres and centromeres converted to interval_list
         # Created with the convert_bed_to_interval_list_file.py script
