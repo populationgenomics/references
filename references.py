@@ -43,7 +43,7 @@ def curl(src: str, dst: str, project: str) -> str:
     defines a curl & recursive copy upload function
     """
     assert src.startswith('https://')
-    return f'curl -L {quote(src)} -o tmp && gcloud --billing-project {quote(project)} storage cp -r tmp {quote(dst)}'
+    return f'curl -L {quote(src)} | gcloud --billing-project {quote(project)} storage cp - {quote(dst)}'
 
 
 @dataclasses.dataclass
