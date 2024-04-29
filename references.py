@@ -408,14 +408,14 @@ SOURCES = [
         # monarch annotations for running Exomiser 14.X+
         'exomiser_2402_pheno',
         src='https://data.monarchinitiative.org/exomiser/latest/2402_phenotype.zip',
-        dst='exomiser/2402_pheno',
+        dst='exomiser_2402/phenotype',
         transfer_cmd=curl,
     ),
     Source(
         # monarch annotations for running Exomiser 14.X+
         'exomiser_2402_core',
         src='https://data.monarchinitiative.org/exomiser/latest/2402_hg38.zip',
-        dst='exomiser/2402_core',
+        dst='exomiser_2402/core',
         transfer_cmd=curl,
     ),
     Source(
