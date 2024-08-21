@@ -46,6 +46,14 @@ def curl(src: str, dst: str, project: str) -> str:
     return f'curl -L {quote(src)} | gcloud --billing-project {quote(project)} storage cp - {quote(dst)}'
 
 
+def curl_with_user_agent(src: str, dst: str, project: str) -> str:
+    """
+    defines a curl & recursive copy upload function, with a user agent
+    """
+    assert src.startswith('https://')
+    return f'curl -A "Mozilla/5.0" -L {quote(src)} | gcloud --billing-project {quote(project)} storage cp - {quote(dst)}'
+
+
 @dataclasses.dataclass
 class Source:
     """
@@ -233,6 +241,18 @@ SOURCES = [
         src='gs://seqr-reference-data/GRCh38/clinvar/clinvar.GRCh38.ht',
         dst='seqr/v0/clinvar.GRCh38.ht',
         transfer_cmd=gcs_cp_r,
+    ),
+    Source(
+        'igv_org_genomes',
+        # The reference data used by Seqr to display reads with IGV.js
+        src='https://s3.amazonaws.com/igv.org.genomes/hg38/',
+        dst='igv_org_genomes/hg38',
+        transfer_cmd=curl_with_user_agent,
+        files=dict(
+            cytoBandIdeo='annotations/cytoBandIdeo.txt.gz',
+            hg38_alias='hg38_alias.tab',
+            regGeneSorted='refGene.sorted.txt.gz',
+        )
     ),
     Source(
         'syndip',
