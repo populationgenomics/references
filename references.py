@@ -459,7 +459,7 @@ SOURCES = [
     ),
     Source(
         'gnomad_4.1_vcfs',
-        src='gs://gcp-public-data--gnomad/release/4.1/vcf/genomes/        ',
+        src='gs://gcp-public-data--gnomad/release/4.1/vcf/genomes',
         dst='gnomad/v4.1/vcfs',
         files={contig: f'gnomad.genomes.r4.1.sites.{contig}.vcf.bgz' for contig in CANONICAL_CHROMOSOMES},
         transfer_cmd=gcs_rsync,
