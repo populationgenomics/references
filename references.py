@@ -6,6 +6,8 @@ import dataclasses
 from shlex import quote
 from typing import Protocol
 
+CANONICAL_CHROMOSOMES = [f'chr{x}' for x in list(range(1, 23))] + ['X', 'Y']
+
 
 class SyncCommandProtocol(Protocol):
     def __call__(self, src: str, dst: str, project: str) -> str: ...
@@ -18,7 +20,6 @@ def quote_command(cmd: list[str]) -> str:
 def gcs_rsync(src: str, dst: str, project: str) -> str:
     """
     defines a gcs rsync function
-    this should be updated to use gcloud storage rsync
     -u sets the billing project
     -m for multiple (parallel) transfer
     -d for deleting files in the destination that are not in the source
@@ -26,6 +27,15 @@ def gcs_rsync(src: str, dst: str, project: str) -> str:
     """
     assert src.startswith('gs://')
     c = ['gcloud', '--billing-project', project, 'storage', 'rsync', '-r', src, dst]
+    return quote_command(c)
+
+
+def gcs_cp_single(src: str, dst: str, project: str) -> str:
+    """
+    defines a single-file gcs copy function
+    """
+    assert src.startswith('gs://')
+    c = ['gcloud', '--billing-project', project, 'storage', 'cp', src, dst]
     return quote_command(c)
 
 
@@ -446,5 +456,26 @@ SOURCES = [
         files=dict(
             interval_list='hg38.telomeresAndMergedCentromeres.interval_list'
         ),
+    ),
+    Source(
+        'gnomad_4.1_vcfs',
+        src='gs://gcp-public-data--gnomad/release/4.1/vcf/genomes/        ',
+        dst='gnomad/v4.1/vcfs',
+        files={contig: f'gnomad.genomes.r4.1.sites.{contig}.vcf.bgz' for contig in CANONICAL_CHROMOSOMES},
+        transfer_cmd=gcs_rsync,
+    ),
+    Source(
+        # Mito frequencies are only available on 3.1, but we don't need/want the rest of the 3.1 files
+        # this will copy the single MT file, then we'll have to get/generate the index separately
+        'gnomad_3.1_mito',
+        src='gs://gcp-public-data--gnomad/release/3.1/vcf/genomes/gnomad.genomes.v3.1.sites.chrM.vcf.bgz',
+        dst='gnomad/v3.1/vcf/gnomad.genomes.r3.1.sites.chrM.vcf.bgz',
+        transfer_cmd=gcs_cp_single,
+    ),
+    Source(
+        'gnomad_4.1_ht',
+        src='gs://gcp-public-data--gnomad/release/4.1/ht/genomes/gnomad.genomes.v4.1.sites.ht',
+        dst='gnomad/v4.1/ht/gnomad.genomes.v4.1.sites.ht',
+        transfer_cmd=gcs_rsync,
     ),
 ]
