@@ -6,7 +6,7 @@ import dataclasses
 from shlex import quote
 from typing import Protocol
 
-CANONICAL_CHROMOSOMES = [f'chr{x}' for x in list(range(1, 23))] + ['X', 'Y']
+CANONICAL_CHROMOSOMES = [f'chr{x}' for x in list(range(1, 23)) + ['X', 'Y']]
 
 
 class SyncCommandProtocol(Protocol):
