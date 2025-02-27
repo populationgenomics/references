@@ -111,7 +111,7 @@ def encode_gnomad() -> None:
         # create and resource a job
         contig_job = get_batch().new_job(f'Run echtvar on gnomad v4.1, {contig}')
         contig_job.image(echtvar_image)
-        job_storage = storage_with_buffer(contig_job.output)
+        job_storage = storage_with_buffer(file_path)
         contig_job.storage(f'{job_storage}Gi')
         contig_job.cpu(4)
         contig_job.memory('highmem')
