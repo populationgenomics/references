@@ -22,6 +22,7 @@ We may want to adjust that behaviour in the future.
 
 import gzip
 import json
+import requests
 
 from cloudpathlib import AnyPath
 
@@ -144,17 +145,16 @@ def main():
     init_batch()
 
     # get the AM file using Hail's hadoop open to read/write
-    with hl.hadoop_open(AM_ZENODO, 'r') as f:
-        data = f.read()
-
-    # write this locally
-    with open('temp.tsv.gz', 'wb') as f:
-        f.write(data)
+    data = requests.get(AM_ZENODO)
 
     # if it doesn't exist in GCP, push it there
     if not AnyPath(DESTINATION).exists():
         with hl.hadoop_open(DESTINATION, 'w') as f:
             f.write(data)
+
+    # write this locally
+    with open('temp.tsv.gz', 'wb') as f:
+        f.write(data)
 
     # generate a new tsv of just pathogenic entries
     filter_for_pathogenic_am('temp.tsv.gz', 'temp.json')
