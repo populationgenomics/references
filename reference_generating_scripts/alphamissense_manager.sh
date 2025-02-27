@@ -15,7 +15,7 @@ TSV_DESTINATION="${WRITE_OUTPUT_TO}/AlphaMissense_hg38.tsv.gz"
 gcloud storage cp AlphaMissense_hg38.tsv.gz $TSV_DESTINATION
 
 # convert the TSV to a HT
-python3 reference_generating_scripts/alphamissense_to_ht.py \
+python3 reference_generating_scripts/alphamissense_formatting.py \
     --input_tsv AlphaMissense_hg38.tsv.gz \
     --output_ht output.ht
 
