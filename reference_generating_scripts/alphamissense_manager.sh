@@ -27,4 +27,4 @@ gcloud --quiet storage cp -r alphamissense_38.ht $TABLE_DESTINATION
 tar -czf alphamissense_38.ht.tar.gz alphamissense_38.ht
 
 TAR_DESTINATION="${WRITE_OUTPUT_TO}/alphamissense_38.ht.tar.gz"
-gcloud --quiet storage cp alphamissense_38.ht $TAR_DESTINATION
+gcloud --quiet storage cp alphamissense_38.ht.tar.gz $TAR_DESTINATION
