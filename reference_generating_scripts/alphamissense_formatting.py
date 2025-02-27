@@ -31,8 +31,8 @@ import hail as hl
 
 
 AM_ZENODO = 'https://zenodo.org/records/8208688/files/AlphaMissense_hg38.tsv.gz'
-DESTINATION = 'gs://cpg-common-main/references/alphamissense/AlphaMissense_hg38.tsv.gz'
-TABLE_DESTINATION = 'gs://cpg-common-main/references/alphamissense/AlphaMissense_hg38.ht'
+DESTINATION = 'gs://cpg-common-test-tmp/references/alphamissense/AlphaMissense_hg38.tsv.gz'
+TABLE_DESTINATION = 'gs://cpg-common-test-tmp/references/alphamissense/AlphaMissense_hg38.ht'
 
 
 def process_header(final_header_line: str) -> dict[str, int]:
