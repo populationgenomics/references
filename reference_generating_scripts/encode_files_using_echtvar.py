@@ -85,8 +85,6 @@ def encode_gnomad() -> None:
     """
     run echtvar encode on all gnomadV4 contigs, separately and combined
     we need to do this once ever, estimated cost $5
-
-    This job only needs to run once, ever
     """
 
     common_folder = join(config_retrieve(['storage', 'common']), 'gnomad', 'echtvar')
