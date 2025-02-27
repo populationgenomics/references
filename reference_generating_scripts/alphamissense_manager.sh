@@ -2,7 +2,7 @@
 
 # This script is used to manage the generation of reference files for the alpha missense dataset.
 
-WRITE_OUTPUT_TO="gs://cpg-common-test-tmp/references/alphamissense"
+WRITE_OUTPUT_TO="gs://cpg-common-main/references/alphamissense"
 
 # wget the raw data
 AM_ZENODO="https://zenodo.org/records/8208688/files/AlphaMissense_hg38.tsv.gz"
