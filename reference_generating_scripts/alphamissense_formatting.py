@@ -145,11 +145,12 @@ def main():
     init_batch()
 
     # get the AM file using Hail's hadoop open to read/write
-    data = requests.get(AM_ZENODO)
+    response = requests.get(AM_ZENODO)
+    data = response.content
 
     # if it doesn't exist in GCP, push it there
     if not AnyPath(DESTINATION).exists():
-        with hl.hadoop_open(DESTINATION, 'w') as f:
+        with hl.hadoop_open(DESTINATION, 'wb') as f:
             f.write(data)
 
     # write this locally
