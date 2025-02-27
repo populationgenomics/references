@@ -19,21 +19,11 @@ Currently this skips over everything AM deems non-pathogenic, and only writes pa
 We may want to adjust that behaviour in the future.
 """
 
-
+from argparse import ArgumentParser
 import gzip
 import json
-import requests
-
-from cloudpathlib import AnyPath
-
-from cpg_utils.hail_batch import init_batch
 
 import hail as hl
-
-
-AM_ZENODO = 'https://zenodo.org/records/8208688/files/AlphaMissense_hg38.tsv.gz'
-DESTINATION = 'gs://cpg-common-test-tmp/references/alphamissense/AlphaMissense_hg38.tsv.gz'
-TABLE_DESTINATION = 'gs://cpg-common-test-tmp/references/alphamissense/AlphaMissense_hg38.ht'
 
 
 def process_header(final_header_line: str) -> dict[str, int]:
@@ -103,13 +93,14 @@ def filter_for_pathogenic_am(input_file: str, intermediate_file: str):
             write_handle.write(f'{json.dumps(content_dict)}\n')
 
 
-def json_to_hail_table(json_file: str):
+def json_to_hail_table(json_file: str, ht_out: str):
     """
     take a previously created JSON file and ingest it as a Hail Table
     requires an initiated Hail context
 
     Args:
         json_file ():
+        ht_out (str): (local) path to write out to
     """
 
     # define the schema for each written line
@@ -133,37 +124,34 @@ def json_to_hail_table(json_file: str):
     # combine the two alleles into a single list
     ht = ht.transmute(locus=hl.locus(contig=ht.chrom, pos=ht.pos), alleles=[ht.ref, ht.alt])
     ht = ht.key_by('locus', 'alleles')
-    ht.write(TABLE_DESTINATION)
+    ht.write(ht_out)
     ht.describe()
 
 
-def main():
+def main(alpha_m_file: str, ht_path: str):
     """
     takes the path to an AlphaMissense TSV, reorganises it into a Hail Table
     """
 
-    init_batch()
-
-    # get the AM file using Hail's hadoop open to read/write
-    r = requests.get(AM_ZENODO, stream=True)
-    with open('temp.tsv.gz', 'wb') as f:
-        for chunk in r.raw.stream(1024, decode_content=False):
-            if chunk:
-                f.write(chunk)
-
-    all_data_in_bytes = open('temp.tsv.gz', 'rb').read()
-
-    # if it doesn't exist in GCP, push it there
-    if not AnyPath(DESTINATION).exists():
-        with hl.hadoop_open(DESTINATION, 'wb') as f:
-            f.write(all_data_in_bytes)
+    hl.context.init_spark(master='local[4]', default_reference='GRCh38', quiet=True)
 
     # generate a new tsv of just pathogenic entries
-    filter_for_pathogenic_am('temp.tsv.gz', 'temp.json')
+    filter_for_pathogenic_am(alpha_m_file, 'temp.json')
 
     # now ingest as HT and re-jig some fields
-    json_to_hail_table('temp.json')
+    json_to_hail_table('temp.json', ht_out=ht_path)
+
+
+def cli_main():
+    parser = ArgumentParser()
+    parser.add_argument('--am_tsv', help='path to the AM tsv.gz file')
+    parser.add_argument('--ht_out', help='path to write a new Hail Table')
+    args, unknown = parser.parse_known_args()
+
+    if unknown:
+        raise ValueError(unknown)
+    main(alpha_m_file=args.am_tsv, ht_path=args.ht_out)
 
 
 if __name__ == '__main__':
-    main()
+    cli_main()
