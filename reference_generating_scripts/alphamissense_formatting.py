@@ -145,17 +145,18 @@ def main():
     init_batch()
 
     # get the AM file using Hail's hadoop open to read/write
-    response = requests.get(AM_ZENODO)
-    data = response.content
+    r = requests.get(AM_ZENODO, stream=True)
+    with open('temp.tsv.gz', 'wb') as f:
+        for chunk in r.raw.stream(1024, decode_content=False):
+            if chunk:
+                f.write(chunk)
+
+    all_data_in_bytes = open('temp.tsv.gz', 'rb').read()
 
     # if it doesn't exist in GCP, push it there
     if not AnyPath(DESTINATION).exists():
         with hl.hadoop_open(DESTINATION, 'wb') as f:
-            f.write(data)
-
-    # write this locally
-    with open('temp.tsv.gz', 'wb') as f:
-        f.write(data)
+            f.write(all_data_in_bytes)
 
     # generate a new tsv of just pathogenic entries
     filter_for_pathogenic_am('temp.tsv.gz', 'temp.json')
