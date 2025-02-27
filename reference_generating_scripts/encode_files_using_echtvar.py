@@ -53,14 +53,18 @@ from cpg_utils import Path, to_path
 from cpg_utils.config import config_retrieve, image_path, ConfigError
 from cpg_utils.hail_batch import get_batch
 
-CANONICAL_CHROMOSOMES = [f'chr{x}' for x in list(range(1, 23)) + ['X', 'Y']] + ['whole_genome']
+CANONICAL_CHROMOSOMES = [f'chr{x}' for x in list(range(1, 23)) + ['X', 'Y']] + [
+    'whole_genome'
+]
 
 
 # pull from config, defaulting to the image at time of writing
 try:
     echtvar_image = image_path('echtvar')
 except ConfigError:
-    echtvar_image = 'australia-southeast1-docker.pkg.dev/cpg-common/images/echtvar:v0.2.1'
+    echtvar_image = (
+        'australia-southeast1-docker.pkg.dev/cpg-common/images/echtvar:v0.2.1'
+    )
 
 word_file = "/usr/share/dict/words"
 WORDS = open(word_file).read().splitlines()
@@ -116,7 +120,9 @@ def encode_gnomad() -> StageOutput | None:
         contig_job.memory('highmem')
 
         # run the echtvar encode command
-        contig_job.command(f'echtvar encode {contig_job.output} $ECHTVAR_CONFIG {contig_localised}')
+        contig_job.command(
+            f'echtvar encode {contig_job.output} $ECHTVAR_CONFIG {contig_localised}'
+        )
         get_batch().write_output(contig_job.output, contig_output)
 
         # add to the total storage required for the whole genome job
@@ -131,7 +137,9 @@ def encode_gnomad() -> StageOutput | None:
         job.cpu(4)
         job.memory('highmem')
         # the input files were all localised individually
-        job.command(f'echtvar encode {job.output} $ECHTVAR_CONFIG {" ".join(contig_files)}')
+        job.command(
+            f'echtvar encode {job.output} $ECHTVAR_CONFIG {" ".join(contig_files)}'
+        )
         get_batch().write_output(job.output, whole_genome_output)
 
     get_batch().run(wait=False)
@@ -156,7 +164,9 @@ def encode_anything(input_list: list[str], output: str):
     try:
         echtvar_config = config_retrieve(['echtvar_config'])
         random_string = '_'.join(random.choices(WORDS, k=3)) + '.json'
-        temp_config = join(config_retrieve(['storage', 'default', 'tmp']), random_string)
+        temp_config = join(
+            config_retrieve(['storage', 'default', 'tmp']), random_string
+        )
         with to_path(temp_config).open('w') as handle:
             json.dump(echtvar_config, handle, indent=2)
         config = get_batch().read_input(temp_config)
@@ -185,8 +195,16 @@ def encode_anything(input_list: list[str], output: str):
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     parser = ArgumentParser()
-    parser.add_argument('--input', help='Path to input data. If not supplied will default to gnomad_4.1 vcfs', nargs='+', default=[],)
-    parser.add_argument('--output', help='Path to write the result - all arguments supplied with --input will be processed together')
+    parser.add_argument(
+        '--input',
+        help='Path to input data. If not supplied will default to gnomad_4.1 vcfs',
+        nargs='+',
+        default=[],
+    )
+    parser.add_argument(
+        '--output',
+        help='Path to write the result - all arguments supplied with --input will be processed together',
+    )
     args = parser.parse_args()
 
     if len(args.input) == 0:
