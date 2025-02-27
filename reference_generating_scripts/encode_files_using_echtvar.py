@@ -47,10 +47,11 @@ import logging
 import json
 import random
 from argparse import ArgumentParser
+from string import ascii_lowercase
 
 from os.path import join
 
-from cpg_utils import Path, to_path
+from cpg_utils import to_path
 from cpg_utils.config import config_retrieve, image_path, ConfigError
 from cpg_utils.hail_batch import get_batch
 
@@ -66,8 +67,6 @@ except ConfigError:
     echtvar_image = (
         'australia-southeast1-docker.pkg.dev/cpg-common/images/echtvar:v0.2.1'
     )
-
-WORDS = open('/usr/share/dict/words').read().splitlines()
 
 
 def storage_with_buffer(file_path: str, buffer: int = 10) -> int:
@@ -161,7 +160,7 @@ def encode_anything(input_list: list[str], output: str):
     # if nothing was supplied, we'll use the default config (gnomAD)
     try:
         echtvar_config = config_retrieve(['echtvar_config'])
-        random_string = '_'.join(random.choices(WORDS, k=3)) + '.json'
+        random_string = '_'.join(random.choices(ascii_lowercase, k=20)) + '.json'
         temp_config = join(
             config_retrieve(['storage', 'default', 'tmp']), random_string
         )
