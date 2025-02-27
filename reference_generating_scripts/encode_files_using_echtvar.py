@@ -44,6 +44,7 @@ It may be easier to generate the config file you want, then run it through toml.
 """
 
 import logging
+import json
 import random
 from argparse import ArgumentParser
 
@@ -66,8 +67,7 @@ except ConfigError:
         'australia-southeast1-docker.pkg.dev/cpg-common/images/echtvar:v0.2.1'
     )
 
-word_file = "/usr/share/dict/words"
-WORDS = open(word_file).read().splitlines()
+WORDS = open('/usr/share/dict/words').read().splitlines()
 
 
 def storage_with_buffer(file_path: str, buffer: int = 10) -> int:
@@ -81,7 +81,7 @@ def storage_with_buffer(file_path: str, buffer: int = 10) -> int:
     return (to_path(file_path).stat().st_size // 1024**3) + buffer
 
 
-def encode_gnomad() -> StageOutput | None:
+def encode_gnomad() -> None:
     """
     run echtvar encode on all gnomadV4 contigs, separately and combined
     we need to do this once ever, estimated cost $5
