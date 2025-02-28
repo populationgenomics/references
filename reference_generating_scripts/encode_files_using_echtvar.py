@@ -86,7 +86,11 @@ def encode_gnomad() -> None:
     we need to do this once ever, estimated cost $5
     """
 
-    common_folder = join(config_retrieve(['storage', 'common', 'default']), 'gnomad', 'echtvar')
+    common_folder = join(
+        config_retrieve(['storage', 'common', 'default']),
+        'gnomad',
+        'echtvar',
+    )
     output_template = join(common_folder, 'gnomad_4.1_{chrom}.zip')
 
     contig_files = []
