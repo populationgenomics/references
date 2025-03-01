@@ -25,8 +25,10 @@ DETAILS_INDEX = 8
 FLANKING_REGION = 2000
 
 # regular expressions to parse out sections of the GFF3 annotations
-GENE_ID_RE = re.compile(r'ID=gene:(ENSG\d+);')
+GENE_ID_RE = re.compile(r'gene:(ENSG\d+);')
 GENE_NAME_RE = re.compile(r'Name=([\w-]+);')
+
+TYPES_TO_KEEP: set[str] = {'gene', 'ncRNA_gene', 'snRNA'}
 
 
 def main(
@@ -66,7 +68,7 @@ def generate_bed_lines(
             # skip over non-genes (e.g. pseudogenes, ncRNA)
             # only focus on Ensembl genes/transcripts
             if (
-                line_as_list[TYPE_INDEX] != 'gene'
+                line_as_list[TYPE_INDEX] not in TYPES_TO_KEEP
                 or 'ensembl' not in line_as_list[RESOURCE_INDEX]
             ):
                 continue

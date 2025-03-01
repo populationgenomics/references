@@ -17,12 +17,14 @@ wget "${GFF3_URL}" -O "${LOCAL_OUTPUT_GFF3}"
 # parse that gff3 into a BED file
 python3 reference_generating_scripts/generate_bed_from_ensembl.py \
     --gff3 "${LOCAL_OUTPUT_GFF3}" \
-    --unmerged_output "${LOCAL_OUTPUT_BED}" \
-    --merged_output "${MERGED_OUTPUT_BED}"
+    --unmerged_output unmerged.bed \
+    --merged_output merged.bed
 
 ## sort and merge the result - local script in lieu of using BedTools (not installed here)
-## commented out, the initial file is already accurately position-sorted
-#sort -k1,1 -k2,2n "${LOCAL_OUTPUT_BED}" > "${SORTED_OUTPUT_BED}"
+## -k1,1V: Version sort to get chr ordering correct
+## -k2,2n: numerical sort on col 2
+sort -k1,1V -k2,2n unmerged.bed > "${LOCAL_OUTPUT_BED}"
+sort -k1,1V -k2,2n merged.bed > "${MERGED_OUTPUT_BED}"
 
 # copy all the content to GCP - keep the same file names, copy in bulk
 WRITE_OUTPUT_TO="gs://cpg-common-main/references/ensembl_${ENSEMBL_VERSION}"
