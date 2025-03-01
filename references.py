@@ -478,4 +478,24 @@ SOURCES = [
         dst='gnomad/v4.1/ht/gnomad.genomes.v4.1.sites.ht',
         transfer_cmd=gcs_rsync,
     ),
+    Source(
+        'alphamissense',
+        # alphamissense raw data, processed HT, and compressed HT
+        dst='alphamissense',
+        files=dict(
+            raw_tsv='alphamissense_38.tsv.gz',
+            ht='alphamissense_38.ht',
+            ht_tar='alphamissense_38.ht.tar.gz',
+        ),
+    ),
+    Source(
+        'ensembl_113',
+        # ensembl GFF3, and derived BED files
+        dst='ensembl_113',
+        files=dict(
+            gff3='GRCh38.gff3.gz',
+            bed='GRCh38.bed',
+            hmerged_bedt_tar='merged_GRCh38.bed',
+        ),
+    ),
 ]
