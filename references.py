@@ -494,8 +494,8 @@ SOURCES = [
         dst='ensembl_113',
         files=dict(
             gff3='GRCh38.gff3.gz',
-            bed='GRCh38.bed',
-            hmerged_bedt_tar='merged_GRCh38.bed',
+            bed='GRCh38.bed',  # contains a column with each Gene's name/ID
+            merged_bed='merged_GRCh38.bed',  # simplified regions, lacks per-gene data
         ),
     ),
     Source(
@@ -503,8 +503,8 @@ SOURCES = [
         # MANE v.1.4 digest and raw data
         dst='mane_1.4',
         files=dict(
-            summary='mane_1.4.summary.txt.gz',
-            json='mane_1.4.json',
+            summary='mane_1.4.summary.txt.gz',  # raw data from MANE
+            json='mane_1.4.json',  # parsed into a per-transcript lookup
         ),
     ),
 ]
