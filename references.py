@@ -498,4 +498,13 @@ SOURCES = [
             hmerged_bedt_tar='merged_GRCh38.bed',
         ),
     ),
+    Source(
+        'mane_1.4',
+        # MANE v.1.4 digest and raw data
+        dst='mane_1.4',
+        files=dict(
+            summary='mane_1.4.summary.txt.gz',
+            json='mane_1.4.json',
+        ),
+    ),
 ]
