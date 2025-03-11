@@ -210,7 +210,8 @@ def encode_gnomad(region: str | None = None) -> None:
             f'Running echtvar on whole genome, Region: {region or "unrestricted"}'
         )
         job = get_batch().new_job(
-            f'Run echtvar on gnomad v4.1, whole genome, Region: {region or "unrestricted"}'
+            f'Run echtvar on gnomad v4.1, whole genome, Region: {region or "unrestricted"}',
+            attributes={'tool': 'bcftools'},
         )
         job.image(echtvar_image)
         job.storage(f'{storage_running_total}Gi')
