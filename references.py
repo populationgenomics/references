@@ -478,4 +478,33 @@ SOURCES = [
         dst='gnomad/v4.1/ht/gnomad.genomes.v4.1.sites.ht',
         transfer_cmd=gcs_rsync,
     ),
+    Source(
+        'alphamissense',
+        # alphamissense raw data, processed HT, and compressed HT
+        dst='alphamissense',
+        files=dict(
+            raw_tsv='alphamissense_38.tsv.gz',
+            ht='alphamissense_38.ht',
+            ht_tar='alphamissense_38.ht.tar.gz',
+        ),
+    ),
+    Source(
+        'ensembl_113',
+        # ensembl GFF3, and derived BED files
+        dst='ensembl_113',
+        files=dict(
+            gff3='GRCh38.gff3.gz',
+            bed='GRCh38.bed',  # contains a column with each Gene's name/ID
+            merged_bed='merged_GRCh38.bed',  # simplified regions, lacks per-gene data
+        ),
+    ),
+    Source(
+        'mane_1.4',
+        # MANE v.1.4 digest and raw data
+        dst='mane_1.4',
+        files=dict(
+            summary='mane_1.4.summary.txt.gz',  # raw data from MANE
+            json='mane_1.4.json',  # parsed into a per-transcript lookup
+        ),
+    ),
 ]

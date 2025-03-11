@@ -58,11 +58,21 @@ def filter_for_pathogenic_am(input_file: str, intermediate_file: str):
         intermediate_file ():
     """
 
-    headers = ['chrom', 'pos', 'ref', 'alt', 'transcript', 'am_pathogenicity', 'am_class']
+    headers = [
+        'chrom',
+        'pos',
+        'ref',
+        'alt',
+        'transcript',
+        'am_pathogenicity',
+        'am_class',
+    ]
 
     # empty dictionary to contain the target indexes
     header_indexes: dict[str, int] = {}
-    with gzip.open(input_file, 'rt') as read_handle, open(intermediate_file, 'wt') as write_handle:
+    with gzip.open(input_file, 'rt') as read_handle, open(
+        intermediate_file, 'wt'
+    ) as write_handle:
         for line in read_handle:
             # skip over the headers
             if line.startswith('#'):
@@ -81,7 +91,9 @@ def filter_for_pathogenic_am(input_file: str, intermediate_file: str):
             content = line.rstrip().split()
 
             # grab all the content
-            content_dict: dict[str, str | float] = {key: content[header_indexes[key]] for key in headers}
+            content_dict: dict[str, str | float] = {
+                key: content[header_indexes[key]] for key in headers
+            }
 
             # trim transcripts
             assert isinstance(content_dict['transcript'], str)
@@ -122,7 +134,9 @@ def json_to_hail_table(json_file: str, ht_out: str):
     ht = ht.transmute(**ht.f0)
 
     # combine the two alleles into a single list
-    ht = ht.transmute(locus=hl.locus(contig=ht.chrom, pos=ht.pos), alleles=[ht.ref, ht.alt])
+    ht = ht.transmute(
+        locus=hl.locus(contig=ht.chrom, pos=ht.pos), alleles=[ht.ref, ht.alt]
+    )
     ht = ht.key_by('locus', 'alleles')
     ht.write(ht_out)
     ht.describe()
