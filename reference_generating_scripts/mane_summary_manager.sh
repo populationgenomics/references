@@ -14,7 +14,7 @@ python3 reference_generating_scripts/mane_summary_parser.py \
     --format json
 
 # destination for the output
-MAIN_OR_TEST=${1:-"main"}
+MAIN_OR_TEST=${2:-"main"}
 
 # copy all the content to GCP - keep the same file names, copy in bulk
 DESTINATION="gs://cpg-common-${MAIN_OR_TEST}/references/mane_${ENSEMBL_VERSION}"
