@@ -265,7 +265,7 @@ def encode_anything(input_list: list[str], output: str, region: str | None = Non
             localised_region = get_batch().read_input(region)
             # if we only want to run on a subset of the genome, read in the BED file
             trim_job = get_batch().new_bash_job(
-                f'Trim {input_file} to specified region'
+                f'Trim {input_file} to specified region', attributes={'tool': 'bcftools'}
             )
             trim_job.image(bcftools_image)
             trim_job.storage(f'{input_size}Gi')
@@ -283,7 +283,7 @@ def encode_anything(input_list: list[str], output: str, region: str | None = Non
         total_storage += input_size
 
     # create a job to run echtvar on all the input VCFs
-    job = get_batch().new_job('Run echtvar on all input VCFs')
+    job = get_batch().new_job('Run echtvar on all input VCFs', attributes={'tool': 'echtvar'})
     job.image(echtvar_image)
     job.storage(f'{total_storage}Gi')
     job.cpu(4)
