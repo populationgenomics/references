@@ -47,6 +47,7 @@ import logging
 import json
 import random
 from argparse import ArgumentParser
+from pathlib import Path
 from string import ascii_lowercase
 
 from os.path import join
@@ -60,13 +61,13 @@ CANONICAL_CHROMOSOMES = [f'chr{x}' for x in list(range(1, 23)) + ['X', 'Y']] + [
 ]
 
 
-# pull from config, defaulting to the image at time of writing
+# pull images from config, defaulting to the images at time of writing
 try:
     echtvar_image = image_path('echtvar')
+    bcftools_image = image_path('bcftools_120')
 except ConfigError:
-    echtvar_image = (
-        'australia-southeast1-docker.pkg.dev/cpg-common/images/echtvar:v0.2.1'
-    )
+    echtvar_image = 'australia-southeast1-docker.pkg.dev/cpg-common/images/echtvar:v0.2.1'
+    bcftools_image = 'australia-southeast1-docker.pkg.dev/cpg-common/images/bcftools_120:1.20'
 
 
 def storage_with_buffer(file_path: str, buffer: int = 10) -> int:
@@ -80,10 +81,19 @@ def storage_with_buffer(file_path: str, buffer: int = 10) -> int:
     return (to_path(file_path).stat().st_size // 1024**3) + buffer
 
 
-def encode_gnomad() -> None:
+def encode_gnomad(region: str | None = None) -> None:
     """
     run echtvar encode on all gnomadV4 contigs, separately and combined
     we need to do this once ever, estimated cost $5
+
+    This includes the potential for region filtering, which will reduce the size of the output files and processing time
+    Useful in Talos (which is gene-centric), but not relevant for the core pipeline which requires whole-genome AFs
+
+    Args:
+        region (str): optional, path to a BED file containing a subset of regions to encode
+
+    Returns:
+        None, writes to storage directly
     """
 
     common_folder = join(
@@ -91,48 +101,92 @@ def encode_gnomad() -> None:
         'gnomad',
         'echtvar',
     )
-    output_template = join(common_folder, 'gnomad_4.1_{chrom}.zip')
+
+    # set the filename template to use for this run
+    if region is not None:
+        logging.info(f'Running echtvar on gnomad v4.1, region subset: {region}')
+
+        # include the name (no extensions) of the region file in the output name
+        region_name = Path(region).name.split('.')[0]
+
+        # double layered templating - 'chrom' will be inserted later
+        output_template = join(common_folder, f'gnomad_4.1_region_{region_name}_{{chrom}}.zip')
+
+    else:
+        output_template = join(common_folder, 'gnomad_4.1_{chrom}.zip')
+
+    # get the name of the final output - if that already exists, this becomes much less work
+    wg_output = output_template.format(chrom='whole_genome')
+    wg_exists: bool = to_path(wg_output).exists()
 
     contig_files = []
     storage_running_total = 0
     for contig in CANONICAL_CHROMOSOMES:
 
-        contig_output = output_template.format(chrom=contig)
-        if to_path(contig_output).exists():
-            logging.info(f'Skipping echtvar on {contig}, output already exists')
-            continue
-
         # don't do this for the whole genome output
         if contig == 'whole_genome':
             continue
 
-        # localise this one file
+        # output path for this contig
+        contig_output = output_template.format(chrom=contig)
+        contig_output_exists = to_path(contig_output).exists()
+
+        if contig_output_exists and wg_exists:
+            logging.info(f'Skipping echtvar on {contig}, output already exists. No need to retain for genome-wide')
+            continue
+
+        # select the file, read in, and determine size
         file_path = config_retrieve(['references', 'gnomad_4.1_vcfs', contig])
-        contig_localised = get_batch().read_input(file_path)
-        # add to the list of inputs for the whole genome job
-        contig_files.append(contig_localised)
+
+        contig_vcf = get_batch().read_input_group(vcf=file_path, index=f'{file_path}.tbi')['vcf']
+
+        job_storage = storage_with_buffer(file_path)
+
+        localised_region = get_batch().read_input(region)
+
+        # if we only want to run on a subset of the genome, read in the BED file
+        if region is not None:
+            trim_job = get_batch().new_bash_job(f'Trim {contig} to specified region')
+            trim_job.image(bcftools_image)
+            trim_job.storage(f'{job_storage}Gi')
+            trim_job.cpu(4)
+            trim_job.command(
+                f'bcftools view '
+                f'-R {localised_region} '
+                f'--regions-overlap 2 '
+                f'{contig_vcf} '
+                f'-Oz -o {trim_job.output}',
+            )
+            # update this value to the trimmed file
+            contig_vcf = trim_job.output
+
+        # if we need this for the whole-genome encoding, add to the list of inputs
+        if not wg_exists:
+            contig_files.append(contig_vcf)
+
+        # if we don't need to generate this contig's file, continue
+        if contig_output_exists:
+            continue
 
         # create and resource a job
-        contig_job = get_batch().new_job(f'Run echtvar on gnomad v4.1, {contig}')
+        contig_job = get_batch().new_job(f'Run echtvar on gnomad v4.1, {contig}, Region: {region or "unrestricted"}')
         contig_job.image(echtvar_image)
-        job_storage = storage_with_buffer(file_path)
         contig_job.storage(f'{job_storage}Gi')
         contig_job.cpu(4)
         contig_job.memory('highmem')
 
         # run the echtvar encode command
-        contig_job.command(
-            f'echtvar encode {contig_job.output} $ECHTVAR_CONFIG {contig_localised}'
-        )
+        contig_job.command(f'echtvar encode {contig_job.output} $ECHTVAR_CONFIG {contig_vcf}')
         get_batch().write_output(contig_job.output, contig_output)
 
-        # add to the total storage required for the whole genome job
+        # add to the total storage required for the whole genome job. Plan for worst case (region == whole genome)
         storage_running_total += job_storage
 
-    whole_genome_output = output_template.format(chrom='whole_genome')
-    if not to_path(whole_genome_output).exists():
-        logging.info('Running echtvar on whole genome')
-        job = get_batch().new_job('Run echtvar on gnomad v4.1, whole genome')
+    # finally, take all the contig files (region filtered, or not), and run echtvar (unless genome-wide already exists)
+    # this job becomes implicitly dependent on any previous region-filtering jobs from use of prior output as input
+    if not wg_exists:
+        logging.info(f'Running echtvar on whole genome, Region: {region or "unrestricted"}')
+        job = get_batch().new_job(f'Run echtvar on gnomad v4.1, whole genome, Region: {region or "unrestricted"}')
         job.image(echtvar_image)
         job.storage(f'{storage_running_total}Gi')
         job.cpu(4)
@@ -141,12 +195,12 @@ def encode_gnomad() -> None:
         job.command(
             f'echtvar encode {job.output} $ECHTVAR_CONFIG {" ".join(contig_files)}'
         )
-        get_batch().write_output(job.output, whole_genome_output)
+        get_batch().write_output(job.output, wg_output)
 
     get_batch().run(wait=False)
 
 
-def encode_anything(input_list: list[str], output: str):
+def encode_anything(input_list: list[str], output: str, region: str | None = None):
     """
     Takes a list of VCFs, and runs echtvar on them to encode the results into a minimised representation
     Echtvar requires a config, so we'll pull one from the run config and log the contents
@@ -156,6 +210,7 @@ def encode_anything(input_list: list[str], output: str):
     Args:
         input_list ():
         output ():
+        region (str): optional, path to a BED file containing a subset of regions to encode
     """
 
     # pull the echtvar config from the run config
@@ -178,9 +233,27 @@ def encode_anything(input_list: list[str], output: str):
 
     total_storage = 0
     localised_inputs = []
-    for input in input_list:
-        localised_inputs.append(get_batch().read_input(input))
-        total_storage += storage_with_buffer(input)
+    for input_file in input_list:
+        single_localised_input = get_batch().read_input(input_file)
+        input_size = storage_with_buffer(input_file)
+        if region is not None:
+            localised_region = get_batch().read_input(region)
+            # if we only want to run on a subset of the genome, read in the BED file
+            trim_job = get_batch().new_bash_job(f'Trim {input_file} to specified region')
+            trim_job.image(bcftools_image)
+            trim_job.storage(f'{input_size}Gi')
+            trim_job.cpu(4)
+            trim_job.command(
+                f'bcftools view '
+                f'-R {localised_region} '
+                f'--regions-overlap 2 '
+                f'{single_localised_input} '
+                f'-Oz -o {trim_job.output}',
+            )
+            localised_inputs.append(trim_job.output)
+        else:
+            localised_inputs.append(single_localised_input)
+        total_storage += input_size
 
     # create a job to run echtvar on all the input VCFs
     job = get_batch().new_job('Run echtvar on all input VCFs')
@@ -206,9 +279,15 @@ if __name__ == '__main__':
         '--output',
         help='Path to write the result - all arguments supplied with --input will be processed together',
     )
+    parser.add_argument(
+        '--region',
+        help='Path to a BED file, used to limit encoded data to a specific region',
+        required=False,
+        default=None,
+    )
     args = parser.parse_args()
 
     if len(args.input) == 0:
-        encode_gnomad()
+        encode_gnomad(region=args.region)
     else:
-        encode_anything(input_list=args.input, output=args.output)
+        encode_anything(input_list=args.input, output=args.output, region=args.region)
