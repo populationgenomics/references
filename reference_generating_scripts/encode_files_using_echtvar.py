@@ -96,6 +96,8 @@ def encode_gnomad(region: str | None = None) -> None:
         None, writes to storage directly
     """
 
+    batch_name = f'Echtvar encode gnomad v4.1, region: {region or "unrestricted"}'
+
     common_folder = join(
         config_retrieve(['storage', 'common', 'default']),
         'gnomad',
@@ -138,7 +140,8 @@ def encode_gnomad(region: str | None = None) -> None:
         # select the file, read in, and determine size
         file_path = config_retrieve(['references', 'gnomad_4.1_vcfs', contig])
 
-        contig_vcf = get_batch().read_input_group(vcf=file_path, index=f'{file_path}.tbi')['vcf']
+        # apply a name to this batch
+        contig_vcf = get_batch(name=batch_name).read_input_group(vcf=file_path, index=f'{file_path}.tbi')['vcf']
 
         job_storage = storage_with_buffer(file_path)
 
@@ -148,7 +151,8 @@ def encode_gnomad(region: str | None = None) -> None:
         if region is not None:
             trim_job = get_batch().new_bash_job(f'Trim {contig} to specified region')
             trim_job.image(bcftools_image)
-            trim_job.storage(f'{job_storage}Gi')
+            # plan for worst case - we're doubling the storage requirement
+            trim_job.storage(f'{job_storage*2}Gi')
             trim_job.cpu(4)
             trim_job.command(
                 f'bcftools view '

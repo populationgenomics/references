@@ -2,7 +2,6 @@
 
 # This script is used to manage the generation of a BED file from the ensembl GFF3
 
-
 # first identify the location of the ensembl GFF3 based on its version
 ENSEMBL_VERSION=${1:-"113"}
 GFF3_URL="https://ftp.ensembl.org/pub/release-${ENSEMBL_VERSION}/gff3/homo_sapiens/Homo_sapiens.GRCh38.${ENSEMBL_VERSION}.gff3.gz"
