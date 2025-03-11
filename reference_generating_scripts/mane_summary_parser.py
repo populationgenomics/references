@@ -52,7 +52,10 @@ def mane_to_ht(input_path: str, output_path: str):
     temp_tsv = 'temp.tsv'
     # read the file
     with gzip.open(input_path, 'rt') as handle, open(temp_tsv, 'wt') as write_handle:
-        write_handle.write('\t'.join(['enst', 'ensg', 'ensp', 'symbol', 'mane_id', 'mane_status']) + '\n')
+        write_handle.write(
+            '\t'.join(['enst', 'ensg', 'ensp', 'symbol', 'mane_id', 'mane_status'])
+            + '\n'
+        )
         reader = DictReader(handle, delimiter='\t')
         for line in reader:
             line_elements = [
