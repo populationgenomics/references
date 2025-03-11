@@ -30,6 +30,19 @@ def gcs_rsync(src: str, dst: str, project: str) -> str:
     return quote_command(c)
 
 
+def gcs_rsync_no_billing_project(src: str, dst: str, project: str) -> str:
+    """
+    defines a gcs rsync function, without setting the billing project
+    within CI the billing project attempts to reset after ~60 mins, killing transfers
+    only use this with public (i.e. not requester-pays) buckets
+    -r for recursive
+    """
+    print(f'ignoring {project} - attempting standard transfer')
+    assert src.startswith('gs://')
+    c = ['gcloud', 'storage', 'rsync', '-r', src, dst]
+    return quote_command(c)
+
+
 def gcs_cp_single(src: str, dst: str, project: str) -> str:
     """
     defines a single-file gcs copy function
@@ -477,6 +490,19 @@ SOURCES = [
         src='gs://gcp-public-data--gnomad/release/4.1/ht/genomes/gnomad.genomes.v4.1.sites.ht',
         dst='gnomad/v4.1/ht/gnomad.genomes.v4.1.sites.ht',
         transfer_cmd=gcs_rsync,
+    ),
+    Source(
+        'gnomad_4.1_joint_vcfs',
+        src='gs://gcp-public-data--gnomad/release/4.1/vcf/joint',
+        dst='gnomad/v4.1/joint/vcfs',
+        files={contig: f'gnomad.joint.v4.1.sites.{contig}.vcf.bgz' for contig in CANONICAL_CHROMOSOMES},
+        transfer_cmd=gcs_rsync_no_billing_project,
+    ),
+    Source(
+        'gnomad_4.1_joint_ht',
+        src='gs://gcp-public-data--gnomad/release/4.1/ht/joint/gnomad.joint.v4.1.sites.ht',
+        dst='gnomad/v4.1/joint/ht/gnomad.joint.v4.1.sites.ht',
+        transfer_cmd=gcs_rsync_no_billing_project,
     ),
     Source(
         'alphamissense',
