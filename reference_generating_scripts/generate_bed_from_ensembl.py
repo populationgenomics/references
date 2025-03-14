@@ -73,7 +73,7 @@ def generate_bed_lines(
             if (
                 line_as_list[TYPE_INDEX] not in TYPES_TO_KEEP
                 or 'ensembl' not in line_as_list[RESOURCE_INDEX]
-                or line_as_list[CHROM_INDEX] not in CANONICAL_CONTIGS
+                or f'chr{line_as_list[CHROM_INDEX]}' not in CANONICAL_CONTIGS
             ):
                 continue
 
