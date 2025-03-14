@@ -522,6 +522,9 @@ SOURCES = [
             gff3='GRCh38.gff3.gz',
             bed='GRCh38.bed',  # contains a column with each Gene's name/ID
             merged_bed='merged_GRCh38.bed',  # simplified regions, lacks per-gene data
+            # copeid from https://ftp.ensembl.org/pub/release-113/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz
+            # decompressed locally and uploaded to GCP
+            unmasked_reference='Homo_sapiens.GRCh38.dna.primary_assembly.fa'
         ),
     ),
     Source(
