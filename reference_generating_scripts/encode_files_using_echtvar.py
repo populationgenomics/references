@@ -117,7 +117,8 @@ def encode_gnomad(region: str | None = None) -> None:
 
         # double layered templating - 'chrom' will be inserted later
         output_template = join(
-            common_folder, f'gnomad_4.1_region_{region_name}_{{chrom}}.zip'
+            common_folder,
+            f'gnomad_4.1_region_{region_name}_{{chrom}}.zip',
         )
 
     else:

@@ -21,7 +21,6 @@ def gcs_rsync(src: str, dst: str, project: str) -> str:
     """
     defines a gcs rsync function
     -u sets the billing project
-    -m for multiple (parallel) transfer
     -d for deleting files in the destination that are not in the source
     -r for recursive
     """
@@ -201,6 +200,15 @@ SOURCES = [
         dst='gatk-sv/hg38/v0/sv-resources',
         transfer_cmd=gcs_rsync,
         files=dict(
+            clustering_config_part1='resources/v1/clustering_config.part_one.tsv',
+            clustering_config_part2='resources/v1/clustering_config.part_two.tsv',
+            stratification_config_part1='resources/v1/stratify_config.part_one.tsv',
+            stratification_config_part2='resources/v1/stratify_config.part_two.tsv',
+            clustering_track_sr='resources/v1/hg38.SimpRep.sorted.pad_100.merged.bed',
+            clustering_track_sd='resources/v1/hg38.SegDup.sorted.merged.bed',
+            clustering_track_rm='resources/v1/hg38.RM.sorted.merged.bed',
+            hervk_reference='resources/v1/HERVK.sorted.bed.gz',
+            line1_reference='resources/v1/LINE1.sorted.bed.gz',
             preprocessed_intervals='resources/v1/preprocessed_intervals.interval_list',
             melt_standard_vcf_header='resources/v1/melt_standard_vcf_header.txt',
             contig_ploidy_priors='resources/v1/hg38.contig_ploidy_priors_homo_sapiens.tsv',
@@ -219,7 +227,6 @@ SOURCES = [
             ref_panel_PE_file_tmpl='ref-panel/tws_SVEvidence/pe/{sample}.pe.txt.gz',
             ref_panel_SR_file_tmpl='ref-panel/tws_SVEvidence/sr/{sample}.sr.txt.gz',
             ref_panel_SD_file_tmpl='ref-panel/tws_SVEvidence/sd/{sample}.sd.txt.gz',
-            external_af_ref_bed='resources/v1/gnomad_AF/gnomad_v2.1_sv.sites.GRCh38.bed.gz',
             recalibrate_gq_repeatmasker='resources/v1/ucsc-genome-tracks/hg38-RepeatMasker.bed.gz',
             recalibrate_gq_segmental_dups='resources/v1/ucsc-genome-tracks/hg38-Segmental-Dups.bed.gz',
             recalibrate_gq_simple_reps='resources/v1/ucsc-genome-tracks/hg38-Simple-Repeats.bed.gz',
@@ -250,6 +257,13 @@ SOURCES = [
             mills_ht='mills/Mills_and_1000G_gold_standard.indels.hg38.ht',
             predetermined_qc_variants='sample_qc/pre_ld_pruning_qc_variants.ht',
         ),
+    ),
+    Source(
+        'gnomad_sv',
+        # Reference data related to gnomAD V4 SV
+        src='gs://gatk-sv-resources-public/gnomad_AF/gnomad_v4_SV.Freq.tsv.gz',
+        dst='gnomad_v4_SV.Freq.tsv.gz',
+        transfer_cmd=gcs_cp_single,
     ),
     Source(
         'seqr_combined_reference_data',
