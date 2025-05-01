@@ -16,6 +16,8 @@ GENOME_ENDPOINT = '/list/ucscGenomes'
 TRACK_ENDPOINT = '/list/tracks'
 GENOME = 'hg38'
 CANONICAL_CHRS = [f'chr{x}' for x in list(range(1, 23)) + ['X', 'Y', 'M']]
+SOURCE_NAME = 'EXOME_PROBESETS'
+CPG_DEST = 'exome-probsets/hg38/'
 
 
 def reformat_endpoint_dict(
@@ -68,6 +70,50 @@ def make_beds_from_bbs(bbs: list[tuple[str, str, str]], dl_url: str, canonical_c
         bed_df.write_csv(file=Path(bb[2]).stem + '.bed', include_header=False, separator='\t')
 
 
+def make_reference_source(source_name: str, destination_path: str, bbs: list[tuple[str, str, str]]) -> None:
+    """
+    Create a 'Source' string to be copied into references.py, and wrtie it to file
+    """
+
+    sp_tab = '    '
+    open_list = [
+        'Source(',
+        f'{sp_tab}\'{source_name}\',',
+        f'{sp_tab}# exome probset defintions (bed file and interval_list) format\n{sp_tab}# downloaded from UCSC with the download_ucsc_exomes.py script',
+        f'{sp_tab}\'dst={destination_path}\',',
+        ]
+    source_open = '\n'.join(open_list)
+    source_close = '\n),'
+    files = build_files_list(bbs)
+    smp_source_str = source_open + files + source_close
+    with open('ucsc_exome_probsets_source_entry.txt', 'w') as write_handle:
+        write_handle.write(smp_source_str)
+    
+
+def build_files_list(bbs: list[tuple[str, str, str]]) -> str:
+    """
+    Iterate over list of retreived BigBed file names + locations.
+    Construct a txt str dict of keys (human readable names) and values ( actual bed / intervals )
+    
+    example:
+    'files=dict(
+            vcf='twist_exome_benchmark_truth.vcf.gz',
+            index='twist_exome_benchmark_truth.vcf.gz.tbi',
+            bed='Twist_Exome_Core_Covered_Targets_hg38.bed',
+    ),'
+    
+    """
+    sp_tab = '    '
+    files_open = f'\n{sp_tab*2}files=dict(\n'
+    files_close = f',\n{sp_tab*2}),'
+    files_body = []
+
+    for bb in bbs:
+        files_body.append(f'{sp_tab*3}{Path(bb[0]).stem + "_bed"}={Path(bb[2]).stem + ".bed"}')
+        files_body.append(f'{sp_tab*3}{Path(bb[0]).stem + "_interval_list"}={Path(bb[2]).stem + ".interval_list"}')
+    return (files_open + ',\n'.join(files_body) + files_close)
+    
+
 def main():
     """
     Retrieves names and links for BigBed formatted Exome probesets from UCSC
@@ -77,6 +123,7 @@ def main():
 
     exome_dl = get_exome_bbs(API_URL, TRACK_ENDPOINT, GENOME)
     make_beds_from_bbs(exome_dl, DL_URL, CANONICAL_CHRS)
+    make_reference_source(SOURCE_NAME, CPG_DEST, exome_dl)
 
 
 if __name__ == '__main__':
