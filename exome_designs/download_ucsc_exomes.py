@@ -109,8 +109,8 @@ def build_files_list(bbs: list[tuple[str, str, str]]) -> str:
     files_body = []
 
     for bb in bbs:
-        files_body.append(f'{sp_tab*3}{Path(bb[0]).stem + "_bed"}={Path(bb[2]).stem + ".bed"}')
-        files_body.append(f'{sp_tab*3}{Path(bb[0]).stem + "_interval_list"}={Path(bb[2]).stem + ".interval_list"}')
+        files_body.append(f'{sp_tab*3}{Path(bb[0]).stem + "_bed"}=\'{Path(bb[2]).stem + ".bed"}\'')
+        files_body.append(f'{sp_tab*3}{Path(bb[0]).stem + "_interval_list"}=\'{Path(bb[2]).stem + ".interval_list"}\'')
     return (files_open + ',\n'.join(files_body) + files_close)
     
 
