@@ -554,7 +554,7 @@ SOURCES = [
         'EXOME_PROBESETS',
         # exome probset defintions (bed file and interval_list) format
         # downloaded from UCSC with the download_ucsc_exomes.py script
-        dst='exome-probsets/hg38',
+        dst='exome-probesets/hg38',
         files=dict(
             twist_refseq_exome_panel_target_regions_bed='Twist_Exome_RefSeq_targets_hg38.bed',
             twist_refseq_exome_panel_target_regions_interval_list='Twist_Exome_RefSeq_targets_hg38.interval_list',
