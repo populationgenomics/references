@@ -24,7 +24,7 @@ description to cut and paste into ../references.py, and lists a `bed` and `inter
 
 
 Note that the bed files need to bed converted with `picard` to 'interval_list' files. This will be done on  `gs://cpg-common-test`
-using `../reference_generating_scripts/convert_bed_to_interval_list.py`
+using `../reference_generating_scripts/convert_bed_to_interval_list.py` or some modification of that script.
 
 ## Transfer exome probesets to `gs://cpg-common-test`
 gcloud storage cp *.bed gs://cpg-common-test/references/exome-probesets/hg38/ 
