@@ -29,8 +29,13 @@ using `../reference_generating_scripts/convert_bed_to_interval_list.py` or some 
 ## Transfer exome probesets to `gs://cpg-common-test`
 gcloud storage cp *.bed gs://cpg-common-test/references/exome-probesets/hg38/ 
 
-## TODO
+## Run interval_conversion on main
 
-the next stages will include:
-convert to `intervals_list`
-copy folder on `test` to `main`
+```
+analysis-runner \
+    --dataset common \
+    --access-level full \
+    --description  'ref beds to interval_lists' \
+    convert_bedfiles_to_interval_lists.py
+
+```
