@@ -26,12 +26,13 @@ https://github.com/populationgenomics/references/blob/main/reference_generating_
 """
 
 import os
+import sys
 from collections.abc import Generator, Iterator
 from pathlib import Path
 
 import click
 from cloudpathlib import AnyPath, CloudPath
-from cpg_utils.config import config_retrieve, cpg_test_dataset_path, reference_path
+from cpg_utils.config import ConfigError, config_retrieve, cpg_test_dataset_path, reference_path
 from cpg_utils.hail_batch import get_batch, image_path
 
 SOURCE = 'exome_probesets'
@@ -112,7 +113,11 @@ def main(exome_path, sd_ref):
     bedfile_paths = get_bedfile_paths(exome_path)
 
     # make reverse map of actual_file_name -> reference
-    ref_exome_dict = config_retrieve(['references', SOURCE])
+    try:
+        ref_exome_dict = config_retrieve(['references', SOURCE])
+    except ConfigError:
+        sys.exit(f'No reference entry for provided source: {SOURCE}')
+        
     exome_ref_dict = {os.path.basename(v): k for k, v in ref_exome_dict.items()}
 
     make_interval_lists(bedfile_paths, sd_ref, exome_ref_dict)
