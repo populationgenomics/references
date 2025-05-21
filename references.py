@@ -551,7 +551,7 @@ SOURCES = [
         ),
     ),
     Source(
-        'EXOME_PROBESETS',
+        'exome_probesets',
         # exome probset defintions (bed file and interval_list) format
         # downloaded from UCSC with the download_ucsc_exomes.py script
         dst='exome-probesets/hg38',
