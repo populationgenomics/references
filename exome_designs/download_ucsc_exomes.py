@@ -72,7 +72,7 @@ def make_beds_from_bbs(bbs: list[tuple[str, str, str]], dl_url: str, canonical_c
 
 def make_reference_source(source_name: str, destination_path: str, bbs: list[tuple[str, str, str]]) -> None:
     """
-    Create a 'Source' string to be copied into references.py, and wrtie it to file
+    Create a 'Source' string to be copied into references.py, and write it to file
     """
 
     sp_tab = '    '

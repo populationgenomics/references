@@ -59,7 +59,8 @@ def make_interval_lists(bedfile_paths: Iterator[Path] | Generator[CloudPath, Non
     """
     sd_file = reference_path(sd_ref)
     b = get_batch()
-
+sd_file_input = b.read_input(reference_path(sd_ref))
+bed_path_input = b.read_input(str(bed_path))
     for bed_path in bedfile_paths:
         bed_file = bed_path.parts[-1]
         bed_stem = bed_path.stem
@@ -77,9 +78,9 @@ def make_interval_lists(bedfile_paths: Iterator[Path] | Generator[CloudPath, Non
             gcloud storage cp {str(bed_path)} {str(bed_out_path)}
             
             picard BedToIntervalList \
-            -I {b.read_input(str(bed_path))} \
+            -I {bed_path_input} \
             -O {picard_job.ofile} \
-            -SD {b.read_input(str(sd_file))}
+            -SD {sd_file_input}
             """,
         )
 

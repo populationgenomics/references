@@ -2,7 +2,7 @@
 
 Sequencing libraries for exome datasets are constructed with capture probesets.
 Exome capture probsets (or designs) can markedly differ in both the oligo probes
-and the targetd regions of the genome, so we need to have access to exome designs suitable
+and the targeted regions of the genome, so we need to have access to exome designs suitable
 for each exome data cohort (and sub-cohort cf. Mackenzie's mission).
 
 [UCSC Genome browser](https://genome.ucsc.edu/index.html) has 'tracks' for many of the most common
