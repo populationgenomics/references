@@ -57,10 +57,10 @@ def make_interval_lists(bedfile_paths: Iterator[Path] | Generator[CloudPath, Non
     Saves the .interval_list file to the cpg-common-main reference directory.
     Copies the .bed file to the cpg-common-main reference directory.
     """
-    sd_file = reference_path(sd_ref)
+ 
     b = get_batch()
-sd_file_input = b.read_input(reference_path(sd_ref))
-bed_path_input = b.read_input(str(bed_path))
+    sd_file_input = b.read_input(reference_path(sd_ref))
+    
     for bed_path in bedfile_paths:
         bed_file = bed_path.parts[-1]
         bed_stem = bed_path.stem
@@ -78,7 +78,7 @@ bed_path_input = b.read_input(str(bed_path))
             gcloud storage cp {str(bed_path)} {str(bed_out_path)}
             
             picard BedToIntervalList \
-            -I {bed_path_input} \
+            -I {b.read_input(str(bed_path))} \
             -O {picard_job.ofile} \
             -SD {sd_file_input}
             """,
