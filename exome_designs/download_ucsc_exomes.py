@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
-
+import re
+import unicodedata
 import urllib.parse as up
 from pathlib import Path
 
 import bbi
 import polars as pl
 import requests
-from slugify import slugify
 
 # CONSTs
 API_URL = 'https://api.genome.ucsc.edu'
@@ -17,7 +17,28 @@ TRACK_ENDPOINT = '/list/tracks'
 GENOME = 'hg38'
 CANONICAL_CHRS = [f'chr{x}' for x in list(range(1, 23)) + ['X', 'Y', 'M']]
 SOURCE_NAME = 'exome_probesets'
-CPG_DEST = 'exome-probsets/hg38/'
+CPG_DEST = 'exome-probesets/hg38/'
+
+
+def slug_and_under(line: str):
+    """
+    Slugify and replace hyphen with underscore string.
+
+    Example:
+    >>> slug_and_under(u'Héllø W.1')
+    'hello_w_1'
+    """
+
+    line = unicodedata.normalize('NFKD', line).encode('ascii', 'ignore').decode()
+    line = line.strip().lower()
+    line = re.sub(
+        r'[\s.]+',
+        '-',
+        line,
+    )
+    line = re.sub(r'[\s-]+', '_', line)
+    line = line.strip('_')
+    return line
 
 
 def reformat_endpoint_dict(
@@ -34,8 +55,8 @@ def reformat_endpoint_dict(
         if 'bigDataUrl' in end_point_dict[k]:
             bbs_list.append(
                 (
-                    slugify(end_point_dict[k]['longLabel']),
-                    slugify(end_point_dict[k]['shortLabel']),
+                    slug_and_under(end_point_dict[k]['longLabel']),
+                    slug_and_under(end_point_dict[k]['shortLabel']),
                     end_point_dict[k]['bigDataUrl'],
                 )
             )

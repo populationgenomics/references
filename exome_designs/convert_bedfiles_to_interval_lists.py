@@ -7,6 +7,7 @@ analysis-runner \
     --dataset common \
     --access-level full \
     --description  'ref beds to interval_lists' \
+    --output-dir cpg-common-main/references \
     convert_bedfiles_to_interval_lists.py
 
 
