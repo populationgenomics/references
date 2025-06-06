@@ -403,9 +403,13 @@ SOURCES = [
         'ancestry',
         # representative sites table for PCA
         # generated using the HGDP+1KG dataset
+        # generated using the HGDP+1KG dataset + filtered by 10k10k vqsr
+        # generated using the HGDP+1KG dataset + filtered by 10k10k vqsr + gnomad vsqr
         dst='ancestry',
         files=dict(
             sites_table='pruned_variants.ht',
+            tenk10K_sites_table='tenk10K_pruned_variants.ht',
+            gnomad_sites_table='gnomad_pruned_variants.ht',
         ),
     ),
     Source(
