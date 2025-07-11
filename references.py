@@ -622,6 +622,8 @@ SOURCES = [
             idt_xgen_exome_research_panel_v1_probes_interval_list='xgen-exome-research-panel-probes-hg38.interval_list',
             mackenzie_intersect_exome_probes_bed='mackenzie_intersect_exome_regions.bed',
             mackenzie_intersect_exome_probes_interval_list='mackenzie_intersect_exome_regions.interval_list',
+            mackenzie_union_exome_probes_bed='mackenzie_union_exome_regions.bed',
+            mackenzie_union_exome_probes_interval_list='mackenzie_union_exome_regions.interval_list'
             ),
     ),
 ]
