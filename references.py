@@ -523,6 +523,12 @@ SOURCES = [
         transfer_cmd=gcs_rsync_no_billing_project,
     ),
     Source(
+        'gnomad.genes.GRCh38.GENCODEv39.pext.ht',
+        src='gs://gcp-public-data--gnomad/resources/grch38/browser/gnomad.genes.GRCh38.GENCODEv39.pext.ht',
+        dst='gnomad/genes/gnomad.genes.GRCh38.GENCODEv39.pext.ht',
+        transfer_cmd=gcs_rsync_no_billing_project,
+    ),
+    Source(
         'alphamissense',
         # alphamissense raw data, processed HT, and compressed HT
         dst='alphamissense',
