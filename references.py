@@ -259,6 +259,16 @@ SOURCES = [
         ),
     ),
     Source(
+        'gnomad_browser',
+        # The Broad resources for the gnomAD browser
+        src='gs://gcp-public-data--gnomad/resources/grch38/browser',
+        dst='gnomad_browser/v0',
+        transfer_cmd=gcs_cp_r,
+        files=dict(
+            gene_table='gnomad.genes.GRCh38.GENCODEv39.pext.ht',
+        )
+    ),
+    Source(
         'gnomad_sv',
         # Reference data related to gnomAD V4 SV
         src='gs://gatk-sv-resources-public/gnomad_AF/gnomad_v4_SV.Freq.tsv.gz',
