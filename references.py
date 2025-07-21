@@ -259,6 +259,16 @@ SOURCES = [
         ),
     ),
     Source(
+        'gnomad_browser',
+        # The Broad resources for the gnomAD browser
+        src='gs://gcp-public-data--gnomad/resources/grch38/browser',
+        dst='gnomad_browser/v0',
+        transfer_cmd=gcs_cp_r,
+        files=dict(
+            gene_table='gnomad.genes.GRCh38.GENCODEv39.pext.ht',
+        )
+    ),
+    Source(
         'gnomad_sv',
         # Reference data related to gnomAD V4 SV
         src='gs://gatk-sv-resources-public/gnomad_AF/gnomad_v4_SV.Freq.tsv.gz',
@@ -520,12 +530,6 @@ SOURCES = [
         'gnomad_4.1_joint_ht',
         src='gs://gcp-public-data--gnomad/release/4.1/ht/joint/gnomad.joint.v4.1.sites.ht',
         dst='gnomad/v4.1/joint/ht/gnomad.joint.v4.1.sites.ht',
-        transfer_cmd=gcs_rsync_no_billing_project,
-    ),
-    Source(
-        'gnomad.genes.GRCh38.GENCODEv39.pext.ht',
-        src='gs://gcp-public-data--gnomad/resources/grch38/browser/gnomad.genes.GRCh38.GENCODEv39.pext.ht',
-        dst='gnomad/genes/gnomad.genes.GRCh38.GENCODEv39.pext.ht',
         transfer_cmd=gcs_rsync_no_billing_project,
     ),
     Source(
