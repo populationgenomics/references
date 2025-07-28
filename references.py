@@ -285,7 +285,7 @@ SOURCES = [
     Source(
         'mane_select_v1.4',
         # Reference data related to the OurDNA browser
-        srs='https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/release_1.4/MANE.GRCh38.v1.4.summary.txt.gz',
+        src='https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/release_1.4/MANE.GRCh38.v1.4.summary.txt.gz',
         dst='ourdna_browser/v0/MANE.GRCh38.v1.4.summary.txt.gz',
         transfer_cmd=curl,
     ),
