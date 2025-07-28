@@ -276,20 +276,6 @@ SOURCES = [
         transfer_cmd=gcs_cp_single,
     ),
     Source(
-        'gencode_v44',
-        # Reference data related to the OurDNA browser
-        src='https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_44/gencode.v44.annotation.gtf.gz',
-        dst='ourdna_browser/v0/gencode.v44.annotation.gtf.gz',
-        transfer_cmd=curl,
-    ),
-    Source(
-        'mane_select_v1.4',
-        # Reference data related to the OurDNA browser
-        srs='https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/release_1.4/MANE.GRCh38.v1.4.summary.txt.gz',
-        dst='ourdna_browser/v0/MANE.GRCh38.v1.4.summary.txt.gz',
-        transfer_cmd=curl,
-    ),
-    Source(
         'seqr_combined_reference_data',
         # The Broad resources for annotation for the Seqr Loader
         src='gs://seqr-reference-data/GRCh38/all_reference_data/combined_reference_data_grch38.ht',
