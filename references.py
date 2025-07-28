@@ -283,10 +283,11 @@ SOURCES = [
         transfer_cmd=curl,
     ),
     Source(
-        'mane_select_v1.4',
+        'hgnc_labels',
         # Reference data related to the OurDNA browser
-        src='https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/release_1.4/MANE.GRCh38.v1.4.summary.txt.gz',
-        dst='ourdna_browser/v0/MANE.GRCh38.v1.4.summary.txt.gz',
+        # Command copied from gnomAD v4
+        src='https://www.genenames.org/cgi-bin/download/custom?col=gd_hgnc_id&col=gd_app_sym&col=gd_app_name&col=gd_prev_sym&col=gd_aliases&col=gd_pub_eg_id&col=gd_pub_ensembl_id&col=md_eg_id&col=md_ensembl_id&col=md_mim_id&status=Approved&hgnc_dbtag=on&order_by=gd_app_sym_sort&format=text&submit=submit',
+        dst='ourdna_browser/v0/hgnc.tsv',
         transfer_cmd=curl,
     ),
     Source(
