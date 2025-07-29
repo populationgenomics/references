@@ -557,7 +557,7 @@ SOURCES = [
             ht_tar='alphamissense_38.ht.tar.gz',
         ),
     ),
-        Source(
+    Source(
         'CADD_v1.7_snvs',
         src='https://krishna.gs.washington.edu/download/CADD/v1.7/GRCh38/whole_genome_SNVs.tsv.gz',
         dst='CADD/v1.7/GRCh38/whole_genome_SNVs.tsv.gz',
