@@ -557,6 +557,30 @@ SOURCES = [
             ht_tar='alphamissense_38.ht.tar.gz',
         ),
     ),
+        Source(
+        'CADD_v1.7_snvs',
+        src='https://krishna.gs.washington.edu/download/CADD/v1.7/GRCh38/whole_genome_SNVs.tsv.gz',
+        dst='CADD/v1.7/GRCh38/whole_genome_SNVs.tsv.gz',
+        transfer_cmd=curl,
+    ),
+    Source(
+        'CADD_v1.7_snvs_index',
+        src='https://krishna.gs.washington.edu/download/CADD/v1.7/GRCh38/whole_genome_SNVs.tsv.gz.tbi',
+        dst='CADD/v1.7/GRCh38/whole_genome_SNVs.tsv.gz.tbi',
+        transfer_cmd=curl,
+    ),
+    Source(
+        'CADD_v1.7_indels',
+        src='https://krishna.gs.washington.edu/download/CADD/v1.7/GRCh38/gnomad.genomes.r4.0.indel.tsv.gz',
+        dst='CADD/v1.7/GRCh38/gnomad.genomes.r4.0.indel.tsv.gz',
+        transfer_cmd=curl,
+    ),
+    Source(
+        'CADD_v1.7_indels_index',
+        src='https://krishna.gs.washington.edu/download/CADD/v1.7/GRCh38/gnomad.genomes.r4.0.indel.tsv.gz.tbi',
+        dst='CADD/v1.7/GRCh38/gnomad.genomes.r4.0.indel.tsv.gz.tbi',
+        transfer_cmd=curl,
+    ),
     Source(
         'ensembl_113',
         # ensembl GFF3, and derived BED files
