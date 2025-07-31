@@ -276,19 +276,32 @@ SOURCES = [
         transfer_cmd=gcs_cp_single,
     ),
     Source(
-        'gencode_v44',
+        'ourdna_browser',
         # Reference data related to the OurDNA browser
         src='https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_44/gencode.v44.annotation.gtf.gz',
-        dst='ourdna_browser/v0/gencode.v44.annotation.gtf.gz',
+        dst='ourdna_browser/v0/gencode/v44/gencode.v44.annotation.gtf.gz',
         transfer_cmd=curl,
     ),
     Source(
-        'hgnc_labels',
+        'ourdna_browser',
         # Reference data related to the OurDNA browser
         # Command copied from gnomAD v4
         src='https://www.genenames.org/cgi-bin/download/custom?col=gd_hgnc_id&col=gd_app_sym&col=gd_app_name&col=gd_prev_sym&col=gd_aliases&col=gd_pub_eg_id&col=gd_pub_ensembl_id&col=md_eg_id&col=md_ensembl_id&col=md_mim_id&status=Approved&hgnc_dbtag=on&order_by=gd_app_sym_sort&format=text&submit=submit',
         dst='ourdna_browser/v0/hgnc.tsv',
         transfer_cmd=curl,
+    ),
+    Source(
+        'ourdna_browser',
+        # SpliceAI data for hg38
+        src='gs://cpg-common-test/references/browser',
+        dst='ourdna_browser/v0/spliceai-resources/v1-3',
+        files=dict(
+            splice_ai_snvs='spliceai_scores.masked.snv.hg38.vcf.gz',
+            splice_ai_snvs_index='spliceai_scores.masked.snv.hg38.vcf.gz.tbi',
+            splice_ai_indels='spliceai_scores.masked.indel.hg38.vcf.gz',
+            splice_ai_indels_index='spliceai_scores.masked.indel.hg38.vcf.gz.tbi',
+        ),
+        transfer_cmd=gcs_rsync,
     ),
     Source(
         'seqr_combined_reference_data',
