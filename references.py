@@ -688,4 +688,11 @@ SOURCES = [
             mackenzie_union_exome_probes_interval_list='mackenzie_union_exome_regions.interval_list'
             ),
     ),
+    Source(
+        # Alphagenome reference file(s)
+        'alphagenome_feather',
+        src='https://storage.googleapis.com/alphagenome/reference/gencode/hg38/gencode.v46.annotation.gtf.gz.feather',
+        dst='alphagenome/gencode.v46.annotation.gtf.gz.feather',
+        transfer_cmd=curl,
+    ),
 ]
