@@ -6,7 +6,7 @@
 ENSEMBL_VERSION=${1:-"115"}
 GFF3_URL="https://ftp.ensembl.org/pub/release-${ENSEMBL_VERSION}/gff3/homo_sapiens/Homo_sapiens.GRCh38.${ENSEMBL_VERSION}.gff3.gz"
 INITIAL_OUTPUT_GFF3="initial_GRCh38.gff3.gz"
-LOCAL_OUTPUT_GFF3="GRCh38.gff3.gz"
+LOCAL_OUTPUT_GFF3="GRCh38_chrM_renamed.gff3.gz"
 LOCAL_OUTPUT_BED="GRCh38.bed"
 MERGED_OUTPUT_BED="merged_GRCh38.bed"
 
