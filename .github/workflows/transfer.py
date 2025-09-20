@@ -7,7 +7,7 @@ import os
 import subprocess
 import sys
 
-from references import SOURCES
+from references import SOURCES, curl, curl_with_user_agent
 
 
 def parser(args: list[str]) -> argparse.Namespace:
@@ -49,13 +49,24 @@ def main(name: str, references_prefix: str, gcp_project: str) -> None:
     """
     source = {s.name: s for s in SOURCES}[name]
     if source.transfer_cmd and source.src:
-        cmd = source.transfer_cmd(
-            src=source.src,
-            dst=os.path.join(references_prefix, source.dst),
-            project=gcp_project,
-        )
-        print(cmd)
-        subprocess.run(cmd, shell=True)
+        if source.files and source.transfer_cmd in (curl, curl_with_user_agent):
+            # If there are multiple files and we're using curl to transfer, iterate through them
+            for file in source.files.values():
+                cmd = source.transfer_cmd(
+                    src=str(os.path.join(source.src, file)),
+                    dst=os.path.join(references_prefix, source.dst, file),
+                    project=gcp_project,
+                )
+                print(cmd)
+                subprocess.run(cmd, shell=True)
+        else:
+            cmd = source.transfer_cmd(
+                src=source.src,
+                dst=os.path.join(references_prefix, source.dst),
+                project=gcp_project,
+            )
+            print(cmd)
+            subprocess.run(cmd, shell=True)
 
 
 if __name__ == '__main__':
