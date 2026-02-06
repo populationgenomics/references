@@ -46,13 +46,6 @@ ht = ht.transmute(
 # 4. Key the table by locus and alleles
 ht = ht.key_by('locus', 'alleles')
 
-# 5. Convert to Matrix Table
-# If this is a site-list with annotation (AVI), we keep the col_key empty.
-mt = ht.to_matrix_table(
-    row_key=['locus', 'alleles'],
-    col_key=[]
-)
-
 ht.describe()
 ht.show(5)
 
