@@ -1,5 +1,5 @@
 from cpg_utils import hail_batch
-
+import hail as hl
 import argparse
 
 hail_batch.init_batch()
@@ -21,15 +21,15 @@ output_path = args.output if args.output else tsv_path.replace('.tsv.gz', '.ht')
 # 1. Define the input types for the initial table import
 # We import chrom/pos/ref/alt as strings/ints first to transform them
 input_types = {
-    '#CHROM': hail_batch.tstr,
-    'POS': hail_batch.tint32,
-    'REF': hail_batch.tstr,
-    'ALT': hail_batch.tstr,
-    'avis': hail_batch.tfloat64
+    '#CHROM': hl.tstr,
+    'POS': hl.tint32,
+    'REF': hl.tstr,
+    'ALT': hl.tstr,
+    'avis': hl.tfloat64
 }
 
 # 2. Load the TSV
-ht = hail_batch.import_table(
+ht = hl.import_table(
     tsv_path,
     types=input_types,
     delimiter='\t',
@@ -39,7 +39,7 @@ ht = hail_batch.import_table(
 # 3. Transform to standard Hail genomic format
 # We create a 'locus' object and an 'alleles' array
 ht = ht.transmute(
-    locus=hail_batch.locus(ht['#CHROM'], ht.POS, reference_genome=args.reference_genome),
+    locus=hl.locus(ht['#CHROM'], ht.POS, reference_genome=args.reference_genome),
     alleles=[ht.REF, ht.ALT]
 )
 
