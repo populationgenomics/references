@@ -56,21 +56,19 @@ from cpg_utils import to_path
 from cpg_utils.config import config_retrieve, image_path, ConfigError
 from cpg_utils.hail_batch import get_batch
 
-CANONICAL_CHROMOSOMES = [f'chr{x}' for x in list(range(1, 23)) + ['X', 'Y']] + [
-    'whole_genome'
-]
+CANONICAL_CHROMOSOMES = [f'chr{x}' for x in [*list(range(1, 23)), 'X', 'Y', 'whole_genome']]
 
 
 # pull images from config, defaulting to the images at time of writing
 try:
     echtvar_image = image_path('echtvar')
-    bcftools_image = image_path('bcftools_120')
+    bcftools_image = image_path('bcftools')
 except ConfigError:
     echtvar_image = (
-        'australia-southeast1-docker.pkg.dev/cpg-common/images/echtvar:v0.2.1'
+        'australia-southeast1-docker.pkg.dev/cpg-common/images/echtvar:v0.2.2-1'
     )
     bcftools_image = (
-        'australia-southeast1-docker.pkg.dev/cpg-common/images/bcftools_120:1.20'
+        'australia-southeast1-docker.pkg.dev/cpg-common/images/bcftools:1.22-1'
     )
 
 
@@ -245,7 +243,7 @@ def encode_anything(input_list: list[str], output: str, region: str | None = Non
     # the intention here is to make the config used more flexible, as it has to be a localised JSON in the container
     # if nothing was supplied, we'll use the default config (gnomAD)
     try:
-        echtvar_config = config_retrieve(['echtvar_config'])
+        echtvar_config = config_retrieve('echtvar_config')
         random_string = '_'.join(random.choices(ascii_lowercase, k=20)) + '.json'
         temp_config = join(
             config_retrieve(['storage', 'default', 'tmp']), random_string
@@ -287,7 +285,7 @@ def encode_anything(input_list: list[str], output: str, region: str | None = Non
     # create a job to run echtvar on all the input VCFs
     job = get_batch().new_job('Run echtvar on all input VCFs', attributes={'tool': 'echtvar'})
     job.image(echtvar_image)
-    job.storage(f'{total_storage}Gi')
+    job.storage(f'{total_storage * 2}Gi')
     job.cpu(4)
     job.memory('highmem')
     job.command(f'echtvar encode {job.output} {config} {" ".join(localised_inputs)}')
