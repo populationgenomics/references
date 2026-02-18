@@ -724,6 +724,28 @@ SOURCES = [
         transfer_cmd=curl,
     ),
     Source(
+        'new_seqr_loftee',
+        src='gs://seqr-reference-data/vep_data/loftee-beta/GRCh38.tar.gz',
+        dst='new_seqr/vep',
+        transfer_cmd=gcs_cp_single,
+    ),
+    Source(
+        'new_seqr_vep',
+        src='gs://seqr-reference-data/vep/GRCh38',
+        dst='new_seqr/vep',
+        transfer_cmd=gcs_cp_r,
+        files={
+            'vep_reference': 'homo_sapiens_vep_110_GRCh38.tar.gz',
+            'ref_genome': 'Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz',
+            'ref_genome_fai': 'Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz.fai',
+            'ref_genome_gzi': 'Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz.gzi',
+            'utranno_conf': 'uORF_5UTR_GRCh38_PUBLIC.txt',
+            'vep_conf': 'vep-GRCh38.json',
+            'alphamissense': 'AlphaMissense_hg38.tsv.gz',
+            'alphamissense_idx': 'AlphaMissense_hg38.tsv.gz.tbi',
+        }
+    ),
+    Source(
         # Phased hgdp + 1kg bcfs from Koenig et. al. Genome Res. 2024 Jun 25;34(5):796-809. doi: 10.1101/gr.278378.123
         # genome v38
         'phased_hgdp_1kg',
