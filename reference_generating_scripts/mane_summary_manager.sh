@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
+set -e
+
 # first identify the location of the MANE summary based on the version
-MANE_VERSION=${1:-"1.4"}
+MANE_VERSION=${1:-"1.5"}
 MANE_URL="https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/release_${MANE_VERSION}/MANE.GRCh38.v${MANE_VERSION}.summary.txt.gz"
 LOCAL_SUMMARY_NAME="mane_${MANE_VERSION}.summary.txt.gz"
 # download that file to a slightly simplified name
