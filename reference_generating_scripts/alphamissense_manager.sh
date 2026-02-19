@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 # This script is used to manage the generation of reference files for the alpha missense dataset.
 
 # destination for the output
