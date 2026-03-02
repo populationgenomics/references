@@ -560,7 +560,7 @@ SOURCES = [
         # masked hg38 reference fasta: dragen_reference/Homo_sapiens_assembly38_masked.fasta
         dst='hg38/v0',
         files=dict(
-            interval_list='dragen_reference/genome_coverage_interval_list_masked.interval_list'
+            interval_list='dragen_reference/wgs_coverage_regions.hg38_masked.interval_list'
         ),
     ),
     Source(
