@@ -555,6 +555,16 @@ SOURCES = [
         ),
     ),
     Source(
+        'genome_coverage_interval_list_masked',
+        # Updated broad/genome_coverage_interval_list with updated @SQ header hashes for compatibility 
+        # with the masked hg38 reference fasta used in the Align pipeline:
+        # "dragen_reference/Homo_sapiens_assembly38_masked.fasta"
+        dst='hg38/v0',
+        files=dict(
+            interval_list='dragen_reference/wgs_coverage_regions.hg38_masked.interval_list'
+        ),
+    ),
+    Source(
         'gnomad_4.1_vcfs',
         src='gs://gcp-public-data--gnomad/release/4.1/vcf/genomes',
         dst='gnomad/v4.1/vcfs',
