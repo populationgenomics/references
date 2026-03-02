@@ -555,6 +555,15 @@ SOURCES = [
         ),
     ),
     Source(
+        'genome_coverage_interval_list_masked',
+        # Updated broad/genome_coverage_interval_list with updated for compatibility with the 
+        # masked hg38 reference fasta: dragen_reference/Homo_sapiens_assembly38_masked.fasta
+        dst='hg38/v0',
+        files=dict(
+            interval_list='dragen_reference/genome_coverage_interval_list_masked.interval_list'
+        ),
+    ),
+    Source(
         'gnomad_4.1_vcfs',
         src='gs://gcp-public-data--gnomad/release/4.1/vcf/genomes',
         dst='gnomad/v4.1/vcfs',
