@@ -822,6 +822,7 @@ SOURCES = [
         dst='illumina_microarray',
         files=dict(
             GCA_000001405_15_GRCh38_no_alt_analysis_set_fna='GCA_000001405.15_GRCh38_no_alt_analysis_set.fna',
+            GCA_000001405_15_GRCh38_no_alt_analysis_set_fna_fai='GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.fai',
             GDA_8v1_0_D1_ClusterFile_egt='GDA-8v1-0_D1_ClusterFile.egt',
             GDA_8v1_0_D2_bpm='GDA-8v1-0_D2.bpm'
         )
