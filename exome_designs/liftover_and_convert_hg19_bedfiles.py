@@ -15,8 +15,9 @@ analysis-runner \
 
 NOTES:
 1. Run in MAIN!
-2. Assumes hg19 bedfiles are in TEST, alongside the existing hg38 ones:
-   gs://cpg-common-test/references/exome-probesets/hg38/*_hg19.bed
+2. Assumes hg19 bedfiles are in TEST, in a dedicated hg19/ subfolder
+   alongside the existing hg38/ layout:
+   gs://cpg-common-test/references/exome-probesets/hg19/*_hg19.bed
 3. Requires hg19_dict to be present in references (run generate_hg19_dict.py
    once before this script).
 4. Per-file pipeline:
@@ -136,7 +137,7 @@ def liftover_hg19_bedfiles(
     '--exome-path',
     required=True,
     help='String identifying PATH (in cpg-common-test) of the hg19 bed files.',
-    default='references/exome-probesets/hg38',
+    default='references/exome-probesets/hg19',
 )
 @click.option(
     '--hg38-sd-ref',
