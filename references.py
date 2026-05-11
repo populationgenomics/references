@@ -201,6 +201,21 @@ SOURCES = [
         ),
     ),
     Source(
+        'hg19_fasta',
+        # UCSC hg19 fasta, used to bootstrap a picard sequence dictionary for
+        # LiftOverIntervalList (hg19 → hg38). See exome_designs/README.md.
+        src='https://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz',
+        dst='hg19/v0/hg19.fa.gz',
+        transfer_cmd=curl,
+    ),
+    Source(
+        'hg19_dict',
+        # Picard sequence dictionary matching hg19_fasta. Generated once by
+        # exome_designs/generate_hg19_dict.py after CI lands hg19.fa.gz; this
+        # Source declares the path without driving a transfer.
+        dst='hg19/v0/hg19.dict',
+    ),
+    Source(
         'gatk_sv',
         # The Broad resources for running the GATK-SV workflow
         src='gs://gatk-sv-resources-public/hg38/v0/sv-resources',
