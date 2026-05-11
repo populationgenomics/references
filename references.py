@@ -742,6 +742,17 @@ SOURCES = [
             idt_xgen_exome_research_panel_v1_target_regions_interval_list='xgen-exome-research-panel-targets-hg38.interval_list',
             idt_xgen_exome_research_panel_v1_probes_bed='xgen-exome-research-panel-probes-hg38.bed',
             idt_xgen_exome_research_panel_v1_probes_interval_list='xgen-exome-research-panel-probes-hg38.interval_list',
+            # Twist Comprehensive Exome + VCGS custom content (Mackenzie's Twist cohort).
+            twist_vcgs_custom_exome_covered_targets_bed='Twist_VCGS_Exome_Covered_Targets_hg38.bed',
+            twist_vcgs_custom_exome_covered_targets_interval_list='Twist_VCGS_Exome_Covered_Targets_hg38.interval_list',
+            # Agilent SureSelect Clinical Research Exome v1 (S06588914), hg19 source lifted via picard.
+            agilent_sureselect_clinical_research_exome_v1_target_regions_bed='Agilent_ClinicalResearchExome_v1_Regions_hg38.bed',
+            agilent_sureselect_clinical_research_exome_v1_target_regions_interval_list='Agilent_ClinicalResearchExome_v1_Regions_hg38.interval_list',
+            agilent_sureselect_clinical_research_exome_v1_covered_by_probes_bed='Agilent_ClinicalResearchExome_v1_Covered_hg38.bed',
+            agilent_sureselect_clinical_research_exome_v1_covered_by_probes_interval_list='Agilent_ClinicalResearchExome_v1_Covered_hg38.interval_list',
+            # Superseded by per-design beds (twist_vcgs_custom_*,
+            # agilent_sureselect_clinical_research_exome_v{1,2}_*). Retained for any
+            # pipeline still pinned to the merged designs.
             mackenzie_intersect_exome_probes_bed='mackenzie_intersect_exome_regions.bed',
             mackenzie_intersect_exome_probes_interval_list='mackenzie_intersect_exome_regions.interval_list',
             mackenzie_union_exome_probes_bed='mackenzie_union_exome_regions.bed',
