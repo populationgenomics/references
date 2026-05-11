@@ -128,6 +128,13 @@ SOURCES = [
         transfer_cmd=gcs_rsync,
     ),
     Source(
+        'liftover_37_to_38',
+        # Liftover chain file to translate from GRCh37/hg19 to GRCh38 coordinates.
+        src='https://hgdownload.soe.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz',
+        dst='liftover/hg19ToHg38.over.chain.gz',
+        transfer_cmd=curl,
+    ),
+    Source(
         'somalier_sites',
         # Site list for somalier fingerprinting
         src='https://github.com/brentp/somalier/files/3412456/sites.hg38.vcf.gz',
