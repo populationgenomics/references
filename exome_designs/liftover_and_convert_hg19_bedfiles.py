@@ -25,7 +25,7 @@ NOTES:
      picard LiftOverIntervalList (hg19 -> hg38 interval_list, target SD=broad)
      picard IntervalListToBed    (hg38 interval_list -> hg38 BED)
 5. Both the BED and interval_list output filenames (with _hg19 substituted for
-   _hg38) must exist in references.py under the exome_probesets Source.
+   _hg38) must exist in references.py under the exome_probesets_hg38 Source.
 6. Logs the count of rejected intervals from picard LiftOverIntervalList so
    the operator can sanity-check liftover loss before merging into ICA.
 """
@@ -40,7 +40,7 @@ from cloudpathlib import AnyPath, CloudPath
 from cpg_utils.config import ConfigError, config_retrieve, cpg_test_dataset_path, reference_path
 from cpg_utils.hail_batch import get_batch, image_path
 
-SOURCE = 'exome_probesets'
+SOURCE = 'exome_probesets_hg38'
 
 
 def get_hg19_bedfile_paths(exome_path: str) -> Iterator[Path] | Generator[CloudPath, None, None]:
@@ -161,7 +161,7 @@ def main(exome_path, hg38_sd_ref, chain_ref, hg19_dict_ref):
     """
     Lift over hg19 exome BED files in cpg-common-test to hg38 with picard,
     and write hg38 BED + interval_list outputs to the paths declared in
-    references.py under exome_probesets.
+    references.py under exome_probesets_hg38.
     """
 
     bedfile_paths = get_hg19_bedfile_paths(exome_path)

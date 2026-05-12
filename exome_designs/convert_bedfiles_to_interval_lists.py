@@ -15,7 +15,7 @@ analysis-runner \
 NOTES:
 1. Run in MAIN!
 2. Assumes bedfiles are in TEST.
-3. Defaults to references source exome_probesets and hg38: references/exome-probesets/hg38
+3. Defaults to references source exome_probesets_hg38 and hg38: references/exome-probesets/hg38
 4. Copies BED and INTERVAL_LIST to cpg-common-main
 5. Takes a glob of the bed_source path: if re-run and previously converted BED files are still in test, they will be converted anew.
 
@@ -36,7 +36,7 @@ from cloudpathlib import AnyPath, CloudPath
 from cpg_utils.config import ConfigError, config_retrieve, cpg_test_dataset_path, reference_path
 from cpg_utils.hail_batch import get_batch, image_path
 
-SOURCE = 'exome_probesets'
+SOURCE = 'exome_probesets_hg38'
 
 
 def get_bedfile_paths(exome_path: str) -> Iterator[Path] | Generator[CloudPath, None, None]:
@@ -71,8 +71,8 @@ def make_interval_lists(bedfile_paths: Iterator[Path] | Generator[CloudPath, Non
 
         # lookup the bed and interval_list outpaths by matching their 'resource name' in references. will FAIL
         # if not in references.py
-        bed_out_path = reference_path('exome_probesets/' + exome_ref_dict[bed_file])
-        interval_list_out_path = reference_path('exome_probesets/' + exome_ref_dict[bed_stem + '.interval_list'])
+        bed_out_path = reference_path(f'{SOURCE}/' + exome_ref_dict[bed_file])
+        interval_list_out_path = reference_path(f'{SOURCE}/' + exome_ref_dict[bed_stem + '.interval_list'])
 
         picard_job.command(
             f"""
