@@ -677,7 +677,7 @@ SOURCES = [
         ),
     ),
     Source(
-        'exome_probesets',
+        'exome_probesets_hg38',
         # exome probset defintions (bed file and interval_list) format
         # downloaded from UCSC with the download_ucsc_exomes.py script
         dst='exome-probesets/hg38',
@@ -690,6 +690,9 @@ SOURCES = [
             twist_bioscience_core_exome_panel_target_regions_interval_list='Twist_Exome_Target_hg38.interval_list',
             twist_comprehensive_exome_panel_target_regions_bed='Twist_ComprehensiveExome_targets_hg38.bed',
             twist_comprehensive_exome_panel_target_regions_interval_list='Twist_ComprehensiveExome_targets_hg38.interval_list',
+            # Twist Comprehensive Exome + VCGS custom content (Mackenzie's Twist cohort).
+            twist_vcgs_custom_exome_covered_targets_bed='Twist_VCGS_Exome_Covered_Targets_hg38.bed',
+            twist_vcgs_custom_exome_covered_targets_interval_list='Twist_VCGS_Exome_Covered_Targets_hg38.interval_list',
             agilent_sureselect_all_exon_v7_target_regions_bed='S31285117_Regions.bed',
             agilent_sureselect_all_exon_v7_target_regions_interval_list='S31285117_Regions.interval_list',
             agilent_sureselect_all_exon_v7_covered_by_probes_bed='S31285117_Covered.bed',
@@ -722,6 +725,11 @@ SOURCES = [
             agilent_sureselect_clinical_research_exome_v2_target_regions_interval_list='S30409818_Regions.interval_list',
             agilent_sureselect_clinical_research_exome_v2_covered_by_probes_bed='S30409818_Covered.bed',
             agilent_sureselect_clinical_research_exome_v2_covered_by_probes_interval_list='S30409818_Covered.interval_list',
+            # Agilent SureSelect Clinical Research Exome v1 (S06588914), hg19 source lifted via picard.
+            agilent_sureselect_clinical_research_exome_v1_target_regions_bed='S06588914_Regions_hg38.bed',
+            agilent_sureselect_clinical_research_exome_v1_target_regions_interval_list='S06588914_Regions_hg38.interval_list',
+            agilent_sureselect_clinical_research_exome_v1_covered_by_probes_bed='S06588914_Covered_hg38.bed',
+            agilent_sureselect_clinical_research_exome_v1_covered_by_probes_interval_list='S06588914_Covered_hg38.interval_list',
             roche_seqcap_ez_medexome_mito_empirical_target_regions_bed='SeqCap_EZ_MedExomePlusMito_hg38_empirical_targets.bed',
             roche_seqcap_ez_medexome_mito_empirical_target_regions_interval_list='SeqCap_EZ_MedExomePlusMito_hg38_empirical_targets.interval_list',
             roche_seqcap_ez_medexome_mito_capture_probe_footprint_bed='SeqCap_EZ_MedExomePlusMito_hg38_capture_targets.bed',
@@ -742,14 +750,6 @@ SOURCES = [
             idt_xgen_exome_research_panel_v1_target_regions_interval_list='xgen-exome-research-panel-targets-hg38.interval_list',
             idt_xgen_exome_research_panel_v1_probes_bed='xgen-exome-research-panel-probes-hg38.bed',
             idt_xgen_exome_research_panel_v1_probes_interval_list='xgen-exome-research-panel-probes-hg38.interval_list',
-            # Twist Comprehensive Exome + VCGS custom content (Mackenzie's Twist cohort).
-            twist_vcgs_custom_exome_covered_targets_bed='Twist_VCGS_Exome_Covered_Targets_hg38.bed',
-            twist_vcgs_custom_exome_covered_targets_interval_list='Twist_VCGS_Exome_Covered_Targets_hg38.interval_list',
-            # Agilent SureSelect Clinical Research Exome v1 (S06588914), hg19 source lifted via picard.
-            agilent_sureselect_clinical_research_exome_v1_target_regions_bed='Agilent_ClinicalResearchExome_v1_Regions_hg38.bed',
-            agilent_sureselect_clinical_research_exome_v1_target_regions_interval_list='Agilent_ClinicalResearchExome_v1_Regions_hg38.interval_list',
-            agilent_sureselect_clinical_research_exome_v1_covered_by_probes_bed='Agilent_ClinicalResearchExome_v1_Covered_hg38.bed',
-            agilent_sureselect_clinical_research_exome_v1_covered_by_probes_interval_list='Agilent_ClinicalResearchExome_v1_Covered_hg38.interval_list',
             # Superseded by per-design beds (twist_vcgs_custom_*,
             # agilent_sureselect_clinical_research_exome_v{1,2}_*). Retained for any
             # pipeline still pinned to the merged designs.
