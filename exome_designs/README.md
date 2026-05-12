@@ -68,13 +68,15 @@ The matching hg38 `interval_list` is produced by the standard
 
 Agilent SureSelect Clinical Research Exome v1 (design id `S06588914`) is only
 distributed by UCSC at hg19, so a manual liftover step is required before the
-hg38 BEDs land in references.
+hg38 BED lands in references. Only the Regions BED is shipped: CRE v1 is built
+on the SureSelectXT All Exon V5 backbone (exon-resolution design), so Agilent's
+Regions and Covered BEDs are identical by construction.
 
-### 1. Download hg19 BEDs
+### 1. Download hg19 BED
 
 ```
 python download_hg19_agilent_cre_v1.py
-gcloud storage cp Agilent_ClinicalResearchExome_v1_*_hg19.bed \
+gcloud storage cp S06588914_Regions_hg19.bed \
     gs://cpg-common-test/references/exome-probesets/hg19/
 ```
 
@@ -97,7 +99,7 @@ analysis-runner \
 
 Chains `picard BedToIntervalList → LiftOverIntervalList → IntervalListToBed` per
 `*_hg19.bed` in `cpg-common-test`, writes the hg38 BED + interval_list to the
-paths declared in `references.py` under `exome_probesets`, and logs the count of
+paths declared in `references.py` under `exome_probesets_hg38`, and logs the count of
 rejected intervals so the operator can sanity-check liftover loss before
 promoting the BEDs.
 
@@ -110,10 +112,12 @@ analysis-runner \
     liftover_and_convert_hg19_bedfiles.py
 ```
 
-### Sanity-check post-liftover
+### Sanity-check post-download
 
-Agilent's portal ships hg38 directly. Compare interval counts and total bp of
-the lifted `_hg38.bed` outputs against the portal baseline at
-`/Users/jossch/Downloads/S06588914/S06588914_{Regions,Covered}.bed` before
-promoting the BEDs into ICA. Those files are not the source of truth — only a
-reference for diffing.
+Neither Agilent nor UCSC ships an hg38 baseline for CRE v1 — the manufacturer
+portal also only distributes hg19. Compare interval count and total bp of the
+downloaded `S06588914_Regions_hg19.bed` against the portal baseline at
+`/Users/jossch/Downloads/S06588914/S06588914_Regions.bed` (both hg19) to
+confirm the UCSC track matches the manufacturer's design before running
+liftover. After liftover, expect a small (single-digit-percent) drop from
+intervals that fail to map to hg38; the picard job logs the rejected count.

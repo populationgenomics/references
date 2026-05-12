@@ -16,10 +16,9 @@ download_ucsc_exomes.py.
 The hg19 BED is an intermediate artifact: upload it to cpg-common-test and
 lift over to hg38 with liftover_and_convert_hg19_bedfiles.py.
 
-Manufacturer-portal baseline for sanity-check comparison post-liftover:
+Manufacturer-portal baseline (hg19, also distributed by Agilent in hg19 only)
+for sanity-check comparison against the UCSC track downloaded here:
     /Users/jossch/Downloads/S06588914/S06588914_Regions.bed
-Agilent's portal ships hg38 directly; that file is not the source here, only a
-reference for interval-count / total-bp diffs after liftover.
 """
 
 import urllib.parse as up
