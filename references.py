@@ -128,6 +128,13 @@ SOURCES = [
         transfer_cmd=gcs_rsync,
     ),
     Source(
+        'liftover_37_to_38',
+        # Liftover chain file to translate from GRCh37/hg19 to GRCh38 coordinates.
+        src='https://hgdownload.soe.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz',
+        dst='liftover/grch37_to_grch38over.chain.gz',
+        transfer_cmd=curl,
+    ),
+    Source(
         'somalier_sites',
         # Site list for somalier fingerprinting
         src='https://github.com/brentp/somalier/files/3412456/sites.hg38.vcf.gz',
@@ -192,6 +199,21 @@ SOURCES = [
             clean_vcf='sv-resources/ref-panel/1KG/v1/calls/ref_panel_1kg_v1.cleaned.vcf.gz',
             ref_panel_bincov_matrix='sv-resources/ref-panel/1KG/v1/merged_evidence/ref_panel_1kg_v1.bincov.bed.gz',
         ),
+    ),
+    Source(
+        'hg19_fasta',
+        # UCSC hg19 fasta, used to bootstrap a picard sequence dictionary for
+        # LiftOverIntervalList (hg19 → hg38). See exome_designs/README.md.
+        src='https://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz',
+        dst='hg19/v0/hg19.fa.gz',
+        transfer_cmd=curl,
+    ),
+    Source(
+        'hg19_dict',
+        # Picard sequence dictionary matching hg19_fasta. Generated once by
+        # exome_designs/generate_hg19_dict.py after CI lands hg19.fa.gz; this
+        # Source declares the path without driving a transfer.
+        dst='hg19/v0/hg19.dict',
     ),
     Source(
         'gatk_sv',
@@ -655,7 +677,7 @@ SOURCES = [
         ),
     ),
     Source(
-        'exome_probesets',
+        'exome_probesets_hg38',
         # exome probset defintions (bed file and interval_list) format
         # downloaded from UCSC with the download_ucsc_exomes.py script
         dst='exome-probesets/hg38',
@@ -668,6 +690,9 @@ SOURCES = [
             twist_bioscience_core_exome_panel_target_regions_interval_list='Twist_Exome_Target_hg38.interval_list',
             twist_comprehensive_exome_panel_target_regions_bed='Twist_ComprehensiveExome_targets_hg38.bed',
             twist_comprehensive_exome_panel_target_regions_interval_list='Twist_ComprehensiveExome_targets_hg38.interval_list',
+            # Twist Comprehensive Exome + VCGS custom content (Mackenzie's Twist cohort).
+            twist_vcgs_custom_exome_covered_targets_bed='Twist_VCGS_Exome_Covered_Targets_hg38.bed',
+            twist_vcgs_custom_exome_covered_targets_interval_list='Twist_VCGS_Exome_Covered_Targets_hg38.interval_list',
             agilent_sureselect_all_exon_v7_target_regions_bed='S31285117_Regions.bed',
             agilent_sureselect_all_exon_v7_target_regions_interval_list='S31285117_Regions.interval_list',
             agilent_sureselect_all_exon_v7_covered_by_probes_bed='S31285117_Covered.bed',
@@ -700,6 +725,11 @@ SOURCES = [
             agilent_sureselect_clinical_research_exome_v2_target_regions_interval_list='S30409818_Regions.interval_list',
             agilent_sureselect_clinical_research_exome_v2_covered_by_probes_bed='S30409818_Covered.bed',
             agilent_sureselect_clinical_research_exome_v2_covered_by_probes_interval_list='S30409818_Covered.interval_list',
+            # Agilent SureSelect Clinical Research Exome v1 (S06588914), hg19 source lifted via picard.
+            agilent_sureselect_clinical_research_exome_v1_target_regions_bed='S06588914_Regions_hg38.bed',
+            agilent_sureselect_clinical_research_exome_v1_target_regions_interval_list='S06588914_Regions_hg38.interval_list',
+            agilent_sureselect_clinical_research_exome_v1_covered_by_probes_bed='S06588914_Covered_hg38.bed',
+            agilent_sureselect_clinical_research_exome_v1_covered_by_probes_interval_list='S06588914_Covered_hg38.interval_list',
             roche_seqcap_ez_medexome_mito_empirical_target_regions_bed='SeqCap_EZ_MedExomePlusMito_hg38_empirical_targets.bed',
             roche_seqcap_ez_medexome_mito_empirical_target_regions_interval_list='SeqCap_EZ_MedExomePlusMito_hg38_empirical_targets.interval_list',
             roche_seqcap_ez_medexome_mito_capture_probe_footprint_bed='SeqCap_EZ_MedExomePlusMito_hg38_capture_targets.bed',
@@ -720,6 +750,9 @@ SOURCES = [
             idt_xgen_exome_research_panel_v1_target_regions_interval_list='xgen-exome-research-panel-targets-hg38.interval_list',
             idt_xgen_exome_research_panel_v1_probes_bed='xgen-exome-research-panel-probes-hg38.bed',
             idt_xgen_exome_research_panel_v1_probes_interval_list='xgen-exome-research-panel-probes-hg38.interval_list',
+            # Superseded by per-design beds (twist_vcgs_custom_*,
+            # agilent_sureselect_clinical_research_exome_v{1,2}_*). Retained for any
+            # pipeline still pinned to the merged designs.
             mackenzie_intersect_exome_probes_bed='mackenzie_intersect_exome_regions.bed',
             mackenzie_intersect_exome_probes_interval_list='mackenzie_intersect_exome_regions.interval_list',
             mackenzie_union_exome_probes_bed='mackenzie_union_exome_regions.bed',
