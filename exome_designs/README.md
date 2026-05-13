@@ -121,3 +121,25 @@ downloaded `S06588914_Regions_hg19.bed` against the portal baseline at
 confirm the UCSC track matches the manufacturer's design before running
 liftover. After liftover, expect a small (single-digit-percent) drop from
 intervals that fail to map to hg38; the picard job logs the rejected count.
+
+## One-shot maintenance
+
+### Rename liftover_37_to_38 chain typo
+
+PR #96 landed the `liftover_37_to_38` chain at a typo'd path
+(`grch37_to_grch38over.chain.gz` — missing a `.` before `over`). A follow-up
+references PR corrects the Source `dst` to `grch37_to_grch38.over.chain.gz`,
+and CI auto-curls the 228 KB chain to the corrected path on merge — leaving
+the typo'd blob as an orphan in `cpg-common-main`. Run this script once
+post-merge to delete it. The script is idempotent: it renames if only the
+typo'd path exists, deletes the typo'd path if both exist, and no-ops if only
+the corrected path is present.
+
+```
+analysis-runner \
+    --dataset common \
+    --access-level full \
+    --description 'Rename liftover_37_to_38 chain typo' \
+    --output-dir references/liftover-rename \
+    rename_liftover_chain_typo.sh
+```
