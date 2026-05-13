@@ -131,7 +131,7 @@ SOURCES = [
         'liftover_37_to_38',
         # Liftover chain file to translate from GRCh37/hg19 to GRCh38 coordinates.
         src='https://hgdownload.soe.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz',
-        dst='liftover/grch37_to_grch38over.chain.gz',
+        dst='liftover/grch37_to_grch38.over.chain.gz',
         transfer_cmd=curl,
     ),
     Source(
