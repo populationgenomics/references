@@ -16,7 +16,7 @@ GENOME_ENDPOINT = '/list/ucscGenomes'
 TRACK_ENDPOINT = '/list/tracks'
 GENOME = 'hg38'
 CANONICAL_CHRS = [f'chr{x}' for x in list(range(1, 23)) + ['X', 'Y', 'M']]
-SOURCE_NAME = 'exome_probesets'
+SOURCE_NAME = 'exome_probesets_hg38'
 CPG_DEST = 'exome-probesets/hg38/'
 
 

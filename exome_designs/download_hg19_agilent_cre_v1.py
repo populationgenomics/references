@@ -1,21 +1,14 @@
 #!/usr/bin/env python3
 
 """
-Download Agilent SureSelect Clinical Research Exome v1 (S06588914) probeset
-BED files from UCSC at hg19 coordinates. Outputs two files in the current
-directory:
+Download the Agilent SureSelect Clinical Research Exome v1 (S06588914)
+Regions BED from UCSC at hg19 coordinates. Output:
 
-  - Agilent_ClinicalResearchExome_v1_Regions_hg19.bed
-  - Agilent_ClinicalResearchExome_v1_Covered_hg19.bed
+  - S06588914_Regions_hg19.bed
 
-These hg19 BEDs are intermediate artifacts: upload them to cpg-common-test
-and then lift over to hg38 with liftover_and_convert_hg19_bedfiles.py.
+The hg19 BED is an intermediate artifact: upload it to cpg-common-test and
+lift over to hg38 with liftover_and_convert_hg19_bedfiles.py.
 
-Manufacturer-portal baseline for sanity-check comparison post-liftover:
-    /Users/jossch/Downloads/S06588914/S06588914_Regions.bed
-    /Users/jossch/Downloads/S06588914/S06588914_Covered.bed
-Agilent's portal ships hg38 directly; those files are not the source here,
-only a reference for interval-count / total-bp diffs after liftover.
 """
 
 import urllib.parse as up
@@ -32,8 +25,7 @@ GENOME = 'hg19'
 CANONICAL_CHRS = [f'chr{x}' for x in list(range(1, 23)) + ['X', 'Y', 'M']]
 TARGET_DESIGN_ID = 'S06588914'
 OUTPUT_FILENAMES = {
-    'regions': 'Agilent_ClinicalResearchExome_v1_Regions_hg19.bed',
-    'covered': 'Agilent_ClinicalResearchExome_v1_Covered_hg19.bed',
+    'regions': 'S06588914_Regions_hg19.bed',
 }
 
 
@@ -55,14 +47,19 @@ def find_design_tracks(
     probesets: dict[str, dict], design_id: str,
 ) -> dict[str, str]:
     """
-    Locate the Regions and Covered BigBed URLs for the given Agilent design id
+    Locate the Regions BigBed URL for the given Agilent design id
     (e.g. ``S06588914``) within the UCSC exomeProbesets track listing. Matches
-    by BigBed filename stem (``<design>_Regions`` / ``<design>_Covered``) and
-    cross-checks the track ``shortLabel`` for the design id.
+    by BigBed filename stem (``<design>_Regions``) and cross-checks the track
+    ``shortLabel`` for the design id.
     """
 
     matches: dict[str, str] = {}
     for track in probesets.values():
+        # UCSC nests parent composite-track metadata (compositeContainer,
+        # shortLabel, etc.) as plain strings alongside the per-track dicts;
+        # skip those.
+        if not isinstance(track, dict):
+            continue
         url = track.get('bigDataUrl', '')
         if not url:
             continue
@@ -73,9 +70,7 @@ def find_design_tracks(
             continue
         if stem.endswith('_Regions'):
             matches['regions'] = url
-        elif stem.endswith('_Covered'):
-            matches['covered'] = url
-    missing = {'regions', 'covered'} - matches.keys()
+    missing = {'regions'} - matches.keys()
     if missing:
         raise RuntimeError(
             f'Could not locate {design_id} hg19 entries for: {sorted(missing)}',
@@ -110,7 +105,7 @@ def write_bed_from_bigbed(
 
 def main() -> None:
     """
-    Download Regions + Covered hg19 BEDs for Agilent CRE v1 (S06588914).
+    Download the Regions hg19 BED for Agilent CRE v1 (S06588914).
     """
 
     probesets = get_exome_probesets(API_URL, TRACK_ENDPOINT, GENOME)

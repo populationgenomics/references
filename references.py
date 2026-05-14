@@ -726,10 +726,13 @@ SOURCES = [
             agilent_sureselect_clinical_research_exome_v2_covered_by_probes_bed='S30409818_Covered.bed',
             agilent_sureselect_clinical_research_exome_v2_covered_by_probes_interval_list='S30409818_Covered.interval_list',
             # Agilent SureSelect Clinical Research Exome v1 (S06588914), hg19 source lifted via picard.
+            # CRE v1 is built on the SureSelectXT All Exon V5 backbone, which was specified at exon
+            # resolution; Regions and Covered intervals are identical by construction (Agilent's
+            # portal Regions track header literally says "This is same as Covered.bed"). Only the
+            # Regions BED is shipped. CREv2 (S30409818) is a ground-up redesign with distinct
+            # sub-exon Regions vs probe-footprint Covered, so it keeps both entries.
             agilent_sureselect_clinical_research_exome_v1_target_regions_bed='S06588914_Regions_hg38.bed',
             agilent_sureselect_clinical_research_exome_v1_target_regions_interval_list='S06588914_Regions_hg38.interval_list',
-            agilent_sureselect_clinical_research_exome_v1_covered_by_probes_bed='S06588914_Covered_hg38.bed',
-            agilent_sureselect_clinical_research_exome_v1_covered_by_probes_interval_list='S06588914_Covered_hg38.interval_list',
             roche_seqcap_ez_medexome_mito_empirical_target_regions_bed='SeqCap_EZ_MedExomePlusMito_hg38_empirical_targets.bed',
             roche_seqcap_ez_medexome_mito_empirical_target_regions_interval_list='SeqCap_EZ_MedExomePlusMito_hg38_empirical_targets.interval_list',
             roche_seqcap_ez_medexome_mito_capture_probe_footprint_bed='SeqCap_EZ_MedExomePlusMito_hg38_capture_targets.bed',
