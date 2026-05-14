@@ -2,19 +2,22 @@
 
 """
 This script lifts over hg19 exome BED files to hg38 with picard
-LiftOverIntervalList, and copies the resulting BED and interval_list files
-to cpg-common-main references.
+LiftOverIntervalList, and writes the resulting BED and interval_list files
+through output_path() so the same script can run at any access level.
 
 analysis-runner \
     --dataset common \
     --access-level full \
     --description  'liftover hg19 exome beds to hg38' \
-    --output-dir cpg-common-main/references \
+    --output-dir references/exome-probesets/hg38 \
     liftover_and_convert_hg19_bedfiles.py
 
 
 NOTES:
-1. Run in MAIN!
+1. Run at --access-level full --dataset common to land outputs at the
+   canonical references location (gs://cpg-common-main/references/...).
+   --access-level test writes to gs://cpg-common-test/references/... for
+   staging/validation.
 2. Assumes hg19 bedfiles are in TEST, in a dedicated hg19/ subfolder
    alongside the existing hg38/ layout:
    gs://cpg-common-test/references/exome-probesets/hg19/*_hg19.bed
@@ -26,6 +29,8 @@ NOTES:
      picard IntervalListToBed    (hg38 interval_list -> hg38 BED)
 5. Both the BED and interval_list output filenames (with _hg19 substituted for
    _hg38) must exist in references.py under the exome_probesets_hg38 Source.
+   reference_path() is called against each as a belt-and-braces registration
+   check so we don't write orphaned files.
 6. Logs the count of rejected intervals from picard LiftOverIntervalList so
    the operator can sanity-check liftover loss before merging into ICA.
 """
@@ -37,7 +42,13 @@ from pathlib import Path
 
 import click
 from cloudpathlib import AnyPath, CloudPath
-from cpg_utils.config import ConfigError, config_retrieve, cpg_test_dataset_path, reference_path
+from cpg_utils.config import (
+    ConfigError,
+    config_retrieve,
+    cpg_test_dataset_path,
+    output_path,
+    reference_path,
+)
 from cpg_utils.hail_batch import get_batch, image_path
 
 SOURCE = 'exome_probesets_hg38'
@@ -63,8 +74,7 @@ def liftover_hg19_bedfiles(
     """
     For each ``*_hg19.bed`` in cpg-common-test, run a single picard job that
     chains BedToIntervalList -> LiftOverIntervalList -> IntervalListToBed and
-    writes the resulting hg38 BED and interval_list to cpg-common-main at the
-    paths declared by references.py.
+    writes the resulting hg38 BED and interval_list through output_path().
     """
 
     b = get_batch()
@@ -86,8 +96,17 @@ def liftover_hg19_bedfiles(
                 f'(derived from {hg19_bed_file}). Check references.py.',
             )
 
-        bed_out_path = reference_path(f'{SOURCE}/{bed_out_key}')
-        interval_list_out_path = reference_path(f'{SOURCE}/{interval_out_key}')
+        # Belt-and-braces registration check: reference_path() raises
+        # ConfigError if these entries aren't in the deployed references config.
+        reference_path(f'{SOURCE}/{bed_out_key}')
+        reference_path(f'{SOURCE}/{interval_out_key}')
+
+        # Write via output_path() so the script runs at any access level. The
+        # AR --output-dir controls the bucket sub-path; pass
+        # `--output-dir references/exome-probesets/hg38` to land outputs at
+        # the canonical references location.
+        bed_out_path = output_path(hg38_bed_file)
+        interval_list_out_path = output_path(hg38_interval_list_file)
 
         picard_job = b.new_job(name=f'Liftover {hg19_bed_file} hg19 -> hg38')
         picard_job.image(image_path('picard'))
@@ -107,12 +126,22 @@ def liftover_hg19_bedfiles(
                 O=$BATCH_TMPDIR/hg19.interval_list \
                 SD={hg19_dict_input}
 
+            # picard LiftOverIntervalList returns exit 1 whenever any interval
+            # is rejected, regardless of MIN_LIFTOVER_PCT. The rejected count
+            # is logged below for operator review; only treat other exit codes
+            # as a real failure.
+            liftover_rc=0
             picard LiftOverIntervalList \
                 I=$BATCH_TMPDIR/hg19.interval_list \
                 O=$BATCH_TMPDIR/hg38.interval_list \
                 SD={hg38_sd_input} \
                 CHAIN={chain_input} \
-                REJECT=$BATCH_TMPDIR/rejected.interval_list
+                REJECT=$BATCH_TMPDIR/rejected.interval_list \
+                || liftover_rc=$?
+            if [ "$liftover_rc" -ne 0 ] && [ "$liftover_rc" -ne 1 ]; then
+                echo "picard LiftOverIntervalList failed unexpectedly (exit $liftover_rc)" >&2
+                exit "$liftover_rc"
+            fi
 
             rejected=$(grep -cv '^@' $BATCH_TMPDIR/rejected.interval_list || true)
             echo "Liftover rejected intervals for {hg19_bed_file}: $rejected"
