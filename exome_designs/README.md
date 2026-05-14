@@ -8,6 +8,15 @@ for each exome data cohort (and sub-cohort cf. Mackenzie's mission).
 [UCSC Genome browser](https://genome.ucsc.edu/index.html) has 'tracks' for many of the most common
 exome probesets.
 
+## Probe design glossary 
+
+- Targets:  An input list of features the design should capture. Often a plain list of transcript/CCDS IDs
+- Regions:  The genomic coordinates resolved from those target IDs
+- Covered:  The intervals actually covered by probe (bait) tiling on the array. Usually a larger size (in MB) than Regions.
+- Padded: Covered intervals extended by a fixed flank on each side (e.g. +- 50 or 100 bp). Could be used for variant discovery. 
+
+Mental model: Targets (IDs) → Regions (what we wanted to capture, in coords) → Covered (what the baits actually capture) → Padded (Covered + flank for QC).
+
 ## Get exome probesets
 
 use `download_ucsc_exomes.py` to retrieve the available exomes, and convert them from BigBed to Bed format.
@@ -66,11 +75,7 @@ The matching hg38 `interval_list` is produced by the standard
 
 ## Agilent CRE v1 (hg19 → hg38 liftover)
 
-Agilent SureSelect Clinical Research Exome v1 (design id `S06588914`) is only
-distributed by UCSC at hg19, so a manual liftover step is required before the
-hg38 BED lands in references. Only the Regions BED is shipped: CRE v1 is built
-on the SureSelectXT All Exon V5 backbone (exon-resolution design), so Agilent's
-Regions and Covered BEDs are identical by construction.
+The design id is `S06588914`. We can also get this from UCSC, but it is only on hg19 assembly, so a manual liftover to hg38 is required. Unlike CREv2, there is no difference between regions and covered - it is a covred (lergest) definition. 
 
 ### 1. Download hg19 BED
 
@@ -112,17 +117,7 @@ analysis-runner \
     liftover_and_convert_hg19_bedfiles.py
 ```
 
-### Sanity-check post-download
-
-Neither Agilent nor UCSC ships an hg38 baseline for CRE v1 — the manufacturer
-portal also only distributes hg19. Compare interval count and total bp of the
-downloaded `S06588914_Regions_hg19.bed` against the portal baseline at
-`/Users/jossch/Downloads/S06588914/S06588914_Regions.bed` (both hg19) to
-confirm the UCSC track matches the manufacturer's design before running
-liftover. After liftover, expect a small (single-digit-percent) drop from
-intervals that fail to map to hg38; the picard job logs the rejected count.
-
-## One-shot maintenance
+# Maintenance
 
 ### Rename liftover_37_to_38 chain typo
 

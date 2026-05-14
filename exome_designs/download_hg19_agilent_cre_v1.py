@@ -6,19 +6,9 @@ Regions BED from UCSC at hg19 coordinates. Output:
 
   - S06588914_Regions_hg19.bed
 
-CRE v1 is built on the SureSelectXT All Exon V5 backbone, which was specified
-at exon resolution; Agilent ships Regions = Covered for this design by
-construction (the portal Regions track header literally reads "This is same as
-Covered.bed"), so only the Regions BED is downloaded. CREv2 (S30409818), a
-ground-up redesign with sub-exon target resolution, keeps both files via
-download_ucsc_exomes.py.
-
 The hg19 BED is an intermediate artifact: upload it to cpg-common-test and
 lift over to hg38 with liftover_and_convert_hg19_bedfiles.py.
 
-Manufacturer-portal baseline (hg19, also distributed by Agilent in hg19 only)
-for sanity-check comparison against the UCSC track downloaded here:
-    /Users/jossch/Downloads/S06588914/S06588914_Regions.bed
 """
 
 import urllib.parse as up
