@@ -107,12 +107,22 @@ def liftover_hg19_bedfiles(
                 O=$BATCH_TMPDIR/hg19.interval_list \
                 SD={hg19_dict_input}
 
+            # picard LiftOverIntervalList returns exit 1 whenever any interval
+            # is rejected, regardless of MIN_LIFTOVER_PCT. The rejected count
+            # is logged below for operator review; only treat other exit codes
+            # as a real failure.
+            liftover_rc=0
             picard LiftOverIntervalList \
                 I=$BATCH_TMPDIR/hg19.interval_list \
                 O=$BATCH_TMPDIR/hg38.interval_list \
                 SD={hg38_sd_input} \
                 CHAIN={chain_input} \
-                REJECT=$BATCH_TMPDIR/rejected.interval_list
+                REJECT=$BATCH_TMPDIR/rejected.interval_list \
+                || liftover_rc=$?
+            if [ "$liftover_rc" -ne 0 ] && [ "$liftover_rc" -ne 1 ]; then
+                echo "picard LiftOverIntervalList failed unexpectedly (exit $liftover_rc)" >&2
+                exit "$liftover_rc"
+            fi
 
             rejected=$(grep -cv '^@' $BATCH_TMPDIR/rejected.interval_list || true)
             echo "Liftover rejected intervals for {hg19_bed_file}: $rejected"
