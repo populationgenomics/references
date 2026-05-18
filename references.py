@@ -860,7 +860,11 @@ SOURCES = [
             GCA_000001405_15_GRCh38_no_alt_analysis_set_fna='GCA_000001405.15_GRCh38_no_alt_analysis_set.fna',
             GCA_000001405_15_GRCh38_no_alt_analysis_set_fna_fai='GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.fai',
             GDA_8v1_0_D1_ClusterFile_egt='GDA-8v1-0_D1_ClusterFile.egt',
-            GDA_8v1_0_D2_bpm='GDA-8v1-0_D2.bpm'
+            GDA_8v1_0_D2_bpm='GDA-8v1-0_D2.bpm',
+            # Biallelic SNV BED derived from the BPM, polarised against the
+            # GRCh38 fasta. Produced by
+            # illumina_microarray/run_generate_bed_from_illumina_bpm.py.
+            GDA_8v1_0_D2_biallelic_snps_bed='GDA-8v1-0_D2-biallelic-snps.bed',
         )
 
     )
