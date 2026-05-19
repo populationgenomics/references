@@ -635,7 +635,7 @@ SOURCES = [
             # variants, so Spark partitions stay evenly loaded.
             # Originally bundled in populationgenomics/ourdna_genomic_atlas
             # @ c915366 (src/ourdna_genomic_atlas/resources/).
-            gnomad_v4_1_intervals_bed='gnomad_v4.1_intervals.bed.gz',
+            gnomad_v4_1_variants_balanced_intervals_bed='gnomad_v4.1_variants_balanced_intervals.bed.gz',
         ),
     ),
     Source(
