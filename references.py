@@ -621,6 +621,24 @@ SOURCES = [
         transfer_cmd=gcs_rsync_no_billing_project,
     ),
     Source(
+        # Pre-computed Hail interval BEDs for hg38.
+        # Files are staged in gs://cpg-common-test/references/hail_intervals/hg38/
+        # (writable by analysts with test access on cpg-common) and CI rsyncs
+        # them into cpg-common-main.
+        'hail_intervals_hg38',
+        src='gs://cpg-common-test/references/hail_intervals/hg38',
+        dst='hail_intervals/hg38',
+        transfer_cmd=gcs_rsync,
+        files=dict(
+            # ~4.9k variant-balanced intervals derived from the gnomAD v4.1 WGS
+            # sites table — each interval contains roughly the same number of
+            # variants, so Spark partitions stay evenly loaded.
+            # Originally bundled in populationgenomics/ourdna_genomic_atlas
+            # @ c915366 (src/ourdna_genomic_atlas/resources/).
+            gnomad_v4_1_variants_balanced_intervals_bed='gnomad_v4.1_variants_balanced_intervals.bed.gz',
+        ),
+    ),
+    Source(
         'alphamissense',
         # alphamissense raw data, processed HT, and compressed HT
         dst='alphamissense',
