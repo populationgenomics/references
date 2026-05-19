@@ -885,5 +885,27 @@ SOURCES = [
             GDA_8v1_0_D2_biallelic_snps_bed='GDA-8v1-0_D2-biallelic-snps.bed',
         )
 
-    )
+    ),
+    Source(
+        # Per-variant INFO payload of the GDA-8v1-0_D1 EGT cluster file,
+        # re-transcribed by `bcftools +gtc2vcf` with no `--gtcs` into a
+        # sample-less BCF. This is the "expected" cluster geometry
+        # (GenTrain_Score, Cluster_Sep, N_AA/AB/BB, meanTHETA_*, devTHETA_*,
+        # meanR_*, devR_*) used by the popgen-genotyping SNP QC report as the
+        # reference half of every observed-vs-EGT comparison.
+        #
+        # Files are produced locally by
+        # illumina_microarray/extract_egt_info_bcf.sh, staged in
+        # gs://cpg-common-test/references/illumina_microarray/egt_info/
+        # (writable by analysts with test access on cpg-common), and CI rsyncs
+        # them into cpg-common-main here.
+        'illumina_microarray_egt_info',
+        src='gs://cpg-common-test/references/illumina_microarray/egt_info',
+        dst='illumina_microarray/egt_info',
+        transfer_cmd=gcs_rsync,
+        files=dict(
+            GDA_8v1_0_D1_egt_info_bcf='GDA-8v1-0_D1_egt_info.bcf',
+            GDA_8v1_0_D1_egt_info_bcf_index='GDA-8v1-0_D1_egt_info.bcf.csi',
+        ),
+    ),
 ]
