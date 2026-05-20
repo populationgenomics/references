@@ -34,7 +34,7 @@
 
 set -euo pipefail
 
-OUT_NAME='GDA-8v1-0_D1_egt_info.bcf'
+OUT_NAME='GDA-8v1-0_D1_ClusterFile_info.bcf'
 TEST_BUCKET_PREFIX='gs://cpg-common-test/references/illumina_microarray'
 BILLING_PROJECT='cpg-common'
 
