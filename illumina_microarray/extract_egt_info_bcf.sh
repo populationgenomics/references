@@ -7,56 +7,38 @@
 # the reference half of any observed-vs-EGT comparison.
 #
 # Run locally (or inside the bcftools:1.23-1 image) against the canonical
-# BPM / EGT / fasta references staged in cpg-common-main. Optionally uploads
-# the resulting BCF + index to the cpg-common-test bucket; promotion into
-# cpg-common-main is then a separate analysis-runner job
-# (illumina_microarray/copy_egt_info_bcf_to_main.py at --access-level full).
+# BPM / EGT / fasta references staged in cpg-common-main. Staging the output
+# to cpg-common-test and promoting to cpg-common-main are handled out-of-band
+# (see illumina_microarray/copy_egt_info_bcf_to_main.py for the test->main
+# promote step).
 #
-# Requirements: bcftools (with the gtc2vcf plugin) on PATH; gcloud SDK on PATH
-# if --upload is passed.
+# Requirements: bcftools (with the gtc2vcf plugin) on PATH.
 #
-# Example — local run, no upload:
+# Example:
 #   ./extract_egt_info_bcf.sh \
-#     --bpm  /path/to/GDA-8v1-0_D2.bpm \
-#     --egt  /path/to/GDA-8v1-0_D1_ClusterFile.egt \
+#     --bpm   /path/to/GDA-8v1-0_D2.bpm \
+#     --egt   /path/to/GDA-8v1-0_D1_ClusterFile.egt \
 #     --fasta /path/to/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna \
 #     --out-dir ./out
-#
-# Example — fetch inputs from cpg-common-main, run, upload to cpg-common-test:
-#   gcloud storage cp \
-#     gs://cpg-common-main/references/illumina_microarray/{GDA-8v1-0_D2.bpm,GDA-8v1-0_D1_ClusterFile.egt,GCA_000001405.15_GRCh38_no_alt_analysis_set.fna,GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.fai} \
-#     ./inputs/
-#   ./extract_egt_info_bcf.sh \
-#     --bpm   ./inputs/GDA-8v1-0_D2.bpm \
-#     --egt   ./inputs/GDA-8v1-0_D1_ClusterFile.egt \
-#     --fasta ./inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna \
-#     --out-dir ./out \
-#     --upload
 
 set -euo pipefail
 
 OUT_NAME='GDA-8v1-0_D1_ClusterFile_info.bcf'
-TEST_BUCKET_PREFIX='gs://cpg-common-test/references/illumina_microarray'
-BILLING_PROJECT='cpg-common'
 
 BPM=''
 EGT=''
 FASTA=''
 OUT_DIR='./out'
-UPLOAD=0
 
 usage() {
     cat <<EOF
 Usage:
-  build:        $0 --bpm BPM --egt EGT --fasta FASTA [--out-dir DIR]
-  build+upload: $0 --bpm BPM --egt EGT --fasta FASTA [--out-dir DIR] --upload
+  $0 --bpm BPM --egt EGT --fasta FASTA [--out-dir DIR]
 
-  --bpm          Path to the Illumina BPM manifest (.bpm)
-  --egt          Path to the Illumina EGT cluster file (.egt)
-  --fasta        Path to the reference fasta (.fna); .fai must sit alongside
-  --out-dir      Local output / source directory (default: ./out)
-  --upload       After build, copy ${OUT_NAME}{,.csi} to
-                 ${TEST_BUCKET_PREFIX}/
+  --bpm      Path to the Illumina BPM manifest (.bpm)
+  --egt      Path to the Illumina EGT cluster file (.egt)
+  --fasta    Path to the reference fasta (.fna); .fai must sit alongside
+  --out-dir  Local output directory (default: ./out)
 EOF
 }
 
@@ -66,7 +48,6 @@ while [[ $# -gt 0 ]]; do
         --egt)     EGT="$2"; shift 2 ;;
         --fasta)   FASTA="$2"; shift 2 ;;
         --out-dir) OUT_DIR="$2"; shift 2 ;;
-        --upload)  UPLOAD=1; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
     esac
@@ -121,22 +102,4 @@ echo "Wrote ${METADATA_TSV}"
 
 if ! bcftools view -h "$OUT_BCF" | grep -q 'ID=GenTrain_Score'; then
     echo "WARNING: INFO/GenTrain_Score not declared in header — verify gtc2vcf output." >&2
-fi
-
-if [[ "$UPLOAD" -eq 1 ]]; then
-    if ! command -v gcloud >/dev/null 2>&1; then
-        echo "ERROR: --upload requested but gcloud not on PATH." >&2
-        exit 1
-    fi
-    for f in "$OUT_BCF" "$OUT_CSI"; do
-        if [[ ! -f "$f" ]]; then
-            echo "ERROR: expected artifact missing for upload: $f" >&2
-            exit 1
-        fi
-    done
-    echo "Uploading to ${TEST_BUCKET_PREFIX}/ ..."
-    gcloud --billing-project "$BILLING_PROJECT" storage cp \
-        "$OUT_BCF" "$OUT_CSI" \
-        "${TEST_BUCKET_PREFIX}/"
-    echo "Upload complete."
 fi
