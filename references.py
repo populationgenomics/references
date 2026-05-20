@@ -878,6 +878,13 @@ SOURCES = [
             GCA_000001405_15_GRCh38_no_alt_analysis_set_fna='GCA_000001405.15_GRCh38_no_alt_analysis_set.fna',
             GCA_000001405_15_GRCh38_no_alt_analysis_set_fna_fai='GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.fai',
             GDA_8v1_0_D1_ClusterFile_egt='GDA-8v1-0_D1_ClusterFile.egt',
+            # Per-variant INFO from the GDA-8v1-0_D1 EGT cluster file,
+            # This is the "expected" cluster geometry
+            # (GenTrain_Score, Cluster_Sep, N_AA/AB/BB, meanTHETA_*, devTHETA_*,
+            # meanR_*, devR_*) used by the popgen-genotyping SNP QC report as the
+            # reference half of every observed-vs-EGT comparison.
+            GDA_8v1_0_D1_ClusterFile_egt_info_bcf='GDA-8v1-0_D1_ClusterFile_info.bcf',
+            GDA_8v1_0_D1_ClusterFile_egt_info_bcf_index='GDA-8v1-0_D1_ClusterFile_info.bcf.csi',
             GDA_8v1_0_D2_bpm='GDA-8v1-0_D2.bpm',
             # Biallelic SNV BED derived from the BPM, polarised against the
             # GRCh38 fasta. Produced by
@@ -885,27 +892,5 @@ SOURCES = [
             GDA_8v1_0_D2_biallelic_snps_bed='GDA-8v1-0_D2-biallelic-snps.bed',
         )
 
-    ),
-    Source(
-        # Per-variant INFO payload of the GDA-8v1-0_D1 EGT cluster file,
-        # re-transcribed by `bcftools +gtc2vcf` with no `--gtcs` into a
-        # sample-less BCF. This is the "expected" cluster geometry
-        # (GenTrain_Score, Cluster_Sep, N_AA/AB/BB, meanTHETA_*, devTHETA_*,
-        # meanR_*, devR_*) used by the popgen-genotyping SNP QC report as the
-        # reference half of every observed-vs-EGT comparison.
-        #
-        # Files are produced locally by
-        # illumina_microarray/extract_egt_info_bcf.sh, staged in
-        # gs://cpg-common-test/references/illumina_microarray/egt_info/
-        # (writable by analysts with test access on cpg-common), and CI rsyncs
-        # them into cpg-common-main here.
-        'illumina_microarray_egt_info',
-        src='gs://cpg-common-test/references/illumina_microarray/egt_info',
-        dst='illumina_microarray/egt_info',
-        transfer_cmd=gcs_rsync,
-        files=dict(
-            GDA_8v1_0_D1_egt_info_bcf='GDA-8v1-0_D1_egt_info.bcf',
-            GDA_8v1_0_D1_egt_info_bcf_index='GDA-8v1-0_D1_egt_info.bcf.csi',
-        ),
     ),
 ]
