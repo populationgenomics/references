@@ -8,8 +8,9 @@
 #
 # Run locally (or inside the bcftools:1.23-1 image) against the canonical
 # BPM / EGT / fasta references staged in cpg-common-main. Optionally uploads
-# the resulting BCF + index to the cpg-common-test bucket; the references-repo
-# CI then rsyncs from there into cpg-common-main on merge.
+# the resulting BCF + index to the cpg-common-test bucket; promotion into
+# cpg-common-main is then a separate analysis-runner job
+# (illumina_microarray/copy_egt_info_bcf_to_main.py at --access-level full).
 #
 # Requirements: bcftools (with the gtc2vcf plugin) on PATH; gcloud SDK on PATH
 # if --upload is passed.
@@ -43,14 +44,12 @@ EGT=''
 FASTA=''
 OUT_DIR='./out'
 UPLOAD=0
-UPLOAD_ONLY=0
 
 usage() {
     cat <<EOF
 Usage:
   build:        $0 --bpm BPM --egt EGT --fasta FASTA [--out-dir DIR]
   build+upload: $0 --bpm BPM --egt EGT --fasta FASTA [--out-dir DIR] --upload
-  upload only:  $0 --upload-only [--out-dir DIR]
 
   --bpm          Path to the Illumina BPM manifest (.bpm)
   --egt          Path to the Illumina EGT cluster file (.egt)
@@ -58,22 +57,17 @@ Usage:
   --out-dir      Local output / source directory (default: ./out)
   --upload       After build, copy ${OUT_NAME}{,.csi} to
                  ${TEST_BUCKET_PREFIX}/
-  --upload-only  Skip the bcftools build; just upload existing
-                 \${OUT_DIR}/${OUT_NAME}{,.csi} to the test bucket. Use this
-                 when the build was run inside a docker container and the
-                 upload runs from the host (where gcloud is on PATH).
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --bpm)         BPM="$2"; shift 2 ;;
-        --egt)         EGT="$2"; shift 2 ;;
-        --fasta)       FASTA="$2"; shift 2 ;;
-        --out-dir)     OUT_DIR="$2"; shift 2 ;;
-        --upload)      UPLOAD=1; shift ;;
-        --upload-only) UPLOAD_ONLY=1; UPLOAD=1; shift ;;
-        -h|--help)     usage; exit 0 ;;
+        --bpm)     BPM="$2"; shift 2 ;;
+        --egt)     EGT="$2"; shift 2 ;;
+        --fasta)   FASTA="$2"; shift 2 ;;
+        --out-dir) OUT_DIR="$2"; shift 2 ;;
+        --upload)  UPLOAD=1; shift ;;
+        -h|--help) usage; exit 0 ;;
         *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
     esac
 done
@@ -83,52 +77,50 @@ OUT_BCF="${OUT_DIR}/${OUT_NAME}"
 OUT_CSI="${OUT_BCF}.csi"
 METADATA_TSV="${OUT_DIR}/${OUT_NAME%.bcf}.metadata.tsv"
 
-if [[ "$UPLOAD_ONLY" -eq 0 ]]; then
-    if [[ -z "$BPM" || -z "$EGT" || -z "$FASTA" ]]; then
-        echo "ERROR: --bpm, --egt, and --fasta are required (or pass --upload-only)." >&2
-        usage >&2
-        exit 2
-    fi
+if [[ -z "$BPM" || -z "$EGT" || -z "$FASTA" ]]; then
+    echo "ERROR: --bpm, --egt, and --fasta are required." >&2
+    usage >&2
+    exit 2
+fi
 
-    for f in "$BPM" "$EGT" "$FASTA" "${FASTA}.fai"; do
-        if [[ ! -f "$f" ]]; then
-            echo "ERROR: missing input: $f" >&2
-            exit 1
-        fi
-    done
-
-    if ! command -v bcftools >/dev/null 2>&1; then
-        echo "ERROR: bcftools not on PATH." >&2
+for f in "$BPM" "$EGT" "$FASTA" "${FASTA}.fai"; do
+    if [[ ! -f "$f" ]]; then
+        echo "ERROR: missing input: $f" >&2
         exit 1
     fi
+done
 
-    if ! bcftools plugin -l 2>/dev/null | grep -q gtc2vcf; then
-        echo "ERROR: bcftools is missing the gtc2vcf plugin. Use the bcftools:1.23-1 image." >&2
-        exit 1
-    fi
+if ! command -v bcftools >/dev/null 2>&1; then
+    echo "ERROR: bcftools not on PATH." >&2
+    exit 1
+fi
 
-    # Mirrors src/popgen_genotyping/jobs/gtc_to_bcfs_job.py — same flags + norm
-    # + sort — but with no `--gtcs`, so the resulting record set has only INFO
-    # (and an empty FORMAT column, which `view -G` strips defensively).
-    echo "Running bcftools +gtc2vcf (no GTCs) -> norm -> sort -> view -G | bcf ..."
-    bcftools +gtc2vcf \
-        --no-version \
-        --do-not-check-bpm \
-        --bpm "$BPM" \
-        --egt "$EGT" \
-        --fasta-ref "$FASTA" \
-        --extra "$METADATA_TSV" \
-      | bcftools norm -m -both --no-version -c x -f "$FASTA" \
-      | bcftools sort -T "$(mktemp -d)" \
-      | bcftools view -G -O b -o "$OUT_BCF" --write-index=csi
+if ! bcftools plugin -l 2>/dev/null | grep -q gtc2vcf; then
+    echo "ERROR: bcftools is missing the gtc2vcf plugin. Use the bcftools:1.23-1 image." >&2
+    exit 1
+fi
 
-    echo "Wrote ${OUT_BCF}"
-    echo "Wrote ${OUT_CSI}"
-    echo "Wrote ${METADATA_TSV}"
+# Mirrors src/popgen_genotyping/jobs/gtc_to_bcfs_job.py — same flags + norm
+# + sort — but with no `--gtcs`, so the resulting record set has only INFO
+# (and an empty FORMAT column, which `view -G` strips defensively).
+echo "Running bcftools +gtc2vcf (no GTCs) -> norm -> sort -> view -G | bcf ..."
+bcftools +gtc2vcf \
+    --no-version \
+    --do-not-check-bpm \
+    --bpm "$BPM" \
+    --egt "$EGT" \
+    --fasta-ref "$FASTA" \
+    --extra "$METADATA_TSV" \
+  | bcftools norm -m -both --no-version -c x -f "$FASTA" \
+  | bcftools sort -T "$(mktemp -d)" \
+  | bcftools view -G -O b -o "$OUT_BCF" --write-index=csi
 
-    if ! bcftools view -h "$OUT_BCF" | grep -q 'ID=GenTrain_Score'; then
-        echo "WARNING: INFO/GenTrain_Score not declared in header — verify gtc2vcf output." >&2
-    fi
+echo "Wrote ${OUT_BCF}"
+echo "Wrote ${OUT_CSI}"
+echo "Wrote ${METADATA_TSV}"
+
+if ! bcftools view -h "$OUT_BCF" | grep -q 'ID=GenTrain_Score'; then
+    echo "WARNING: INFO/GenTrain_Score not declared in header — verify gtc2vcf output." >&2
 fi
 
 if [[ "$UPLOAD" -eq 1 ]]; then
