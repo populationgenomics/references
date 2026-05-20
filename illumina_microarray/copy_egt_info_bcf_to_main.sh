@@ -6,5 +6,9 @@
 set -ex
 
 gcloud storage cp \
-    gs://cpg-common-test/references/illumina_microarray/GDA-8v1-0_D1_ClusterFile_info.bcf{,.csi} \
-    gs://cpg-common-main/references/illumina_microarray/
+    gs://cpg-common-test/references/illumina_microarray/GDA-8v1-0_D1_ClusterFile_info.bcf \
+    gs://cpg-common-main/references/illumina_microarray/GDA-8v1-0_D1_ClusterFile_info.bcf
+
+gcloud storage cp \
+    gs://cpg-common-test/references/illumina_microarray/GDA-8v1-0_D1_ClusterFile_info.bcf.csi \
+    gs://cpg-common-main/references/illumina_microarray/GDA-8v1-0_D1_ClusterFile_info.bcf.csi
