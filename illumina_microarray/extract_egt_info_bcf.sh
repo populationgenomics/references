@@ -9,7 +9,7 @@
 # Run locally (or inside the bcftools:1.23-1 image) against the canonical
 # BPM / EGT / fasta references staged in cpg-common-main. Staging the output
 # to cpg-common-test and promoting to cpg-common-main are handled out-of-band
-# (see illumina_microarray/copy_egt_info_bcf_to_main.py for the test->main
+# (see illumina_microarray/copy_egt_info_bcf_to_main.sh for the test->main
 # promote step).
 #
 # Requirements: bcftools (with the gtc2vcf plugin) on PATH.
