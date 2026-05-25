@@ -893,4 +893,19 @@ SOURCES = [
         )
 
     ),
+    Source(
+        # HGDP+1KG reference panel subset to GDA-8v1-0_D2 biallelic SNV sites,
+        # in PLINK2 .pgen/.pvar/.psam format. Staged in
+        # gs://cpg-common-test/references/genotype_array_reference_data/ and
+        # rsynced to cpg-common-main by CI on merge.
+        'genotype_array_reference_data',
+        src='gs://cpg-common-test/references/genotype_array_reference_data',
+        dst='genotype_array_reference_data',
+        transfer_cmd=gcs_rsync,
+        files=dict(
+            hgdp_1kg_gda_biallelic_snps_pgen='hgdp-1kg-v1-GDA_8v1_0_D2_biallelic_snps.pgen',
+            hgdp_1kg_gda_biallelic_snps_pvar='hgdp-1kg-v1-GDA_8v1_0_D2_biallelic_snps.pvar',
+            hgdp_1kg_gda_biallelic_snps_psam='hgdp-1kg-v1-GDA_8v1_0_D2_biallelic_snps.psam',
+        ),
+    ),
 ]
