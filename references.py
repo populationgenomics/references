@@ -216,6 +216,14 @@ SOURCES = [
         dst='hg19/v0/hg19.dict',
     ),
     Source(
+        'hs1_fasta',
+        # Human assembly made by the T2T project called CHM13 V2.0 from UCSC
+        # hs1.fa.gz is the "Soft-masked" assembly CHM13 sequence in one file.
+        src='https://hgdownload.soe.ucsc.edu/goldenPath/hs1/bigZips/hs1.fa.gz',
+        dst='CHM13/v2.0/hs1.fa.gz',
+        transfer_cmd=curl,
+    ),
+    Source(
         'gatk_sv',
         # The Broad resources for running the GATK-SV workflow
         src='gs://gatk-sv-resources-public/hg38/v0/sv-resources',
