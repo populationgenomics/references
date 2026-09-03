@@ -64,13 +64,13 @@ CANONICAL_CHROMOSOMES = [f'chr{x}' for x in list(range(1, 23)) + ['X', 'Y']] + [
 # pull images from config, defaulting to the images at time of writing
 try:
     echtvar_image = image_path('echtvar')
-    bcftools_image = image_path('bcftools_120')
+    bcftools_image = image_path('bcftools')
 except ConfigError:
     echtvar_image = (
-        'australia-southeast1-docker.pkg.dev/cpg-common/images/echtvar:v0.2.1'
+        'australia-southeast1-docker.pkg.dev/cpg-common/images/echtvar:v0.2.2-1'
     )
     bcftools_image = (
-        'australia-southeast1-docker.pkg.dev/cpg-common/images/bcftools_120:1.20'
+        'australia-southeast1-docker.pkg.dev/cpg-common/images/bcftools:1.24-1'
     )
 
 
@@ -85,7 +85,7 @@ def storage_with_buffer(file_path: str, buffer: int = 10) -> int:
     return (to_path(file_path).stat().st_size // 1024**3) + buffer
 
 
-def encode_gnomad(region: str | None = None) -> None:
+def encode_gnomad(region: str | None = None, simple_config: bool = False, separate_contigs: bool = False) -> None:
     """
     run echtvar encode on all gnomadV4 contigs, separately and combined
     we need to do this once ever, estimated cost $5
@@ -95,6 +95,8 @@ def encode_gnomad(region: str | None = None) -> None:
 
     Args:
         region (str): optional, path to a BED file containing a subset of regions to encode
+        simple_config (bool): whether to use the encoding with a reduced number of fields
+        separate_contigs (bool): whether to process each contig separately
 
     Returns:
         None, writes to storage directly
@@ -102,10 +104,11 @@ def encode_gnomad(region: str | None = None) -> None:
 
     batch_name = f'Echtvar encode gnomad v4.1, region: {region or "unrestricted"}'
 
+    echtvar_folder = 'echtvar_simple' if simple_config else 'echtvar'
     common_folder = join(
         config_retrieve(['storage', 'common', 'default']),
         'gnomad',
-        'echtvar',
+        echtvar_folder,
     )
 
     # set the filename template to use for this run
@@ -127,6 +130,9 @@ def encode_gnomad(region: str | None = None) -> None:
     # get the name of the final output - if that already exists, this becomes much less work
     wg_output = output_template.format(chrom='whole_genome')
     wg_exists: bool = to_path(wg_output).exists()
+
+    # which of the built-in config files to use
+    config_var = '$ECHTVAR_SIMPLE_CONFIG' if simple_config else '$ECHTVAR_CONFIG'
 
     contig_files = []
     storage_running_total = 0
@@ -156,10 +162,9 @@ def encode_gnomad(region: str | None = None) -> None:
 
         job_storage = storage_with_buffer(file_path)
 
-        localised_region = get_batch().read_input(region)
-
         # if we only want to run on a subset of the genome, read in the BED file
         if region is not None:
+            localised_region = get_batch().read_input(region)
             trim_job = get_batch().new_bash_job(
                 f'Trim {contig} to specified region', attributes={'tool': 'bcftools'}
             )
@@ -185,6 +190,10 @@ def encode_gnomad(region: str | None = None) -> None:
         if contig_output_exists:
             continue
 
+        # if we don't need separate contigs to be created as echtvar indexes, skip
+        if not separate_contigs:
+            continue
+
         # create and resource a job
         contig_job = get_batch().new_job(
             f'Run echtvar on gnomad v4.1, {contig}, Region: {region or "unrestricted"}',
@@ -197,7 +206,7 @@ def encode_gnomad(region: str | None = None) -> None:
 
         # run the echtvar encode command
         contig_job.command(
-            f'echtvar encode {contig_job.output} $ECHTVAR_CONFIG {contig_vcf}'
+            f'echtvar encode {contig_job.output} {config_var} {contig_vcf}'
         )
         get_batch().write_output(contig_job.output, contig_output)
 
@@ -220,7 +229,7 @@ def encode_gnomad(region: str | None = None) -> None:
         job.memory('highmem')
         # the input files were all localised individually
         job.command(
-            f'echtvar encode {job.output} $ECHTVAR_CONFIG {" ".join(contig_files)}'
+            f'echtvar encode {job.output} {config_var} {" ".join(contig_files)}'
         )
         get_batch().write_output(job.output, wg_output)
 
@@ -305,6 +314,18 @@ if __name__ == '__main__':
         default=[],
     )
     parser.add_argument(
+        '--simple',
+        action='store_true',
+        help='Trigger to use the simple encoding config, relevant for gnomAD',
+        default=False,
+    )
+    parser.add_argument(
+        '--contigs',
+        action='store_true',
+        help='Whether to encode each separate contig separately',
+        default=False,
+    )
+    parser.add_argument(
         '--output',
         help='Path to write the result - all arguments supplied with --input will be processed together',
     )
@@ -317,6 +338,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if len(args.input) == 0:
-        encode_gnomad(region=args.region)
+        encode_gnomad(region=args.region, simple_config=args.simple, separate_contigs=args.contigs)
     else:
         encode_anything(input_list=args.input, output=args.output, region=args.region)
