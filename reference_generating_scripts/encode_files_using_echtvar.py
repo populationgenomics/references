@@ -162,6 +162,9 @@ def encode_gnomad(region: str | None = None, simple_config: bool = False, separa
 
         job_storage = storage_with_buffer(file_path)
 
+        # add to the total storage required for the whole genome job. Plan for worst case (region == whole genome)
+        storage_running_total += job_storage
+
         # if we only want to run on a subset of the genome, read in the BED file
         if region is not None:
             localised_region = get_batch().read_input(region)
@@ -209,9 +212,6 @@ def encode_gnomad(region: str | None = None, simple_config: bool = False, separa
             f'echtvar encode {contig_job.output} {config_var} {contig_vcf}'
         )
         get_batch().write_output(contig_job.output, contig_output)
-
-        # add to the total storage required for the whole genome job. Plan for worst case (region == whole genome)
-        storage_running_total += job_storage
 
     # finally, take all the contig files (region filtered, or not), and run echtvar (unless genome-wide already exists)
     # this job becomes implicitly dependent on any previous region-filtering jobs from use of prior output as input
