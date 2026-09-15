@@ -14,6 +14,7 @@ header value.
 import argparse
 
 from cpg_utils import hail_batch
+from cpg_utils.config import config_retrieve
 
 DEST = 'gs://cpg-common-main/references/alphagenome'
 
@@ -47,8 +48,9 @@ def main():
 
         j = batch.new_bash_job(f'download-{filename}')
         j.storage('500Gi')
-
+        j.image(config_retrieve(['workflow', 'driver_image']))
         j.command(
+            f'apt-get update && apt-get install -y curl && '
             f'curl -L -f {CURL_HEADERS} '
             f'-H \'Cookie: {cookie}\' '
             f'-o {j.output} \'{url}\''
