@@ -49,9 +49,9 @@ def main():
         j.storage('500Gi')
 
         j.command(
-            f"curl -L -f {CURL_HEADERS} "
-            f"-H 'Cookie: {cookie}' "
-            f"-o {j.output} '{url}'"
+            f'curl -L -f {CURL_HEADERS} '
+            f'-H \'Cookie: {cookie}\' '
+            f'-o {j.output} \'{url}\''
         )
         batch.write_output(j.output, f'{DEST}/{filename}')
 
