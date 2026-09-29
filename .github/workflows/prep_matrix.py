@@ -76,8 +76,13 @@ def generate_matrix(references_prefix: str) -> dict:
         dst_path = join(references_prefix, source.dst)
 
         if source.src and source.transfer_cmd:
-            if not gcs_file_exists(dst_path):
-                print(f'{dst_path} does not exist, will transfer', file=sys.stderr)
+            missing = [
+                dst
+                for _, dst in source.transfers(references_prefix)
+                if not gcs_file_exists(dst)
+            ]
+            if missing:
+                print(f'{missing} do not exist, will transfer', file=sys.stderr)
                 transfers[source.name] = {'src': source.src, 'dst': dst_path}
                 continue
             elif (
