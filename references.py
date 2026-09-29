@@ -92,6 +92,10 @@ def curl_with_user_agent(src: str, dst: str, project: str) -> str:
 # Commands that move one object per call. A Source using one of these with `files`
 # is transferred one file at a time; the recursive commands copy the whole prefix.
 SINGLE_OBJECT_CMDS = frozenset({curl, curl_with_user_agent, gcs_cp_single})
+# Commands that are a cheap no-op once the destination is complete, so prep_matrix
+# runs them on every push: a copy killed part-way (job limit, cancelled matrix) leaves a
+# prefix that looks present but is not, and only a re-run completes it.
+RSYNC_CMDS = frozenset({gcs_rsync, gcs_rsync_no_billing_project})
 
 
 @dataclasses.dataclass
