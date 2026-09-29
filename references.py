@@ -121,6 +121,18 @@ SOURCES = [
         dst='vep/110/mount',
     ),
     Source(
+        'vep_115',
+        # gnomAD's context table: every possible GRCh38 SNV annotated with VEP 115
+        # (LOFTEE included), 8.77 billion rows, 9,860 partitions, 482 GB. Its globals
+        # carry the exact VEP command (`vep_config`) and `vep_help`, so an indel-only
+        # VEP run can be checked to match before the two are mixed. Copied in-region
+        # because every join reads all of it. The public bucket is not requester-pays,
+        # and the copy outruns the ~60 min billing-project window in CI.
+        src='gs://gcp-public-data--gnomad/resources/context/grch38_context_vep_annotated.v115.ht',
+        dst='vep/115/grch38_context_vep_annotated.v115.ht',
+        transfer_cmd=gcs_rsync_no_billing_project,
+    ),
+    Source(
         'liftover_38_to_37',
         # Liftover chain file to translate from GRCh38 to GRCh37 coordinates
         src='gs://hail-common/references/grch38_to_grch37.over.chain.gz',
