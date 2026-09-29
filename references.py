@@ -3,6 +3,7 @@ List of sources for reference data
 """
 
 import dataclasses
+import os
 from shlex import quote
 from typing import Protocol
 
@@ -20,9 +21,9 @@ def quote_command(cmd: list[str]) -> str:
 def gcs_rsync(src: str, dst: str, project: str) -> str:
     """
     defines a gcs rsync function
-    -u sets the billing project
-    -d for deleting files in the destination that are not in the source
+    --billing-project sets the billing project
     -r for recursive
+    No -d: files in the destination that are not in the source are left alone
     """
     assert src.startswith('gs://')
     c = ['gcloud', '--billing-project', project, 'storage', 'rsync', '-r', src, dst]
@@ -60,20 +61,41 @@ def gcs_cp_r(src: str, dst: str, project: str) -> str:
     return quote_command(c)
 
 
+def _curl_pipe(curl_flags: str, src: str, dst: str, project: str) -> str:
+    """
+    A curl download piped into a single-object gcs upload; bash only.
+
+    -f fails on an HTTP error instead of uploading the error page, and pipefail
+    makes that the pipeline's exit status. `gcloud storage cp -` has already
+    finalised whatever it received by then, so on failure the object is removed;
+    otherwise the next run would see it as present and deploy a config pointing at
+    an empty or truncated file.
+    """
+    assert src.startswith('https://'), f'{src} is not an https URL'
+    gcloud = f'gcloud --billing-project {quote(project)} storage'
+    return (
+        f'set -o pipefail; curl {curl_flags} {quote(src)} | {gcloud} cp - {quote(dst)}'
+        f' || {{ {gcloud} rm {quote(dst)} || true; exit 1; }}'
+    )
+
+
 def curl(src: str, dst: str, project: str) -> str:
-    """
-    defines a curl & recursive copy upload function
-    """
-    assert src.startswith('https://')
-    return f'curl -L {quote(src)} | gcloud --billing-project {quote(project)} storage cp - {quote(dst)}'
+    """pull one object from an HTTP URL into gcs"""
+    return _curl_pipe('-fL', src, dst, project)
 
 
 def curl_with_user_agent(src: str, dst: str, project: str) -> str:
-    """
-    defines a curl & recursive copy upload function, with a user agent
-    """
-    assert src.startswith('https://')
-    return f'curl -A "Mozilla/5.0" -L {quote(src)} | gcloud --billing-project {quote(project)} storage cp - {quote(dst)}'
+    """curl(), with a browser user agent for hosts that refuse curl's default"""
+    return _curl_pipe('-A "Mozilla/5.0" -fL', src, dst, project)
+
+
+# Commands that move one object per call. A Source using one of these with `files`
+# is transferred one file at a time; the recursive commands copy the whole prefix.
+SINGLE_OBJECT_CMDS = frozenset({curl, curl_with_user_agent, gcs_cp_single})
+# Commands that are a cheap no-op once the destination is complete, so prep_matrix
+# runs them on every push: a copy killed part-way (job limit, cancelled matrix) leaves a
+# prefix that looks present but is not, and only a re-run completes it.
+RSYNC_CMDS = frozenset({gcs_rsync, gcs_rsync_no_billing_project})
 
 
 @dataclasses.dataclass
@@ -89,6 +111,32 @@ class Source:
     src: str | None = None  # fully qualified source URL
     files: dict[str, str] | None = None  # map of other suffixes appended to `dst`
     transfer_cmd: SyncCommandProtocol | None = None
+
+    def __post_init__(self):
+        for suffix in (self.files or {}).values():
+            assert not suffix.startswith(
+                '/'
+            ), f'{self.name}: files suffix {suffix!r} must be relative'
+        if self.src and self.transfer_cmd in SINGLE_OBJECT_CMDS and self.src.endswith('/'):
+            assert self.files, (
+                f'{self.name}: {self.src} is a directory but '
+                f'{self.transfer_cmd.__name__} copies one object; list its files'
+            )
+
+    def transfers(self, references_prefix: str) -> list[tuple[str, str]]:
+        """
+        (src, dst) pairs for transfer_cmd: one per file when a single-object command
+        has `files`, otherwise one for the whole source.
+        """
+        assert self.src and self.transfer_cmd, f'{self.name} has nothing to transfer'
+        dst = os.path.join(references_prefix, self.dst)
+        if self.files and self.transfer_cmd in SINGLE_OBJECT_CMDS:
+            src = self.src.rstrip('/')
+            return [
+                (f'{src}/{suffix}', os.path.join(dst, suffix))
+                for suffix in self.files.values()
+            ]
+        return [(self.src, dst)]
 
     def is_folder(self) -> bool:
         """simple folder check using known extensions"""

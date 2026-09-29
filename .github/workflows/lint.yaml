@@ -20,3 +20,8 @@ jobs:
           # pre-commit should install all the dependencies
           pip install -r requirements-dev.txt
           pre-commit run --all-files
+
+      - name: "Source definitions"
+        # Source.__post_init__ validates every entry on import; without this the
+        # first import is make_matrix on main, after a bad Source has merged.
+        run: python -c 'import references'

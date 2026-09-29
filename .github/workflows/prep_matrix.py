@@ -8,7 +8,7 @@ from os.path import join
 
 from google.cloud import storage
 
-from references import SOURCES as NEW_SOURCES
+from references import RSYNC_CMDS, SOURCES as NEW_SOURCES
 
 try:
     # copied into place by the github action
@@ -76,8 +76,17 @@ def generate_matrix(references_prefix: str) -> dict:
         dst_path = join(references_prefix, source.dst)
 
         if source.src and source.transfer_cmd:
-            if not gcs_file_exists(dst_path):
-                print(f'{dst_path} does not exist, will transfer', file=sys.stderr)
+            if source.transfer_cmd in RSYNC_CMDS:
+                print(f'{source.name} is rsynced on every push', file=sys.stderr)
+                transfers[source.name] = {'src': source.src, 'dst': dst_path}
+                continue
+            missing = [
+                dst
+                for _, dst in source.transfers(references_prefix)
+                if not gcs_file_exists(dst)
+            ]
+            if missing:
+                print(f'{missing} do not exist, will transfer', file=sys.stderr)
                 transfers[source.name] = {'src': source.src, 'dst': dst_path}
                 continue
             elif (
