@@ -655,7 +655,9 @@ SOURCES = [
             # sites table — each interval contains roughly the same number of
             # variants, so Spark partitions stay evenly loaded.
             # Originally bundled in populationgenomics/ourdna_genomic_atlas
-            # @ c915366 (src/ourdna_genomic_atlas/resources/).
+            # @ 788fa19 (src/ourdna_genomic_atlas/resources/gnomad_v4.1_intervals.bed.gz,
+            # md5 409e3fecee7139f8af49f8da40ade236); earlier revisions of that file
+            # start chr1 at 10030 and stop chrY short, this one spans every contig.
             gnomad_v4_1_variants_balanced_intervals_bed='gnomad_v4.1_variants_balanced_intervals.bed.gz',
         ),
     ),
