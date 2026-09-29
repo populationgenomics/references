@@ -68,8 +68,18 @@ def collect_by_variant(vcf_path: str) -> hl.Table:
         force_bgz=True,
         skip_invalid_loci=True,
     ).rows()
-    # One record per gene; the field is Number=. so it arrives as a one-element array.
-    ht = ht.select(gene=parse_scores(ht.info.SpliceAI[0]))
+    # The field is Number=., so it arrives as an array: one element per gene in the record
+    # (SpliceAI's own files write one record per gene, but nothing here relies on that).
+    # explode gives one row per element and keeps the key order; a record without the field
+    # would vanish in the explode, so it fails the run instead (a missing array makes the
+    # case condition missing, which hl.case treats as false-and-missing, hence the coalesce).
+    ht = ht.select(
+        entries=hl.case()
+        .when(hl.coalesce(hl.len(ht.info.SpliceAI), 0) > 0, ht.info.SpliceAI)
+        .or_error('record without a SpliceAI INFO value at ' + hl.str(ht.locus)),
+    )
+    ht = ht.explode('entries')
+    ht = ht.select(gene=parse_scores(ht.entries))
     # Consecutive records share a key, so this groups without a shuffle.
     ht = ht.collect_by_key()
     return ht.select(
