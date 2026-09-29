@@ -61,8 +61,9 @@ jobs:
       - make_matrix
     if: ${{ needs.make_matrix.outputs.matrix != '{}' && needs.make_matrix.outputs.matrix != '' }}
     strategy:
-      # transfer.py now exits non-zero on a failed copy; without this one failure
-      # cancels the other in-progress transfers and leaves partial prefixes behind.
+      # transfer.py now exits non-zero on a failed copy. fail-fast: false lets the
+      # other in-progress transfers finish, so one failure does not leave partial
+      # prefixes behind.
       fail-fast: false
       matrix: ${{ fromJson(needs.make_matrix.outputs.matrix) }}
     env:

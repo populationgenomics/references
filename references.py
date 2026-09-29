@@ -21,9 +21,9 @@ def quote_command(cmd: list[str]) -> str:
 def gcs_rsync(src: str, dst: str, project: str) -> str:
     """
     defines a gcs rsync function
-    -u sets the billing project
-    -d for deleting files in the destination that are not in the source
+    --billing-project sets the billing project
     -r for recursive
+    No -d: files in the destination that are not in the source are left alone
     """
     assert src.startswith('gs://')
     c = ['gcloud', '--billing-project', project, 'storage', 'rsync', '-r', src, dst]
