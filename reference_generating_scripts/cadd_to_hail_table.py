@@ -7,7 +7,8 @@ Inputs are the CADD_v1.7_snvs and CADD_v1.7_indels files already in the referenc
 bucket (~8.8 billion SNV rows plus the gnomAD-observed indels). Output is one table keyed
 by (locus, alleles) with raw_score and phred as float32, partitioned on the
 hail_intervals_hg38 variant-balanced intervals so downstream joins against tables read on
-the same intervals are co-partitioned merges.
+the same intervals are co-partitioned merges. The read itself splits by bgzip block; the
+intervals decide the layout that is written.
 
 Runs on Hail Query-on-Batch, writing straight to cpg-common-main, e.g.
 
@@ -41,13 +42,12 @@ CONTIG_RECODING = {
 }
 
 
-def import_cadd(path: str, min_partitions: int) -> hl.Table:
+def import_cadd(path: str) -> hl.Table:
     """
     Read one CADD score TSV (#Chrom Pos Ref Alt RawScore PHRED) as a keyed table.
 
     Args:
         path: bgzipped CADD TSV
-        min_partitions: read parallelism; keep partitions under ~1M rows
     """
     ht = hl.import_table(
         path,
@@ -62,7 +62,6 @@ def import_cadd(path: str, min_partitions: int) -> hl.Table:
             'f4': hl.tfloat32,
             'f5': hl.tfloat32,
         },
-        min_partitions=min_partitions,
     )
     ht = ht.rename(
         {
@@ -87,10 +86,10 @@ def read_intervals(bed_path: str) -> list[hl.Interval]:
     return hl.import_bed(bed_path, reference_genome='GRCh38').interval.collect()
 
 
-def main(snvs: str, indels: str, intervals_bed: str, out: str, min_partitions: int):
+def main(snvs: str, indels: str, intervals_bed: str, out: str):
     init_batch(driver_cores=2, driver_memory='highmem')
 
-    ht = import_cadd(snvs, min_partitions).union(import_cadd(indels, min_partitions // 50))
+    ht = import_cadd(snvs).union(import_cadd(indels))
 
     # The shuffle decides its own layout; re-read on the shared intervals before writing.
     tmp = hl.utils.new_temp_file('cadd_keyed', 'ht')
@@ -108,9 +107,8 @@ def cli_main():
     parser.add_argument('--indels', default=DEFAULT_INDELS)
     parser.add_argument('--intervals-bed', default=DEFAULT_INTERVALS)
     parser.add_argument('--out', default=DEFAULT_OUT)
-    parser.add_argument('--min-partitions', type=int, default=10000)
     args = parser.parse_args()
-    main(args.snvs, args.indels, args.intervals_bed, args.out, args.min_partitions)
+    main(args.snvs, args.indels, args.intervals_bed, args.out)
 
 
 if __name__ == '__main__':

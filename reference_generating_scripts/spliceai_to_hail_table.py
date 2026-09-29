@@ -61,7 +61,7 @@ def read_intervals(bed_path: str) -> list[hl.Interval]:
     return hl.import_bed(bed_path, reference_genome='GRCh38').interval.collect()
 
 
-def main(snvs: str, indels: str, intervals_bed: str, out: str, min_partitions: int):
+def main(snvs: str, indels: str, intervals_bed: str, out: str):
     init_batch(driver_cores=2, driver_memory='highmem')
 
     ht = hl.import_vcf(
@@ -69,7 +69,6 @@ def main(snvs: str, indels: str, intervals_bed: str, out: str, min_partitions: i
         reference_genome='GRCh38',
         contig_recoding=CONTIG_RECODING,
         force_bgz=True,
-        min_partitions=min_partitions,
         skip_invalid_loci=True,
     ).rows()
     # One record per gene; the field is Number=. so it arrives as a one-element array.
@@ -100,9 +99,8 @@ def cli_main():
     parser.add_argument('--indels', default=DEFAULT_INDELS)
     parser.add_argument('--intervals-bed', default=DEFAULT_INTERVALS)
     parser.add_argument('--out', default=DEFAULT_OUT)
-    parser.add_argument('--min-partitions', type=int, default=10000)
     args = parser.parse_args()
-    main(args.snvs, args.indels, args.intervals_bed, args.out, args.min_partitions)
+    main(args.snvs, args.indels, args.intervals_bed, args.out)
 
 
 if __name__ == '__main__':
