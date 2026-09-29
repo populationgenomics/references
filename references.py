@@ -340,11 +340,11 @@ SOURCES = [
     ),
     Source(
         'spliceai_v1-3_ht',
-        # The two masked VCFs above as one Hail Table keyed by (locus, alleles), written
-        # straight to this path by reference_generating_scripts/spliceai_to_hail_table.py
-        # (Query-on-Batch), so there is no transfer step. Kept outside the
-        # spliceai_resources prefix so a transfer of that Source can never prune it.
-        dst='ourdna_browser/v0/spliceai_v1-3.ht',
+        # The two masked spliceai_resources VCFs as one Hail Table keyed by
+        # (locus, alleles), written straight to this path by
+        # reference_generating_scripts/spliceai_to_hail_table.py (Query-on-Batch), so
+        # there is no transfer step.
+        dst='SpliceAI/v1.3/GRCh38/spliceai_v1.3.ht',
     ),
     Source(
         'seqr_combined_reference_data',
@@ -695,7 +695,7 @@ SOURCES = [
     ),
     Source(
         'CADD_v1.7_ht',
-        # The four CADD v1.7 files above as one Hail Table keyed by (locus, alleles),
+        # The CADD v1.7 SNV and indel TSVs above as one Hail Table keyed by (locus, alleles),
         # written straight to this path by
         # reference_generating_scripts/cadd_to_hail_table.py (Query-on-Batch), so
         # there is no transfer step.

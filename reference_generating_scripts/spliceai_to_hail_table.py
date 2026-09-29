@@ -10,46 +10,43 @@ one row per (locus, alleles) holding every gene's scores in a dict keyed by gene
 plus ds_max across genes and score types. Every scored variant is kept. Partitioned on
 the hail_intervals_hg38 variant-balanced intervals.
 
-Runs on Hail Query-on-Batch, writing straight to cpg-common-main, e.g.
+Paths default to the deployed references config (cpg_utils reference_path), so the
+spliceai_v1-3_ht key must be deployed before the default --out resolves. Runs on Hail
+Query-on-Batch, writing straight to cpg-common-main, e.g.
 
     analysis-runner --dataset agdd --access-level full \
         --output-dir references/spliceai \
         --description "SpliceAI v1.3 Hail Table" \
         python3 reference_generating_scripts/spliceai_to_hail_table.py
 
-Each VCF is sorted, so imported one at a time there is no shuffle: import, collect
-records per key, union the two keyed tables, write.
+An existing --out is refused unless --overwrite is given. Each VCF is sorted, so imported
+one at a time there is no shuffle: import, collect records per key, union the two keyed
+tables, write.
 """
 
 import gzip
+import re
 from argparse import ArgumentParser
 
 import hail as hl
 import hailtop.fs as hfs
+from cpg_utils.config import reference_path
 from cpg_utils.hail_batch import init_batch
-
-REFERENCES = 'gs://cpg-common-main/references'
-SPLICEAI = f'{REFERENCES}/ourdna_browser/v0/spliceai-resources/v1-3'
-DEFAULT_SNVS = f'{SPLICEAI}/spliceai_scores.masked.snv.hg38.vcf.gz'
-DEFAULT_INDELS = f'{SPLICEAI}/spliceai_scores.masked.indel.hg38.vcf.gz'
-DEFAULT_INTERVALS = (
-    f'{REFERENCES}/hail_intervals/hg38/gnomad_v4.1_variants_balanced_intervals.bed.gz'
+from hail_reference_utils import (
+    CONTIG_RECODING,
+    read_intervals,
+    refuse_existing,
+    write_on_intervals,
 )
-DEFAULT_OUT = f'{REFERENCES}/ourdna_browser/v0/spliceai_v1-3.ht'
 
-# The hg38 files name contigs without the chr prefix.
-CONTIG_RECODING = {
-    **{str(c): f'chr{c}' for c in [*range(1, 23), 'X', 'Y']},
-    'MT': 'chrM',
-    'M': 'chrM',
-}
 SCORE_FIELDS = ['ds_ag', 'ds_al', 'ds_dg', 'ds_dl']
 POSITION_FIELDS = ['dp_ag', 'dp_al', 'dp_dg', 'dp_dl']
+# Which variants each masked file may contain, by the name used on the command line.
+VARIANT_KIND = {'snv': hl.is_snp, 'indel': hl.is_indel}
 
 
-def parse_scores(record: hl.expr.StringExpression) -> hl.expr.StructExpression:
-    """One INFO/SpliceAI string into (gene symbol, typed scores)."""
-    parts = record.split('\\|')
+def parse_scores(parts: hl.expr.ArrayExpression) -> hl.expr.StructExpression:
+    """One split INFO/SpliceAI entry into (gene symbol, typed scores)."""
     return hl.struct(
         symbol=parts[1],
         scores=hl.struct(
@@ -61,7 +58,8 @@ def parse_scores(record: hl.expr.StringExpression) -> hl.expr.StructExpression:
 
 def check_contigs(vcf_path: str) -> None:
     """
-    Refuse a VCF whose header declares any contig outside chr1-22, X, Y, M.
+    Refuse a VCF whose header declares any contig outside chr1-22, X, Y, M, with or
+    without the chr prefix.
 
     Only those contigs are wanted, and the import would otherwise have to skip records on
     unknown contigs silently (skip_invalid_loci) or fail mid-way through the file. The header
@@ -77,15 +75,26 @@ def check_contigs(vcf_path: str) -> None:
         for line in vcf:
             if not line.startswith('##'):
                 break
-            if line.startswith('##contig=<ID='):
-                declared.append(line[len('##contig=<ID='):].split(',', 1)[0].rstrip('>\n'))
-    unexpected = sorted(set(declared) - set(CONTIG_RECODING))
+            if line.startswith('##contig=<'):
+                match = re.search(r'[<,]ID=([^,>]+)', line)
+                if not match:
+                    raise ValueError(f'{vcf_path} has a contig header without an ID: {line!r}')
+                declared.append(match.group(1))
+    accepted = set(CONTIG_RECODING) | set(CONTIG_RECODING.values())
+    unexpected = sorted(set(declared) - accepted)
     if unexpected:
         raise ValueError(f'{vcf_path} declares contigs outside chr1-22, X, Y, M: {unexpected}')
 
 
-def collect_by_variant(vcf_path: str) -> hl.Table:
-    """One masked SpliceAI VCF as a keyed table with one row per (locus, alleles)."""
+def collect_by_variant(vcf_path: str, kind: str) -> hl.Table:
+    """
+    One masked SpliceAI VCF as a keyed table with one row per (locus, alleles).
+
+    Args:
+        vcf_path: the masked VCF
+        kind: 'snv' or 'indel'; a record of the other kind fails the run, since the
+            union of the two tables relies on their keys never colliding.
+    """
     check_contigs(vcf_path)
     ht = hl.import_vcf(
         vcf_path,
@@ -98,13 +107,25 @@ def collect_by_variant(vcf_path: str) -> hl.Table:
     # explode gives one row per element and keeps the key order; a record without the field
     # would vanish in the explode, so it fails the run instead (a missing array makes the
     # case condition missing, which hl.case treats as false-and-missing, hence the coalesce).
+    entries = (
+        hl.case()
+        .when(VARIANT_KIND[kind](ht.alleles[0], ht.alleles[1]), ht.info.SpliceAI)
+        .or_error(f'not a {kind} at ' + hl.str(ht.locus))
+    )
     ht = ht.select(
         entries=hl.case()
-        .when(hl.coalesce(hl.len(ht.info.SpliceAI), 0) > 0, ht.info.SpliceAI)
+        .when(hl.coalesce(hl.len(entries), 0) > 0, entries)
         .or_error('record without a SpliceAI INFO value at ' + hl.str(ht.locus)),
     )
     ht = ht.explode('entries')
-    ht = ht.select(gene=parse_scores(ht.entries))
+    # The ALLELE field must be the record's ALT, or the scores would be filed under the
+    # wrong key with no error.
+    parts = ht.entries.split('\\|')
+    ht = ht.select(
+        gene=hl.case()
+        .when(parts[0] == ht.alleles[1], parse_scores(parts))
+        .or_error('SpliceAI ALLELE differs from ALT at ' + hl.str(ht.locus)),
+    )
     # Consecutive records share a key, so this groups without a shuffle.
     ht = ht.collect_by_key()
     # hl.dict keeps one entry per key, so a repeated symbol at one variant would drop a
@@ -122,55 +143,58 @@ def collect_by_variant(vcf_path: str) -> hl.Table:
     )
 
 
-def read_intervals(bed_path: str) -> list[hl.Interval]:
-    """
-    The variant-balanced intervals as Python Interval objects, for a partitioned read.
-
-    Parsed here rather than with hl.import_bed, which cannot open a .gz path; the same
-    parser ourdna_genomic_atlas uses for this file. BED is 0-based half-open, Hail loci
-    are 1-based, so start + 1 with both ends included.
-    """
-    with hfs.open(bed_path, 'rb') as raw, gzip.open(raw, 'rt') as bed:
-        rows = (line.split('\t') for line in bed if line.strip() and line[0] not in '#t')
-        return [
-            hl.Interval(
-                hl.Locus(chrom, int(start) + 1, reference_genome='GRCh38'),
-                hl.Locus(chrom, int(end), reference_genome='GRCh38'),
-                includes_start=True,
-                includes_end=True,
-            )
-            for chrom, start, end, *_ in rows
-        ]
-
-
-def main(snvs: str, indels: str, intervals_bed: str, out: str):
+def main(snvs: str, indels: str, intervals_bed: str, out: str, overwrite: bool):
+    refuse_existing(out, overwrite)
     init_batch(driver_cores=2, driver_memory='highmem')
     intervals = read_intervals(intervals_bed)
 
     # Each file is sorted on its own, so imported on its own Hail keeps that order and
     # collect_by_key stays partition-local. One import over both files would interleave two
     # whole-genome partition sets and send ~14B rows through a distributed sort. The union of
-    # two keyed tables is a range merge, not a shuffle; the SNV and indel keys never collide.
-    ht = collect_by_variant(snvs).union(collect_by_variant(indels))
+    # two keyed tables is a range merge, not a shuffle; collect_by_variant checks each file
+    # holds only its own kind of variant, so the keys never collide.
+    ht = collect_by_variant(snvs, 'snv').union(collect_by_variant(indels, 'indel'))
 
-    tmp = hl.utils.new_temp_file('spliceai_by_key', 'ht')
-    ht.checkpoint(tmp)
-    # _intervals is a private Hail argument, the standard idiom for read-time partitioning.
-    ht = hl.read_table(tmp, _intervals=intervals)
-    ht.write(out, overwrite=True)
-    ht = hl.read_table(out)
-    ht.describe()
-    print(f'{ht.count():,} rows in {ht.n_partitions()} partitions at {out}')
+    write_on_intervals(
+        ht,
+        intervals,
+        out,
+        overwrite,
+        source=dict(
+            version='SpliceAI v1.3 GRCh38 masked',
+            snvs=snvs,
+            indels=indels,
+            intervals=intervals_bed,
+        ),
+    )
 
 
 def cli_main():
     parser = ArgumentParser(description=__doc__)
-    parser.add_argument('--snvs', default=DEFAULT_SNVS)
-    parser.add_argument('--indels', default=DEFAULT_INDELS)
-    parser.add_argument('--intervals-bed', default=DEFAULT_INTERVALS)
-    parser.add_argument('--out', default=DEFAULT_OUT)
+    parser.add_argument(
+        '--snvs', help="default reference_path('spliceai_resources/splice_ai_snvs')"
+    )
+    parser.add_argument(
+        '--indels', help="default reference_path('spliceai_resources/splice_ai_indels')"
+    )
+    parser.add_argument(
+        '--intervals-bed',
+        help=(
+            "default reference_path('hail_intervals_hg38/"
+            "gnomad_v4_1_variants_balanced_intervals_bed')"
+        ),
+    )
+    parser.add_argument('--out', help="default reference_path('spliceai_v1-3_ht')")
+    parser.add_argument('--overwrite', action='store_true', help='replace an existing --out')
     args = parser.parse_args()
-    main(args.snvs, args.indels, args.intervals_bed, args.out)
+    main(
+        args.snvs or reference_path('spliceai_resources/splice_ai_snvs'),
+        args.indels or reference_path('spliceai_resources/splice_ai_indels'),
+        args.intervals_bed
+        or reference_path('hail_intervals_hg38/gnomad_v4_1_variants_balanced_intervals_bed'),
+        args.out or reference_path('spliceai_v1-3_ht'),
+        args.overwrite,
+    )
 
 
 if __name__ == '__main__':
