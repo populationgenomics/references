@@ -55,7 +55,9 @@ def main(name: str, references_prefix: str, gcp_project: str) -> None:
             project=gcp_project,
         )
         print(cmd)
-        subprocess.run(cmd, shell=True)
+        # A failed or partial copy must fail the job, or the config deploys pointing at it
+        # and prep_matrix treats the destination as done on every later push.
+        subprocess.run(cmd, shell=True, check=True)
 
 
 if __name__ == '__main__':

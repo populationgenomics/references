@@ -6,7 +6,7 @@ import dataclasses
 from shlex import quote
 from typing import Protocol
 
-CANONICAL_CHROMOSOMES = [f'chr{x}' for x in list(range(1, 23)) + ['X', 'Y']]
+CANONICAL_CHROMOSOMES = [f"chr{x}" for x in list(range(1, 23)) + ["X", "Y"]]
 
 
 class SyncCommandProtocol(Protocol):
@@ -14,18 +14,18 @@ class SyncCommandProtocol(Protocol):
 
 
 def quote_command(cmd: list[str]) -> str:
-    return ' '.join(map(quote, cmd))
+    return " ".join(map(quote, cmd))
 
 
 def gcs_rsync(src: str, dst: str, project: str) -> str:
     """
     defines a gcs rsync function
-    -u sets the billing project
-    -d for deleting files in the destination that are not in the source
+    --billing-project sets the billing project
     -r for recursive
+    No -d: files in the destination that are not in the source are left alone
     """
-    assert src.startswith('gs://')
-    c = ['gcloud', '--billing-project', project, 'storage', 'rsync', '-r', src, dst]
+    assert src.startswith("gs://")
+    c = ["gcloud", "--billing-project", project, "storage", "rsync", "-r", src, dst]
     return quote_command(c)
 
 
@@ -36,9 +36,9 @@ def gcs_rsync_no_billing_project(src: str, dst: str, project: str) -> str:
     only use this with public (i.e. not requester-pays) buckets
     -r for recursive
     """
-    print(f'ignoring {project} - attempting standard transfer')
-    assert src.startswith('gs://')
-    c = ['gcloud', 'storage', 'rsync', '-r', src, dst]
+    print(f"ignoring {project} - attempting standard transfer")
+    assert src.startswith("gs://")
+    c = ["gcloud", "storage", "rsync", "-r", src, dst]
     return quote_command(c)
 
 
@@ -46,8 +46,8 @@ def gcs_cp_single(src: str, dst: str, project: str) -> str:
     """
     defines a single-file gcs copy function
     """
-    assert src.startswith('gs://')
-    c = ['gcloud', '--billing-project', project, 'storage', 'cp', src, dst]
+    assert src.startswith("gs://")
+    c = ["gcloud", "--billing-project", project, "storage", "cp", src, dst]
     return quote_command(c)
 
 
@@ -55,8 +55,8 @@ def gcs_cp_r(src: str, dst: str, project: str) -> str:
     """
     defines a recursive gcs copy function
     """
-    assert src.startswith('gs://')
-    c = ['gcloud', '--billing-project', project, 'storage', 'cp', '-r', src, dst]
+    assert src.startswith("gs://")
+    c = ["gcloud", "--billing-project", project, "storage", "cp", "-r", src, dst]
     return quote_command(c)
 
 
@@ -64,15 +64,15 @@ def curl(src: str, dst: str, project: str) -> str:
     """
     defines a curl & recursive copy upload function
     """
-    assert src.startswith('https://')
-    return f'curl -L {quote(src)} | gcloud --billing-project {quote(project)} storage cp - {quote(dst)}'
+    assert src.startswith("https://")
+    return f"curl -L {quote(src)} | gcloud --billing-project {quote(project)} storage cp - {quote(dst)}"
 
 
 def curl_with_user_agent(src: str, dst: str, project: str) -> str:
     """
     defines a curl & recursive copy upload function, with a user agent
     """
-    assert src.startswith('https://')
+    assert src.startswith("https://")
     return f'curl -A "Mozilla/5.0" -L {quote(src)} | gcloud --billing-project {quote(project)} storage cp - {quote(dst)}'
 
 
@@ -96,544 +96,551 @@ class Source:
             return True
 
         return (
-            self.dst.endswith('.ht')
-            or self.dst.endswith('.mt')
-            or self.dst.endswith('.vds')
+            self.dst.endswith(".ht")
+            or self.dst.endswith(".mt")
+            or self.dst.endswith(".vds")
         )
 
 
 # Genome build. Only GRCh38 is currently supported.
-GENOME_BUILD = 'GRCh38'
+GENOME_BUILD = "GRCh38"
 
 SOURCES = [
     Source(
-        'vep_105_mount',
+        "vep_105_mount",
         # Folder with uncompressed VEP tarballs for mounting with cloudfuse.
         # No `src` field: the process of building it is described in `vep/README.md`.
         # Hopefully to be deprecated once VEP for Hail Query is finalised:
         # https://github.com/hail-is/hail/pull/12428)
-        dst='vep/105.0/mount',
+        dst="vep/105.0/mount",
     ),
     Source(
         # Folder with uncompressed VEP 110 tarballs for mounting with cloudfuse.
         # see documentation in vep/README.md
-        'vep_110_mount',
-        dst='vep/110/mount',
+        "vep_110_mount",
+        dst="vep/110/mount",
     ),
     Source(
-        'vep_115',
+        "vep_115",
         # gnomAD's context table: every possible GRCh38 SNV annotated with VEP 115
-        # (LOFTEE included), 8.77 billion rows, 9,860 partitions, 482 GB. Its globals
+        # (LOFTEE included), 8.77 billion rows, 9,860 partitions, 29,589 objects, 482 GB.
+        # A complete copy has that object count (gcloud storage ls -r | wc -l). Its globals
         # carry the exact VEP command (`vep_config`) and `vep_help`, so an indel-only
-        # VEP run can be checked to match before the two are mixed. Copied in-region
-        # because every join reads all of it. The public bucket is not requester-pays,
-        # and the copy outruns the ~60 min billing-project window in CI.
-        src='gs://gcp-public-data--gnomad/resources/context/grch38_context_vep_annotated.v115.ht',
-        dst='vep/115/grch38_context_vep_annotated.v115.ht',
+        # VEP run can be checked to match before the two are mixed.
+        src="gs://gcp-public-data--gnomad/resources/context/grch38_context_vep_annotated.v115.ht",
+        dst="vep/115/grch38_context_vep_annotated.v115.ht",
         transfer_cmd=gcs_rsync_no_billing_project,
     ),
     Source(
-        'liftover_38_to_37',
+        "liftover_38_to_37",
         # Liftover chain file to translate from GRCh38 to GRCh37 coordinates
-        src='gs://hail-common/references/grch38_to_grch37.over.chain.gz',
-        dst='liftover/grch38_to_grch37.over.chain.gz',
+        src="gs://hail-common/references/grch38_to_grch37.over.chain.gz",
+        dst="liftover/grch38_to_grch37.over.chain.gz",
         transfer_cmd=gcs_rsync,
     ),
     Source(
-        'liftover_37_to_38',
+        "liftover_37_to_38",
         # Liftover chain file to translate from GRCh37/hg19 to GRCh38 coordinates.
-        src='https://hgdownload.soe.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz',
-        dst='liftover/grch37_to_grch38.over.chain.gz',
+        src="https://hgdownload.soe.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz",
+        dst="liftover/grch37_to_grch38.over.chain.gz",
         transfer_cmd=curl,
     ),
     Source(
-        'somalier_sites',
+        "somalier_sites",
         # Site list for somalier fingerprinting
-        src='https://github.com/brentp/somalier/files/3412456/sites.hg38.vcf.gz',
-        dst='somalier/sites.hg38.vcf.gz',
+        src="https://github.com/brentp/somalier/files/3412456/sites.hg38.vcf.gz",
+        dst="somalier/sites.hg38.vcf.gz",
         transfer_cmd=curl,
     ),
     Source(
-        'broad',
+        "broad",
         # The Broad hg38 reference bundle
-        src='gs://gcp-public-data--broad-references/hg38/v0',
-        dst='hg38/v0',
+        src="gs://gcp-public-data--broad-references/hg38/v0",
+        dst="hg38/v0",
         transfer_cmd=gcs_rsync,
         files=dict(
-            dragmap_prefix='dragen_reference',
-            ref_fasta='dragen_reference/Homo_sapiens_assembly38_masked.fasta',
+            dragmap_prefix="dragen_reference",
+            ref_fasta="dragen_reference/Homo_sapiens_assembly38_masked.fasta",
             # Primary contigs BED file
-            noalt_bed='sv-resources/resources/v1/primary_contigs_plus_mito.bed.gz',
+            noalt_bed="sv-resources/resources/v1/primary_contigs_plus_mito.bed.gz",
             # Calling intervals lists
-            genome_calling_interval_lists='wgs_calling_regions.hg38.interval_list',
-            exome_calling_interval_lists='exome_calling_regions.v1.interval_list',
-            genome_evaluation_interval_lists='wgs_evaluation_regions.hg38.interval_list',
-            exome_evaluation_interval_lists='exome_evaluation_regions.v1.interval_list',
-            genome_coverage_interval_list='wgs_coverage_regions.hg38.interval_list',
-            unpadded_intervals_file='hg38.even.handcurated.20k.intervals',  # for SV
+            genome_calling_interval_lists="wgs_calling_regions.hg38.interval_list",
+            exome_calling_interval_lists="exome_calling_regions.v1.interval_list",
+            genome_evaluation_interval_lists="wgs_evaluation_regions.hg38.interval_list",
+            exome_evaluation_interval_lists="exome_evaluation_regions.v1.interval_list",
+            genome_coverage_interval_list="wgs_coverage_regions.hg38.interval_list",
+            unpadded_intervals_file="hg38.even.handcurated.20k.intervals",  # for SV
             # VQSR
-            dbsnp_vcf='Homo_sapiens_assembly38.dbsnp138.vcf',
-            dbsnp_vcf_index='Homo_sapiens_assembly38.dbsnp138.vcf.idx',
-            hapmap_vcf='hapmap_3.3.hg38.vcf.gz',
-            hapmap_vcf_index='hapmap_3.3.hg38.vcf.gz.tbi',
-            omni_vcf='1000G_omni2.5.hg38.vcf.gz',
-            omni_vcf_index='1000G_omni2.5.hg38.vcf.gz.tbi',
-            one_thousand_genomes_vcf='1000G_phase1.snps.high_confidence.hg38.vcf.gz',
-            one_thousand_genomes_vcf_index='1000G_phase1.snps.high_confidence.hg38.vcf.gz.tbi',
-            mills_vcf='Mills_and_1000G_gold_standard.indels.hg38.vcf.gz',
-            mills_vcf_index='Mills_and_1000G_gold_standard.indels.hg38.vcf.gz.tbi',
-            axiom_poly_vcf='Axiom_Exome_Plus.genotypes.all_populations.poly.hg38.vcf.gz',
-            axiom_poly_vcf_index='Axiom_Exome_Plus.genotypes.all_populations.poly.hg38.vcf.gz.tbi',
+            dbsnp_vcf="Homo_sapiens_assembly38.dbsnp138.vcf",
+            dbsnp_vcf_index="Homo_sapiens_assembly38.dbsnp138.vcf.idx",
+            hapmap_vcf="hapmap_3.3.hg38.vcf.gz",
+            hapmap_vcf_index="hapmap_3.3.hg38.vcf.gz.tbi",
+            omni_vcf="1000G_omni2.5.hg38.vcf.gz",
+            omni_vcf_index="1000G_omni2.5.hg38.vcf.gz.tbi",
+            one_thousand_genomes_vcf="1000G_phase1.snps.high_confidence.hg38.vcf.gz",
+            one_thousand_genomes_vcf_index="1000G_phase1.snps.high_confidence.hg38.vcf.gz.tbi",
+            mills_vcf="Mills_and_1000G_gold_standard.indels.hg38.vcf.gz",
+            mills_vcf_index="Mills_and_1000G_gold_standard.indels.hg38.vcf.gz.tbi",
+            axiom_poly_vcf="Axiom_Exome_Plus.genotypes.all_populations.poly.hg38.vcf.gz",
+            axiom_poly_vcf_index="Axiom_Exome_Plus.genotypes.all_populations.poly.hg38.vcf.gz.tbi",
             # Genome contamination check
-            genome_contam_ud='contamination-resources/1000g/1000g.phase3.100k.b38.vcf.gz.dat.UD',
-            genome_contam_bed='contamination-resources/1000g/1000g.phase3.100k.b38.vcf.gz.dat.bed',
-            genome_contam_mu='contamination-resources/1000g/1000g.phase3.100k.b38.vcf.gz.dat.mu',
+            genome_contam_ud="contamination-resources/1000g/1000g.phase3.100k.b38.vcf.gz.dat.UD",
+            genome_contam_bed="contamination-resources/1000g/1000g.phase3.100k.b38.vcf.gz.dat.bed",
+            genome_contam_mu="contamination-resources/1000g/1000g.phase3.100k.b38.vcf.gz.dat.mu",
             # Exome contamination check
-            exome_contam_ud='contamination-resources/1000g/whole_exome_illumina_coding_v1.Homo_sapiens_assembly38.1000g.contam.UD',
-            exome_contam_bed='contamination-resources/1000g/whole_exome_illumina_coding_v1.Homo_sapiens_assembly38.1000g.contam.bed',
-            exome_contam_mu='contamination-resources/1000g/whole_exome_illumina_coding_v1.Homo_sapiens_assembly38.1000g.contam.mu',
+            exome_contam_ud="contamination-resources/1000g/whole_exome_illumina_coding_v1.Homo_sapiens_assembly38.1000g.contam.UD",
+            exome_contam_bed="contamination-resources/1000g/whole_exome_illumina_coding_v1.Homo_sapiens_assembly38.1000g.contam.bed",
+            exome_contam_mu="contamination-resources/1000g/whole_exome_illumina_coding_v1.Homo_sapiens_assembly38.1000g.contam.mu",
             # shifted from the gatk-sv-resources-public section
-            wham_include_list_bed_file='sv-resources/resources/v1/wham_whitelist.bed',
-            primary_contigs_list='sv-resources/resources/v1/primary_contigs.list',
-            primary_contigs_fai='sv-resources/resources/v1/contig.fai',
-            manta_region_bed='sv-resources/resources/v1/primary_contigs_plus_mito.bed.gz',
-            manta_region_bed_index='sv-resources/resources/v1/primary_contigs_plus_mito.bed.gz.tbi',
-            genome_file='sv-resources/resources/v1/hg38.genome',
-            wgd_scoring_mask='sv-resources/resources/v1/wgd_scoring_mask.hg38.gnomad_v3.bed',
-            allosomal_contigs='sv-resources/resources/v1/allosome.fai',
-            inclusion_bed='sv-resources/resources/v1/hg38_primary_contigs.bed',
-            autosome_file='sv-resources/resources/v1/autosome.fai',
-            allosome_file='sv-resources/resources/v1/allosome.fai',
-            cnmops_exclude_list='sv-resources/resources/v1/GRCh38_Nmask.bed',
-            cytoband='sv-resources/resources/v1/cytobands_hg38.bed.gz',
-            mei_bed='sv-resources/resources/v1/mei_hg38.bed.gz',
-            ped_file='sv-resources/ref-panel/1KG/v1/ped/1kg_ref_panel_v1.ped',
-            clean_vcf='sv-resources/ref-panel/1KG/v1/calls/ref_panel_1kg_v1.cleaned.vcf.gz',
-            ref_panel_bincov_matrix='sv-resources/ref-panel/1KG/v1/merged_evidence/ref_panel_1kg_v1.bincov.bed.gz',
+            wham_include_list_bed_file="sv-resources/resources/v1/wham_whitelist.bed",
+            primary_contigs_list="sv-resources/resources/v1/primary_contigs.list",
+            primary_contigs_fai="sv-resources/resources/v1/contig.fai",
+            manta_region_bed="sv-resources/resources/v1/primary_contigs_plus_mito.bed.gz",
+            manta_region_bed_index="sv-resources/resources/v1/primary_contigs_plus_mito.bed.gz.tbi",
+            genome_file="sv-resources/resources/v1/hg38.genome",
+            wgd_scoring_mask="sv-resources/resources/v1/wgd_scoring_mask.hg38.gnomad_v3.bed",
+            allosomal_contigs="sv-resources/resources/v1/allosome.fai",
+            inclusion_bed="sv-resources/resources/v1/hg38_primary_contigs.bed",
+            autosome_file="sv-resources/resources/v1/autosome.fai",
+            allosome_file="sv-resources/resources/v1/allosome.fai",
+            cnmops_exclude_list="sv-resources/resources/v1/GRCh38_Nmask.bed",
+            cytoband="sv-resources/resources/v1/cytobands_hg38.bed.gz",
+            mei_bed="sv-resources/resources/v1/mei_hg38.bed.gz",
+            ped_file="sv-resources/ref-panel/1KG/v1/ped/1kg_ref_panel_v1.ped",
+            clean_vcf="sv-resources/ref-panel/1KG/v1/calls/ref_panel_1kg_v1.cleaned.vcf.gz",
+            ref_panel_bincov_matrix="sv-resources/ref-panel/1KG/v1/merged_evidence/ref_panel_1kg_v1.bincov.bed.gz",
         ),
     ),
     Source(
-        'hg19_fasta',
+        "hg19_fasta",
         # UCSC hg19 fasta, used to bootstrap a picard sequence dictionary for
         # LiftOverIntervalList (hg19 → hg38). See exome_designs/README.md.
-        src='https://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz',
-        dst='hg19/v0/hg19.fa.gz',
+        src="https://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz",
+        dst="hg19/v0/hg19.fa.gz",
         transfer_cmd=curl,
     ),
     Source(
-        'hg19_dict',
+        "hg19_dict",
         # Picard sequence dictionary matching hg19_fasta. Generated once by
         # exome_designs/generate_hg19_dict.py after CI lands hg19.fa.gz; this
         # Source declares the path without driving a transfer.
-        dst='hg19/v0/hg19.dict',
+        dst="hg19/v0/hg19.dict",
     ),
     Source(
-        'gatk_sv',
+        "gatk_sv",
         # The Broad resources for running the GATK-SV workflow
-        src='gs://gatk-sv-resources-public/hg38/v0/sv-resources',
-        dst='gatk-sv/hg38/v0/sv-resources',
+        src="gs://gatk-sv-resources-public/hg38/v0/sv-resources",
+        dst="gatk-sv/hg38/v0/sv-resources",
         transfer_cmd=gcs_rsync,
         files=dict(
-            clustering_config_part1='resources/v1/clustering_config.part_one.tsv',
-            clustering_config_part2='resources/v1/clustering_config.part_two.tsv',
-            stratification_config_part1='resources/v1/stratify_config.part_one.tsv',
-            stratification_config_part2='resources/v1/stratify_config.part_two.tsv',
-            clustering_track_sr='resources/v1/hg38.SimpRep.sorted.pad_100.merged.bed',
-            clustering_track_sd='resources/v1/hg38.SegDup.sorted.merged.bed',
-            clustering_track_rm='resources/v1/hg38.RM.sorted.merged.bed',
-            hervk_reference='resources/v1/HERVK.sorted.bed.gz',
-            line1_reference='resources/v1/LINE1.sorted.bed.gz',
-            preprocessed_intervals='resources/v1/preprocessed_intervals.interval_list',
-            melt_standard_vcf_header='resources/v1/melt_standard_vcf_header.txt',
-            contig_ploidy_priors='resources/v1/hg38.contig_ploidy_priors_homo_sapiens.tsv',
-            rmsk='resources/v1/hg38.randomForest_blacklist.withRepMask.bed.gz',
-            segdups='resources/v1/hg38.SD_gaps_Cen_Tel_Heter_Satellite_lumpy.blacklist.sorted.merged.bed.gz',
-            seed_cutoffs='resources/v1/seed_cutoff.txt',
-            pesr_exclude_list='resources/v1/PESR.encode.peri_all.repeats.delly.hg38.blacklist.sorted.bed.gz',
-            depth_exclude_list='resources/v1/depth_blacklist.sorted.bed.gz',
-            bin_exclude='resources/v1/bin_exclude.hg38.gatkcov.bed.gz',
-            empty_file='resources/v1/empty.file',
-            protein_coding_gtf='resources/v1/MANE.GRCh38.v1.2.ensembl_genomic.gtf',
+            clustering_config_part1="resources/v1/clustering_config.part_one.tsv",
+            clustering_config_part2="resources/v1/clustering_config.part_two.tsv",
+            stratification_config_part1="resources/v1/stratify_config.part_one.tsv",
+            stratification_config_part2="resources/v1/stratify_config.part_two.tsv",
+            clustering_track_sr="resources/v1/hg38.SimpRep.sorted.pad_100.merged.bed",
+            clustering_track_sd="resources/v1/hg38.SegDup.sorted.merged.bed",
+            clustering_track_rm="resources/v1/hg38.RM.sorted.merged.bed",
+            hervk_reference="resources/v1/HERVK.sorted.bed.gz",
+            line1_reference="resources/v1/LINE1.sorted.bed.gz",
+            preprocessed_intervals="resources/v1/preprocessed_intervals.interval_list",
+            melt_standard_vcf_header="resources/v1/melt_standard_vcf_header.txt",
+            contig_ploidy_priors="resources/v1/hg38.contig_ploidy_priors_homo_sapiens.tsv",
+            rmsk="resources/v1/hg38.randomForest_blacklist.withRepMask.bed.gz",
+            segdups="resources/v1/hg38.SD_gaps_Cen_Tel_Heter_Satellite_lumpy.blacklist.sorted.merged.bed.gz",
+            seed_cutoffs="resources/v1/seed_cutoff.txt",
+            pesr_exclude_list="resources/v1/PESR.encode.peri_all.repeats.delly.hg38.blacklist.sorted.bed.gz",
+            depth_exclude_list="resources/v1/depth_blacklist.sorted.bed.gz",
+            bin_exclude="resources/v1/bin_exclude.hg38.gatkcov.bed.gz",
+            empty_file="resources/v1/empty.file",
+            protein_coding_gtf="resources/v1/MANE.GRCh38.v1.2.ensembl_genomic.gtf",
             # ref panel
-            qc_definitions='ref-panel/1KG/v2/single_sample.qc_definitions.tsv',
-            contig_ploidy_model_tar='ref-panel/1KG/v2/gcnv/ref_panel_1kg_v2-contig-ploidy-model.tar.gz',
-            model_tar_tmpl='ref-panel/1KG/v2/gcnv/model_files/ref_panel_1kg_v2-gcnv-model-shard-{shard}.tar.gz',
-            ref_panel_PE_file_tmpl='ref-panel/tws_SVEvidence/pe/{sample}.pe.txt.gz',
-            ref_panel_SR_file_tmpl='ref-panel/tws_SVEvidence/sr/{sample}.sr.txt.gz',
-            ref_panel_SD_file_tmpl='ref-panel/tws_SVEvidence/sd/{sample}.sd.txt.gz',
-            recalibrate_gq_repeatmasker='resources/v1/ucsc-genome-tracks/hg38-RepeatMasker.bed.gz',
-            recalibrate_gq_segmental_dups='resources/v1/ucsc-genome-tracks/hg38-Segmental-Dups.bed.gz',
-            recalibrate_gq_simple_reps='resources/v1/ucsc-genome-tracks/hg38-Simple-Repeats.bed.gz',
-            recalibrate_gq_umap_s100='resources/v1/ucsc-genome-tracks/hg38_umap_s100.bed.gz',
-            recalibrate_gq_umap_s24='resources/v1/ucsc-genome-tracks/hg38_umap_s24.bed.gz',
-            recalibrate_gq_repeatmasker_index='resources/v1/ucsc-genome-tracks/hg38-RepeatMasker.bed.gz.tbi',
-            recalibrate_gq_segmental_dups_index='resources/v1/ucsc-genome-tracks/hg38-Segmental-Dups.bed.gz.tbi',
-            recalibrate_gq_simple_reps_index='resources/v1/ucsc-genome-tracks/hg38-Simple-Repeats.bed.gz.tbi',
-            recalibrate_gq_umap_s100_index='resources/v1/ucsc-genome-tracks/hg38_umap_s100.bed.gz.tbi',
-            recalibrate_gq_umap_s24_index='resources/v1/ucsc-genome-tracks/hg38_umap_s24.bed.gz.tbi',
+            qc_definitions="ref-panel/1KG/v2/single_sample.qc_definitions.tsv",
+            contig_ploidy_model_tar="ref-panel/1KG/v2/gcnv/ref_panel_1kg_v2-contig-ploidy-model.tar.gz",
+            model_tar_tmpl="ref-panel/1KG/v2/gcnv/model_files/ref_panel_1kg_v2-gcnv-model-shard-{shard}.tar.gz",
+            ref_panel_PE_file_tmpl="ref-panel/tws_SVEvidence/pe/{sample}.pe.txt.gz",
+            ref_panel_SR_file_tmpl="ref-panel/tws_SVEvidence/sr/{sample}.sr.txt.gz",
+            ref_panel_SD_file_tmpl="ref-panel/tws_SVEvidence/sd/{sample}.sd.txt.gz",
+            recalibrate_gq_repeatmasker="resources/v1/ucsc-genome-tracks/hg38-RepeatMasker.bed.gz",
+            recalibrate_gq_segmental_dups="resources/v1/ucsc-genome-tracks/hg38-Segmental-Dups.bed.gz",
+            recalibrate_gq_simple_reps="resources/v1/ucsc-genome-tracks/hg38-Simple-Repeats.bed.gz",
+            recalibrate_gq_umap_s100="resources/v1/ucsc-genome-tracks/hg38_umap_s100.bed.gz",
+            recalibrate_gq_umap_s24="resources/v1/ucsc-genome-tracks/hg38_umap_s24.bed.gz",
+            recalibrate_gq_repeatmasker_index="resources/v1/ucsc-genome-tracks/hg38-RepeatMasker.bed.gz.tbi",
+            recalibrate_gq_segmental_dups_index="resources/v1/ucsc-genome-tracks/hg38-Segmental-Dups.bed.gz.tbi",
+            recalibrate_gq_simple_reps_index="resources/v1/ucsc-genome-tracks/hg38-Simple-Repeats.bed.gz.tbi",
+            recalibrate_gq_umap_s100_index="resources/v1/ucsc-genome-tracks/hg38_umap_s100.bed.gz.tbi",
+            recalibrate_gq_umap_s24_index="resources/v1/ucsc-genome-tracks/hg38_umap_s24.bed.gz.tbi",
         ),
     ),
     Source(
-        'gnomad',
+        "gnomad",
         # The Broad resources for running the GnomAD QC pipeline
-        src='gs://gcp-public-data--gnomad/resources/grch38',
-        dst='gnomad/v0',
+        src="gs://gcp-public-data--gnomad/resources/grch38",
+        dst="gnomad/v0",
         transfer_cmd=gcs_cp_r,
         files=dict(
-            tel_and_cent_ht='telomeres_and_centromeres/hg38.telomeresAndMergedCentromeres.ht',
-            tel_and_cent_bed='telomeres_and_centromeres/hg38.telomeresAndMergedCentromeres.bed',
-            lcr_intervals_ht='lcr_intervals/LCRFromHengHg38.ht',
-            seg_dup_intervals_ht='seg_dup_intervals/GRCh38_segdups.ht',
-            clinvar_ht='clinvar/clinvar_20190923.ht',
-            hapmap_ht='hapmap/hapmap_3.3.hg38.ht',
-            kgp_omni_ht='kgp/1000G_omni2.5.hg38.ht',
-            kgp_hc_ht='kgp/1000G_phase1.snps.high_confidence.hg38.ht',
-            mills_ht='mills/Mills_and_1000G_gold_standard.indels.hg38.ht',
-            predetermined_qc_variants='sample_qc/pre_ld_pruning_qc_variants.ht',
+            tel_and_cent_ht="telomeres_and_centromeres/hg38.telomeresAndMergedCentromeres.ht",
+            tel_and_cent_bed="telomeres_and_centromeres/hg38.telomeresAndMergedCentromeres.bed",
+            lcr_intervals_ht="lcr_intervals/LCRFromHengHg38.ht",
+            seg_dup_intervals_ht="seg_dup_intervals/GRCh38_segdups.ht",
+            clinvar_ht="clinvar/clinvar_20190923.ht",
+            hapmap_ht="hapmap/hapmap_3.3.hg38.ht",
+            kgp_omni_ht="kgp/1000G_omni2.5.hg38.ht",
+            kgp_hc_ht="kgp/1000G_phase1.snps.high_confidence.hg38.ht",
+            mills_ht="mills/Mills_and_1000G_gold_standard.indels.hg38.ht",
+            predetermined_qc_variants="sample_qc/pre_ld_pruning_qc_variants.ht",
         ),
     ),
     Source(
-        'gnomad_browser',
+        "gnomad_browser",
         # The Broad resources for the gnomAD browser
-        src='gs://gcp-public-data--gnomad/resources/grch38/browser',
-        dst='gnomad_browser/v0',
+        src="gs://gcp-public-data--gnomad/resources/grch38/browser",
+        dst="gnomad_browser/v0",
         transfer_cmd=gcs_cp_r,
         files=dict(
-            gene_table='gnomad.genes.GRCh38.GENCODEv39.pext.ht',
-        )
+            gene_table="gnomad.genes.GRCh38.GENCODEv39.pext.ht",
+        ),
     ),
     Source(
-        'gnomad_sv',
+        "gnomad_sv",
         # Reference data related to gnomAD V4 SV
-        src='gs://gatk-sv-resources-public/gnomad_AF/gnomad_v4_SV.Freq.tsv.gz',
-        dst='gnomad_v4_SV.Freq.tsv.gz',
+        src="gs://gatk-sv-resources-public/gnomad_AF/gnomad_v4_SV.Freq.tsv.gz",
+        dst="gnomad_v4_SV.Freq.tsv.gz",
         transfer_cmd=gcs_cp_single,
     ),
     Source(
-        'gencode_v44',
+        "gencode_v44",
         # Reference data related to the OurDNA browser
-        src='https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_44/gencode.v44.annotation.gtf.gz',
-        dst='ourdna_browser/v0/gencode/v44/gencode.v44.annotation.gtf.gz',
+        src="https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_44/gencode.v44.annotation.gtf.gz",
+        dst="ourdna_browser/v0/gencode/v44/gencode.v44.annotation.gtf.gz",
         transfer_cmd=curl,
     ),
     Source(
-        'hgnc_labels',
+        "hgnc_labels",
         # Reference data related to the OurDNA browser
         # Command copied from gnomAD v4
-        src='https://www.genenames.org/cgi-bin/download/custom?col=gd_hgnc_id&col=gd_app_sym&col=gd_app_name&col=gd_prev_sym&col=gd_aliases&col=gd_pub_eg_id&col=gd_pub_ensembl_id&col=md_eg_id&col=md_ensembl_id&col=md_mim_id&status=Approved&hgnc_dbtag=on&order_by=gd_app_sym_sort&format=text&submit=submit',
-        dst='ourdna_browser/v0/hgnc.tsv',
+        src="https://www.genenames.org/cgi-bin/download/custom?col=gd_hgnc_id&col=gd_app_sym&col=gd_app_name&col=gd_prev_sym&col=gd_aliases&col=gd_pub_eg_id&col=gd_pub_ensembl_id&col=md_eg_id&col=md_ensembl_id&col=md_mim_id&status=Approved&hgnc_dbtag=on&order_by=gd_app_sym_sort&format=text&submit=submit",
+        dst="ourdna_browser/v0/hgnc.tsv",
         transfer_cmd=curl,
     ),
     Source(
-        'spliceai_resources',
+        "spliceai_resources",
         # SpliceAI data for hg38
-        src='gs://cpg-common-test/references/browser',
-        dst='ourdna_browser/v0/spliceai-resources/v1-3',
+        src="gs://cpg-common-test/references/browser",
+        dst="ourdna_browser/v0/spliceai-resources/v1-3",
         files=dict(
-            splice_ai_snvs='spliceai_scores.masked.snv.hg38.vcf.gz',
-            splice_ai_snvs_index='spliceai_scores.masked.snv.hg38.vcf.gz.tbi',
-            splice_ai_indels='spliceai_scores.masked.indel.hg38.vcf.gz',
-            splice_ai_indels_index='spliceai_scores.masked.indel.hg38.vcf.gz.tbi',
-            # The two masked VCFs as one Hail Table keyed by (locus, alleles), written
-            # straight to main by reference_generating_scripts/spliceai_to_hail_table.py
-            # (Query-on-Batch); the rsync above is non-destructive so it leaves it be.
-            ht='spliceai_v1-3.ht',
+            splice_ai_snvs="spliceai_scores.masked.snv.hg38.vcf.gz",
+            splice_ai_snvs_index="spliceai_scores.masked.snv.hg38.vcf.gz.tbi",
+            splice_ai_indels="spliceai_scores.masked.indel.hg38.vcf.gz",
+            splice_ai_indels_index="spliceai_scores.masked.indel.hg38.vcf.gz.tbi",
         ),
         transfer_cmd=gcs_rsync,
     ),
     Source(
-        'seqr_combined_reference_data',
+        "spliceai_v1-3_ht",
+        # The two masked VCFs above as one Hail Table keyed by (locus, alleles), written
+        # straight to this path by reference_generating_scripts/spliceai_to_hail_table.py
+        # (Query-on-Batch), so there is no transfer step. Kept outside the
+        # spliceai_resources prefix so a transfer of that Source can never prune it.
+        dst="ourdna_browser/v0/spliceai_v1-3.ht",
+    ),
+    Source(
+        "seqr_combined_reference_data",
         # The Broad resources for annotation for the Seqr Loader
-        src='gs://seqr-reference-data/GRCh38/all_reference_data/combined_reference_data_grch38.ht',
-        dst='seqr/v0/combined_reference_data_grch38.ht',
+        src="gs://seqr-reference-data/GRCh38/all_reference_data/combined_reference_data_grch38.ht",
+        dst="seqr/v0/combined_reference_data_grch38.ht",
         transfer_cmd=gcs_cp_r,
     ),
     Source(
-        'seqr_clinvar',
+        "seqr_clinvar",
         # The Broad resources for annotation for the Seqr Loader
-        src='gs://seqr-reference-data/GRCh38/clinvar/clinvar.GRCh38.ht',
-        dst='seqr/v0/clinvar.GRCh38.ht',
+        src="gs://seqr-reference-data/GRCh38/clinvar/clinvar.GRCh38.ht",
+        dst="seqr/v0/clinvar.GRCh38.ht",
         transfer_cmd=gcs_cp_r,
     ),
     Source(
-        'igv_org_genomes',
+        "igv_org_genomes",
         # The reference data used by Seqr to display reads with IGV.js
-        src='https://s3.amazonaws.com/igv.org.genomes/hg38/',
-        dst='igv_org_genomes/hg38',
+        src="https://s3.amazonaws.com/igv.org.genomes/hg38/",
+        dst="igv_org_genomes/hg38",
         transfer_cmd=curl_with_user_agent,
         files=dict(
-            cytoBandIdeo='annotations/cytoBandIdeo.txt.gz',
-            hg38_alias='hg38_alias.tab',
-            regGeneSorted='refGene.sorted.txt.gz',
-        )
-    ),
-    Source(
-        'syndip',
-        # The Broad resources for running variant calling validation on common benchmark datasets
-        src='gs://gcp-public-data--gnomad/resources/grch38/syndip',
-        dst='validation/syndip',
-        transfer_cmd=gcs_rsync,
-        files=dict(
-            truth_vcf='full.38.20180222.vcf.gz',
-            regions_bed='syndip.b38_20180222.bed',
-            truth_mt='syndip.b38_20180222.mt',
-            regions_ht='syndip_b38_20180222_hc_regions.ht',
+            cytoBandIdeo="annotations/cytoBandIdeo.txt.gz",
+            hg38_alias="hg38_alias.tab",
+            regGeneSorted="refGene.sorted.txt.gz",
         ),
     ),
     Source(
-        'na12878',
+        "syndip",
         # The Broad resources for running variant calling validation on common benchmark datasets
-        src='gs://gcp-public-data--gnomad/resources/grch38/na12878',
-        dst='validation/na12878',
+        src="gs://gcp-public-data--gnomad/resources/grch38/syndip",
+        dst="validation/syndip",
         transfer_cmd=gcs_rsync,
         files=dict(
-            truth_vcf='HG001_GRCh38_GIAB_highconf_CG-IllFB-IllGATKHC-Ion-10X-SOLID_CHROM1-X_v.3.3.2_highconf_PGandRTGphasetransfer.vcf.gz',
-            regions_bed='HG001_GRCh38_GIAB_highconf_CG-IllFB-IllGATKHC-Ion-10X-SOLID_CHROM1-X_v.3.3.2_highconf_nosomaticdel_noCENorHET7.bed',
-            truth_mt='HG001_GRCh38_GIAB_highconf_CG-IllFB-IllGATKHC-Ion-10X-SOLID_CHROM1-X_v.3.3.2_highconf_PGandRTGphasetransfer.mt',
-            regions_ht='HG001_GRCh38_GIAB_highconf_CG-IllFB-IllGATKHC-Ion-10X-SOLID_CHROM1-X_v.3.3.2_highconf_nosomaticdel_noCENorHET7_hc_regions.ht',
+            truth_vcf="full.38.20180222.vcf.gz",
+            regions_bed="syndip.b38_20180222.bed",
+            truth_mt="syndip.b38_20180222.mt",
+            regions_ht="syndip_b38_20180222_hc_regions.ht",
+        ),
+    ),
+    Source(
+        "na12878",
+        # The Broad resources for running variant calling validation on common benchmark datasets
+        src="gs://gcp-public-data--gnomad/resources/grch38/na12878",
+        dst="validation/na12878",
+        transfer_cmd=gcs_rsync,
+        files=dict(
+            truth_vcf="HG001_GRCh38_GIAB_highconf_CG-IllFB-IllGATKHC-Ion-10X-SOLID_CHROM1-X_v.3.3.2_highconf_PGandRTGphasetransfer.vcf.gz",
+            regions_bed="HG001_GRCh38_GIAB_highconf_CG-IllFB-IllGATKHC-Ion-10X-SOLID_CHROM1-X_v.3.3.2_highconf_nosomaticdel_noCENorHET7.bed",
+            truth_mt="HG001_GRCh38_GIAB_highconf_CG-IllFB-IllGATKHC-Ion-10X-SOLID_CHROM1-X_v.3.3.2_highconf_PGandRTGphasetransfer.mt",
+            regions_ht="HG001_GRCh38_GIAB_highconf_CG-IllFB-IllGATKHC-Ion-10X-SOLID_CHROM1-X_v.3.3.2_highconf_nosomaticdel_noCENorHET7_hc_regions.ht",
         ),
     ),
     # validation related content
     Source(
-        'HG001_NA12878',
-        dst='validation/HG001_NA12878',
+        "HG001_NA12878",
+        dst="validation/HG001_NA12878",
         files=dict(
-            vcf='HG001_GRCh38_1_22_v4.2.1_benchmark.vcf.gz',
-            index='HG001_GRCh38_1_22_v4.2.1_benchmark.vcf.gz.tbi',
-            bed='HG001_GRCh38_1_22_v4.2.1_benchmark.bed',
+            vcf="HG001_GRCh38_1_22_v4.2.1_benchmark.vcf.gz",
+            index="HG001_GRCh38_1_22_v4.2.1_benchmark.vcf.gz.tbi",
+            bed="HG001_GRCh38_1_22_v4.2.1_benchmark.bed",
         ),
     ),
     Source(
-        'SYNDIP',
-        dst='validation/SYNDIP',
+        "SYNDIP",
+        dst="validation/SYNDIP",
         files=dict(
-            vcf='syndip_truth.vcf.gz',
-            index='syndip_truth.vcf.gz.tbi',
-            bed='syndip.b38_20180222.bed',
+            vcf="syndip_truth.vcf.gz",
+            index="syndip_truth.vcf.gz.tbi",
+            bed="syndip.b38_20180222.bed",
         ),
     ),
     Source(
-        'HG002_NA24385',
-        dst='validation/HG002_NA24385',
+        "HG002_NA24385",
+        dst="validation/HG002_NA24385",
         files=dict(
-            vcf='HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz',
-            index='HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz.tbi',
-            bed='HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed',
+            vcf="HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz",
+            index="HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz.tbi",
+            bed="HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed",
         ),
     ),
     Source(
-        'HG003_NA24149',
-        dst='validation/HG003_NA24149',
+        "HG003_NA24149",
+        dst="validation/HG003_NA24149",
         files=dict(
-            vcf='HG003_GRCh38_1_22.vcf.gz',
-            index='HG003_GRCh38_1_22.vcf.gz.tbi',
-            bed='HG003_GRCh38_1_22.bed',
+            vcf="HG003_GRCh38_1_22.vcf.gz",
+            index="HG003_GRCh38_1_22.vcf.gz.tbi",
+            bed="HG003_GRCh38_1_22.bed",
         ),
     ),
     Source(
-        'HG004_NA24143',
-        dst='validation/HG004_NA24143',
+        "HG004_NA24143",
+        dst="validation/HG004_NA24143",
         files=dict(
-            vcf='HG004_GRCh38_1_22.vcf.gz',
-            index='HG004_GRCh38_1_22.vcf.gz.tbi',
-            bed='HG004_GRCh38_1_22.bed',
+            vcf="HG004_GRCh38_1_22.vcf.gz",
+            index="HG004_GRCh38_1_22.vcf.gz.tbi",
+            bed="HG004_GRCh38_1_22.bed",
         ),
     ),
     Source(
-        'VCGS_NA12878',
-        dst='validation/VCGS_NA12878',
+        "VCGS_NA12878",
+        dst="validation/VCGS_NA12878",
         files=dict(
-            vcf='twist_exome_benchmark_truth.vcf.gz',
-            index='twist_exome_benchmark_truth.vcf.gz.tbi',
-            bed='Twist_Exome_Core_Covered_Targets_hg38.bed',
+            vcf="twist_exome_benchmark_truth.vcf.gz",
+            index="twist_exome_benchmark_truth.vcf.gz.tbi",
+            bed="Twist_Exome_Core_Covered_Targets_hg38.bed",
         ),
     ),
-    Source('stratification', dst='validation/stratification'),
-    Source('refgenome_sdf', dst='validation/masked_reference_sdf'),
+    Source("stratification", dst="validation/stratification"),
+    Source("refgenome_sdf", dst="validation/masked_reference_sdf"),
     Source(
-        'gnomad_mito',
+        "gnomad_mito",
         # The Broad resources for running the gnomAD mitochondrial pipeline.
         # Contains two versions of the mito genome + bwa indexes. One wt and one
         # wtih the linearisation point "shifted" by 8000nt
-        src='gs://gcp-public-data--broad-references/hg38/v0/chrM/',
-        dst='hg38/v0/chrM',
+        src="gs://gcp-public-data--broad-references/hg38/v0/chrM/",
+        dst="hg38/v0/chrM",
         transfer_cmd=gcs_rsync,
         files=dict(
-            dict='Homo_sapiens_assembly38.chrM.dict',
-            fasta='Homo_sapiens_assembly38.chrM.fasta',
-            shifted_dict='Homo_sapiens_assembly38.chrM.shifted_by_8000_bases.dict',
-            shifted_fasta='Homo_sapiens_assembly38.chrM.shifted_by_8000_bases.fasta',
-            shift_back_chain='ShiftBack.chain',
-            shifted_control_region_interval='control_region_shifted.chrM.interval_list',
-            non_control_region_interval='non_control_region.chrM.interval_list',
-            blacklist_sites='blacklist_sites.hg38.chrM.bed',
+            dict="Homo_sapiens_assembly38.chrM.dict",
+            fasta="Homo_sapiens_assembly38.chrM.fasta",
+            shifted_dict="Homo_sapiens_assembly38.chrM.shifted_by_8000_bases.dict",
+            shifted_fasta="Homo_sapiens_assembly38.chrM.shifted_by_8000_bases.fasta",
+            shift_back_chain="ShiftBack.chain",
+            shifted_control_region_interval="control_region_shifted.chrM.interval_list",
+            non_control_region_interval="non_control_region.chrM.interval_list",
+            blacklist_sites="blacklist_sites.hg38.chrM.bed",
         ),
     ),
     Source(
-        'star',
+        "star",
         # References for STAR
-        dst='star',
-        files=dict(ref_dir='2.7.10b/hg38', gtf='hg38/hg38.gtf', fasta='hg38/hg38.fa'),
+        dst="star",
+        files=dict(ref_dir="2.7.10b/hg38", gtf="hg38/hg38.gtf", fasta="hg38/hg38.fa"),
     ),
     Source(
-        'ancestry',
+        "ancestry",
         # representative sites table for PCA
         # generated using the HGDP+1KG dataset
         # generated using the HGDP+1KG dataset + filtered by 10k10k vqsr
         # generated using the HGDP+1KG dataset + filtered by 10k10k vqsr + gnomad vsqr
-        dst='ancestry',
+        dst="ancestry",
         files=dict(
-            sites_table='pruned_variants.ht',
-            tenk10K_sites_table='tenk10K_pruned_variants.ht',
-            gnomad_sites_table='gnomad_pruned_variants.ht',
+            sites_table="pruned_variants.ht",
+            tenk10K_sites_table="tenk10K_pruned_variants.ht",
+            gnomad_sites_table="gnomad_pruned_variants.ht",
         ),
     ),
     Source(
-        'exomiser_core',
+        "exomiser_core",
         # The Broad resources for running Exomiser (Default)
-        src='gs://gcp-public-data--broad-references/hg38/v0/exomiser/2302_hg38',
-        dst='exomiser/core',
+        src="gs://gcp-public-data--broad-references/hg38/v0/exomiser/2302_hg38",
+        dst="exomiser/core",
         transfer_cmd=gcs_rsync,
         files=dict(
-            clinvar_whitelist='2302_hg38_clinvar_whitelist.tsv.gz',
-            clinvar_index='2302_hg38_clinvar_whitelist.tsv.gz.tbi',
-            genome_h2='2302_hg38_genome.h2.db',
-            ensembl_transcripts='2302_hg38_transcripts_ensembl.ser',
-            refseq_transcripts='2302_hg38_transcripts_refseq.ser',
-            ucsc_transcripts='2302_hg38_transcripts_ucsc.ser',
-            variants='2302_hg38_variants.mv.db',
+            clinvar_whitelist="2302_hg38_clinvar_whitelist.tsv.gz",
+            clinvar_index="2302_hg38_clinvar_whitelist.tsv.gz.tbi",
+            genome_h2="2302_hg38_genome.h2.db",
+            ensembl_transcripts="2302_hg38_transcripts_ensembl.ser",
+            refseq_transcripts="2302_hg38_transcripts_refseq.ser",
+            ucsc_transcripts="2302_hg38_transcripts_ucsc.ser",
+            variants="2302_hg38_variants.mv.db",
         ),
     ),
     Source(
-        'exomiser_cadd',
+        "exomiser_cadd",
         # The Broad resources for running Exomiser (CADD)
-        src='gs://gcp-public-data--broad-references/hg38/v0/CADD/1.6',
-        dst='exomiser/cadd',
+        src="gs://gcp-public-data--broad-references/hg38/v0/CADD/1.6",
+        dst="exomiser/cadd",
         transfer_cmd=gcs_rsync,
         files=dict(
-            indel_tsv='gnomad.genomes.r3.0.indel.tsv.gz',
-            indel_index='gnomad.genomes.r3.0.indel.tsv.gz.tbi',
-            snv_tsv='whole_genome_SNVs.tsv.gz',
-            snv_index='whole_genome_SNVs.tsv.gz.tbi',
+            indel_tsv="gnomad.genomes.r3.0.indel.tsv.gz",
+            indel_index="gnomad.genomes.r3.0.indel.tsv.gz.tbi",
+            snv_tsv="whole_genome_SNVs.tsv.gz",
+            snv_index="whole_genome_SNVs.tsv.gz.tbi",
         ),
     ),
     Source(
-        'exomiser_phenotype',
+        "exomiser_phenotype",
         # The Broad resources for running Exomiser (Phenotype)
-        src='gs://gcp-public-data--broad-references/hg38/v0/exomiser/2302_phenotype',
-        dst='exomiser/phenotype',
+        src="gs://gcp-public-data--broad-references/hg38/v0/exomiser/2302_phenotype",
+        dst="exomiser/phenotype",
         transfer_cmd=gcs_rsync,
         files=dict(
-            pheno_db='2302_phenotype.h2.db',
-            hpo_obo='hp.obo',
-            rw_string='rw_string_10.mv',
-            phenix='phenix',
-            phenix_tar='phenix.tar.gz',
+            pheno_db="2302_phenotype.h2.db",
+            hpo_obo="hp.obo",
+            rw_string="rw_string_10.mv",
+            phenix="phenix",
+            phenix_tar="phenix.tar.gz",
         ),
     ),
     Source(
-        'exomiser_remm',
+        "exomiser_remm",
         # The Broad resources for running Exomiser (REMM)
-        src='gs://gcp-public-data--broad-references/hg38/v0/ReMM/v0.3.1',
-        dst='exomiser/remm',
+        src="gs://gcp-public-data--broad-references/hg38/v0/ReMM/v0.3.1",
+        dst="exomiser/remm",
         files=dict(
-            remm_tsv='ReMM.v0.3.1.post1.hg38.tsv.gz',
-            remm_index='ReMM.v0.3.1.post1.hg38.tsv.gz.tbi',
+            remm_tsv="ReMM.v0.3.1.post1.hg38.tsv.gz",
+            remm_index="ReMM.v0.3.1.post1.hg38.tsv.gz.tbi",
         ),
     ),
     Source(
         # monarch annotations for running Exomiser 14.X+
-        'exomiser_2402_pheno',
-        src='https://data.monarchinitiative.org/exomiser/latest/2402_phenotype.zip',
-        dst='exomiser_2402/phenotype',
+        "exomiser_2402_pheno",
+        src="https://data.monarchinitiative.org/exomiser/latest/2402_phenotype.zip",
+        dst="exomiser_2402/phenotype",
         transfer_cmd=curl,
     ),
     Source(
         # monarch annotations for running Exomiser 14.X+
-        'exomiser_2402_core',
-        src='https://data.monarchinitiative.org/exomiser/latest/2402_hg38.zip',
-        dst='exomiser_2402/core',
+        "exomiser_2402_core",
+        src="https://data.monarchinitiative.org/exomiser/latest/2402_hg38.zip",
+        dst="exomiser_2402/core",
         transfer_cmd=curl,
     ),
     Source(
         # monarch annotations for running Exomiser 14.X+
-        'exomiser_2502_pheno',
-        src='https://g-879a9f.f5dc97.75bc.dn.glob.us/data/2502_phenotype.zip',
-        dst='exomiser_2502/phenotype',
+        "exomiser_2502_pheno",
+        src="https://g-879a9f.f5dc97.75bc.dn.glob.us/data/2502_phenotype.zip",
+        dst="exomiser_2502/phenotype",
         transfer_cmd=curl,
     ),
     Source(
         # monarch annotations for running Exomiser 14.X+
-        'exomiser_2502_core',
-        src='https://g-879a9f.f5dc97.75bc.dn.glob.us/data/2502_hg38.zip',
-        dst='exomiser_2502/core',
+        "exomiser_2502_core",
+        src="https://g-879a9f.f5dc97.75bc.dn.glob.us/data/2502_hg38.zip",
+        dst="exomiser_2502/core",
         transfer_cmd=curl,
     ),
     Source(
         # monarch annotations for running Exomiser 14.X+
-        'exomiser_2508_pheno',
-        src='https://g-879a9f.f5dc97.75bc.dn.glob.us/data/2508_phenotype.zip',
-        dst='exomiser_2508/phenotype',
+        "exomiser_2508_pheno",
+        src="https://g-879a9f.f5dc97.75bc.dn.glob.us/data/2508_phenotype.zip",
+        dst="exomiser_2508/phenotype",
         transfer_cmd=curl,
     ),
     Source(
         # monarch annotations for running Exomiser 14.X+
-        'exomiser_2508_core',
-        src='https://g-879a9f.f5dc97.75bc.dn.glob.us/data/2508_hg38.zip',
-        dst='exomiser_2508/core',
+        "exomiser_2508_core",
+        src="https://g-879a9f.f5dc97.75bc.dn.glob.us/data/2508_hg38.zip",
+        dst="exomiser_2508/core",
         transfer_cmd=curl,
     ),
     Source(
-        'hg38_telomeres_and_centromeres_intervals',
+        "hg38_telomeres_and_centromeres_intervals",
         # gnomAD v3 hg38 coordinates for telomeres and centromeres converted to interval_list
         # Created with the convert_bed_to_interval_list_file.py script
-        dst='hg38/v0',
-        files=dict(
-            interval_list='hg38.telomeresAndMergedCentromeres.interval_list'
-        ),
+        dst="hg38/v0",
+        files=dict(interval_list="hg38.telomeresAndMergedCentromeres.interval_list"),
     ),
     Source(
-        'genome_coverage_interval_list_masked',
-        # Updated broad/genome_coverage_interval_list with updated @SQ header hashes for compatibility 
+        "genome_coverage_interval_list_masked",
+        # Updated broad/genome_coverage_interval_list with updated @SQ header hashes for compatibility
         # with the masked hg38 reference fasta used in the Align pipeline:
         # "dragen_reference/Homo_sapiens_assembly38_masked.fasta"
-        dst='hg38/v0',
+        dst="hg38/v0",
         files=dict(
-            interval_list='dragen_reference/wgs_coverage_regions.hg38_masked.interval_list'
+            interval_list="dragen_reference/wgs_coverage_regions.hg38_masked.interval_list"
         ),
     ),
     Source(
-        'gnomad_4.1_vcfs',
-        src='gs://gcp-public-data--gnomad/release/4.1/vcf/genomes',
-        dst='gnomad/v4.1/vcfs',
-        files={contig: f'gnomad.genomes.v4.1.sites.{contig}.vcf.bgz' for contig in CANONICAL_CHROMOSOMES},
+        "gnomad_4.1_vcfs",
+        src="gs://gcp-public-data--gnomad/release/4.1/vcf/genomes",
+        dst="gnomad/v4.1/vcfs",
+        files={
+            contig: f"gnomad.genomes.v4.1.sites.{contig}.vcf.bgz"
+            for contig in CANONICAL_CHROMOSOMES
+        },
         transfer_cmd=gcs_rsync,
     ),
     Source(
         # Mito frequencies are only available on 3.1, but we don't need/want the rest of the 3.1 files
         # this will copy the single MT file, then we'll have to get/generate the index separately
-        'gnomad_3.1_mito',
-        src='gs://gcp-public-data--gnomad/release/3.1/vcf/genomes/gnomad.genomes.v3.1.sites.chrM.vcf.bgz',
-        dst='gnomad/v3.1/vcf/gnomad.genomes.r3.1.sites.chrM.vcf.bgz',
+        "gnomad_3.1_mito",
+        src="gs://gcp-public-data--gnomad/release/3.1/vcf/genomes/gnomad.genomes.v3.1.sites.chrM.vcf.bgz",
+        dst="gnomad/v3.1/vcf/gnomad.genomes.r3.1.sites.chrM.vcf.bgz",
         transfer_cmd=gcs_cp_single,
     ),
     Source(
-        'gnomad_4.1_ht',
-        src='gs://gcp-public-data--gnomad/release/4.1/ht/genomes/gnomad.genomes.v4.1.sites.ht',
-        dst='gnomad/v4.1/ht/gnomad.genomes.v4.1.sites.ht',
+        "gnomad_4.1_ht",
+        src="gs://gcp-public-data--gnomad/release/4.1/ht/genomes/gnomad.genomes.v4.1.sites.ht",
+        dst="gnomad/v4.1/ht/gnomad.genomes.v4.1.sites.ht",
         transfer_cmd=gcs_rsync,
     ),
     Source(
-        'gnomad_4.1_joint_vcfs',
-        src='gs://gcp-public-data--gnomad/release/4.1/vcf/joint',
-        dst='gnomad/v4.1/joint/vcfs',
-        files={contig: f'gnomad.joint.v4.1.sites.{contig}.vcf.bgz' for contig in CANONICAL_CHROMOSOMES},
+        "gnomad_4.1_joint_vcfs",
+        src="gs://gcp-public-data--gnomad/release/4.1/vcf/joint",
+        dst="gnomad/v4.1/joint/vcfs",
+        files={
+            contig: f"gnomad.joint.v4.1.sites.{contig}.vcf.bgz"
+            for contig in CANONICAL_CHROMOSOMES
+        },
         transfer_cmd=gcs_rsync_no_billing_project,
     ),
     Source(
-        'gnomad_4.1_joint_ht',
-        src='gs://gcp-public-data--gnomad/release/4.1/ht/joint/gnomad.joint.v4.1.sites.ht',
-        dst='gnomad/v4.1/joint/ht/gnomad.joint.v4.1.sites.ht',
+        "gnomad_4.1_joint_ht",
+        src="gs://gcp-public-data--gnomad/release/4.1/ht/joint/gnomad.joint.v4.1.sites.ht",
+        dst="gnomad/v4.1/joint/ht/gnomad.joint.v4.1.sites.ht",
         transfer_cmd=gcs_rsync_no_billing_project,
     ),
     Source(
@@ -641,9 +648,9 @@ SOURCES = [
         # Files are staged in gs://cpg-common-test/references/hail_intervals/hg38/
         # (writable by analysts with test access on cpg-common) and CI rsyncs
         # them into cpg-common-main.
-        'hail_intervals_hg38',
-        src='gs://cpg-common-test/references/hail_intervals/hg38',
-        dst='hail_intervals/hg38',
+        "hail_intervals_hg38",
+        src="gs://cpg-common-test/references/hail_intervals/hg38",
+        dst="hail_intervals/hg38",
         transfer_cmd=gcs_rsync,
         files=dict(
             # ~4.9k variant-balanced intervals derived from the gnomAD v4.1 WGS
@@ -651,285 +658,284 @@ SOURCES = [
             # variants, so Spark partitions stay evenly loaded.
             # Originally bundled in populationgenomics/ourdna_genomic_atlas
             # @ c915366 (src/ourdna_genomic_atlas/resources/).
-            gnomad_v4_1_variants_balanced_intervals_bed='gnomad_v4.1_variants_balanced_intervals.bed.gz',
+            gnomad_v4_1_variants_balanced_intervals_bed="gnomad_v4.1_variants_balanced_intervals.bed.gz",
         ),
     ),
     Source(
-        'alphamissense',
+        "alphamissense",
         # alphamissense raw data, processed HT, and compressed HT
-        dst='alphamissense',
+        dst="alphamissense",
         files=dict(
-            raw_tsv='alphamissense_38.tsv.gz',
-            ht='alphamissense_38.ht',
-            ht_tar='alphamissense_38.ht.tar.gz',
+            raw_tsv="alphamissense_38.tsv.gz",
+            ht="alphamissense_38.ht",
+            ht_tar="alphamissense_38.ht.tar.gz",
         ),
     ),
     Source(
-        'CADD_v1.7_snvs',
-        src='https://krishna.gs.washington.edu/download/CADD/v1.7/GRCh38/whole_genome_SNVs.tsv.gz',
-        dst='CADD/v1.7/GRCh38/whole_genome_SNVs.tsv.gz',
+        "CADD_v1.7_snvs",
+        src="https://krishna.gs.washington.edu/download/CADD/v1.7/GRCh38/whole_genome_SNVs.tsv.gz",
+        dst="CADD/v1.7/GRCh38/whole_genome_SNVs.tsv.gz",
         transfer_cmd=curl,
     ),
     Source(
-        'CADD_v1.7_snvs_index',
-        src='https://krishna.gs.washington.edu/download/CADD/v1.7/GRCh38/whole_genome_SNVs.tsv.gz.tbi',
-        dst='CADD/v1.7/GRCh38/whole_genome_SNVs.tsv.gz.tbi',
+        "CADD_v1.7_snvs_index",
+        src="https://krishna.gs.washington.edu/download/CADD/v1.7/GRCh38/whole_genome_SNVs.tsv.gz.tbi",
+        dst="CADD/v1.7/GRCh38/whole_genome_SNVs.tsv.gz.tbi",
         transfer_cmd=curl,
     ),
     Source(
-        'CADD_v1.7_indels',
-        src='https://krishna.gs.washington.edu/download/CADD/v1.7/GRCh38/gnomad.genomes.r4.0.indel.tsv.gz',
-        dst='CADD/v1.7/GRCh38/gnomad.genomes.r4.0.indel.tsv.gz',
+        "CADD_v1.7_indels",
+        src="https://krishna.gs.washington.edu/download/CADD/v1.7/GRCh38/gnomad.genomes.r4.0.indel.tsv.gz",
+        dst="CADD/v1.7/GRCh38/gnomad.genomes.r4.0.indel.tsv.gz",
         transfer_cmd=curl,
     ),
     Source(
-        'CADD_v1.7_indels_index',
-        src='https://krishna.gs.washington.edu/download/CADD/v1.7/GRCh38/gnomad.genomes.r4.0.indel.tsv.gz.tbi',
-        dst='CADD/v1.7/GRCh38/gnomad.genomes.r4.0.indel.tsv.gz.tbi',
+        "CADD_v1.7_indels_index",
+        src="https://krishna.gs.washington.edu/download/CADD/v1.7/GRCh38/gnomad.genomes.r4.0.indel.tsv.gz.tbi",
+        dst="CADD/v1.7/GRCh38/gnomad.genomes.r4.0.indel.tsv.gz.tbi",
         transfer_cmd=curl,
     ),
     Source(
-        'CADD_v1.7_ht',
+        "CADD_v1.7_ht",
         # The four CADD v1.7 files above as one Hail Table keyed by (locus, alleles),
         # written straight to this path by
         # reference_generating_scripts/cadd_to_hail_table.py (Query-on-Batch), so
         # there is no transfer step.
-        dst='CADD/v1.7/GRCh38/cadd_v1.7.ht',
+        dst="CADD/v1.7/GRCh38/cadd_v1.7.ht",
     ),
     Source(
-        'ensembl_113',
+        "ensembl_113",
         # ensembl GFF3, and derived BED files
-        dst='ensembl_113',
+        dst="ensembl_113",
         files=dict(
-            gff3='GRCh38.gff3.gz',
-            bed='GRCh38.bed',  # contains a column with each Gene's name/ID
-            merged_bed='merged_GRCh38.bed',  # simplified regions, lacks per-gene data
+            gff3="GRCh38.gff3.gz",
+            bed="GRCh38.bed",  # contains a column with each Gene's name/ID
+            merged_bed="merged_GRCh38.bed",  # simplified regions, lacks per-gene data
             # copeid from https://ftp.ensembl.org/pub/release-113/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz
             # decompressed locally and uploaded to GCP
-            unmasked_reference='Homo_sapiens.GRCh38.dna.primary_assembly.fa'
+            unmasked_reference="Homo_sapiens.GRCh38.dna.primary_assembly.fa",
         ),
     ),
     Source(
-        'mane_1.4',
+        "mane_1.4",
         # MANE v.1.4 digest and raw data
-        dst='mane_1.4',
+        dst="mane_1.4",
         files=dict(
-            summary='mane_1.4.summary.txt.gz',  # raw data from MANE
-            json='mane_1.4.json',  # parsed into a per-transcript lookup
+            summary="mane_1.4.summary.txt.gz",  # raw data from MANE
+            json="mane_1.4.json",  # parsed into a per-transcript lookup
         ),
     ),
     Source(
-        'exome_probesets_hg38',
+        "exome_probesets_hg38",
         # exome probset defintions (bed file and interval_list) format
         # downloaded from UCSC with the download_ucsc_exomes.py script
-        dst='exome-probesets/hg38',
+        dst="exome-probesets/hg38",
         files=dict(
-            twist_refseq_exome_panel_target_regions_bed='Twist_Exome_RefSeq_targets_hg38.bed',
-            twist_refseq_exome_panel_target_regions_interval_list='Twist_Exome_RefSeq_targets_hg38.interval_list',
-            twist_exome_2_0_panel_target_regions_bed='TwistExome21.bed',
-            twist_exome_2_0_panel_target_regions_interval_list='TwistExome21.interval_list',
-            twist_bioscience_core_exome_panel_target_regions_bed='Twist_Exome_Target_hg38.bed',
-            twist_bioscience_core_exome_panel_target_regions_interval_list='Twist_Exome_Target_hg38.interval_list',
-            twist_comprehensive_exome_panel_target_regions_bed='Twist_ComprehensiveExome_targets_hg38.bed',
-            twist_comprehensive_exome_panel_target_regions_interval_list='Twist_ComprehensiveExome_targets_hg38.interval_list',
+            twist_refseq_exome_panel_target_regions_bed="Twist_Exome_RefSeq_targets_hg38.bed",
+            twist_refseq_exome_panel_target_regions_interval_list="Twist_Exome_RefSeq_targets_hg38.interval_list",
+            twist_exome_2_0_panel_target_regions_bed="TwistExome21.bed",
+            twist_exome_2_0_panel_target_regions_interval_list="TwistExome21.interval_list",
+            twist_bioscience_core_exome_panel_target_regions_bed="Twist_Exome_Target_hg38.bed",
+            twist_bioscience_core_exome_panel_target_regions_interval_list="Twist_Exome_Target_hg38.interval_list",
+            twist_comprehensive_exome_panel_target_regions_bed="Twist_ComprehensiveExome_targets_hg38.bed",
+            twist_comprehensive_exome_panel_target_regions_interval_list="Twist_ComprehensiveExome_targets_hg38.interval_list",
             # Twist Comprehensive Exome + VCGS custom content (Mackenzie's Twist cohort).
-            twist_vcgs_custom_exome_covered_targets_bed='Twist_VCGS_Exome_Covered_Targets_hg38.bed',
-            twist_vcgs_custom_exome_covered_targets_interval_list='Twist_VCGS_Exome_Covered_Targets_hg38.interval_list',
-            agilent_sureselect_all_exon_v7_target_regions_bed='S31285117_Regions.bed',
-            agilent_sureselect_all_exon_v7_target_regions_interval_list='S31285117_Regions.interval_list',
-            agilent_sureselect_all_exon_v7_covered_by_probes_bed='S31285117_Covered.bed',
-            agilent_sureselect_all_exon_v7_covered_by_probes_interval_list='S31285117_Covered.interval_list',
-            agilent_sureselect_all_exon_v6_utr_r2_covered_by_probes_bed='S07604624_Covered.bed',
-            agilent_sureselect_all_exon_v6_utr_r2_covered_by_probes_interval_list='S07604624_Covered.interval_list',
-            agilent_sureselect_all_exon_v6_cosmic_r2_target_regions_bed='S07604715_Regions.bed',
-            agilent_sureselect_all_exon_v6_cosmic_r2_target_regions_interval_list='S07604715_Regions.interval_list',
-            agilent_sureselect_all_exon_v6_cosmic_r2_covered_by_probes_bed='S07604715_Covered.bed',
-            agilent_sureselect_all_exon_v6_cosmic_r2_covered_by_probes_interval_list='S07604715_Covered.interval_list',
-            agilent_sureselect_all_exon_v6_r2_target_regions_bed='S07604514_Regions.bed',
-            agilent_sureselect_all_exon_v6_r2_target_regions_interval_list='S07604514_Regions.interval_list',
-            agilent_sureselect_all_exon_v6_r2_covered_by_probes_bed='S07604514_Covered.bed',
-            agilent_sureselect_all_exon_v6_r2_covered_by_probes_interval_list='S07604514_Covered.interval_list',
-            agilent_sureselect_all_exon_v6_utr_r2_target_regions_bed='S07604624_Regions.bed',
-            agilent_sureselect_all_exon_v6_utr_r2_target_regions_interval_list='S07604624_Regions.interval_list',
-            agilent_sureselect_all_exon_v5_utrs_target_regions_bed='S04380219_Regions.bed',
-            agilent_sureselect_all_exon_v5_utrs_target_regions_interval_list='S04380219_Regions.interval_list',
-            agilent_sureselect_all_exon_v5_utrs_covered_by_probes_bed='S04380219_Covered.bed',
-            agilent_sureselect_all_exon_v5_utrs_covered_by_probes_interval_list='S04380219_Covered.interval_list',
-            agilent_sureselect_all_exon_v4_utrs_target_regions_bed='S04380110_Regions.bed',
-            agilent_sureselect_all_exon_v4_utrs_target_regions_interval_list='S04380110_Regions.interval_list',
-            agilent_sureselect_all_exon_v4_utrs_covered_by_probes_bed='S04380110_Covered.bed',
-            agilent_sureselect_all_exon_v4_utrs_covered_by_probes_interval_list='S04380110_Covered.interval_list',
-            agilent_sureselect_focused_exome_target_regions_bed='S07084713_Regions.bed',
-            agilent_sureselect_focused_exome_target_regions_interval_list='S07084713_Regions.interval_list',
-            agilent_sureselect_focused_exome_covered_by_probes_bed='S07084713_Covered.bed',
-            agilent_sureselect_focused_exome_covered_by_probes_interval_list='S07084713_Covered.interval_list',
-            agilent_sureselect_clinical_research_exome_v2_target_regions_bed='S30409818_Regions.bed',
-            agilent_sureselect_clinical_research_exome_v2_target_regions_interval_list='S30409818_Regions.interval_list',
-            agilent_sureselect_clinical_research_exome_v2_covered_by_probes_bed='S30409818_Covered.bed',
-            agilent_sureselect_clinical_research_exome_v2_covered_by_probes_interval_list='S30409818_Covered.interval_list',
+            twist_vcgs_custom_exome_covered_targets_bed="Twist_VCGS_Exome_Covered_Targets_hg38.bed",
+            twist_vcgs_custom_exome_covered_targets_interval_list="Twist_VCGS_Exome_Covered_Targets_hg38.interval_list",
+            agilent_sureselect_all_exon_v7_target_regions_bed="S31285117_Regions.bed",
+            agilent_sureselect_all_exon_v7_target_regions_interval_list="S31285117_Regions.interval_list",
+            agilent_sureselect_all_exon_v7_covered_by_probes_bed="S31285117_Covered.bed",
+            agilent_sureselect_all_exon_v7_covered_by_probes_interval_list="S31285117_Covered.interval_list",
+            agilent_sureselect_all_exon_v6_utr_r2_covered_by_probes_bed="S07604624_Covered.bed",
+            agilent_sureselect_all_exon_v6_utr_r2_covered_by_probes_interval_list="S07604624_Covered.interval_list",
+            agilent_sureselect_all_exon_v6_cosmic_r2_target_regions_bed="S07604715_Regions.bed",
+            agilent_sureselect_all_exon_v6_cosmic_r2_target_regions_interval_list="S07604715_Regions.interval_list",
+            agilent_sureselect_all_exon_v6_cosmic_r2_covered_by_probes_bed="S07604715_Covered.bed",
+            agilent_sureselect_all_exon_v6_cosmic_r2_covered_by_probes_interval_list="S07604715_Covered.interval_list",
+            agilent_sureselect_all_exon_v6_r2_target_regions_bed="S07604514_Regions.bed",
+            agilent_sureselect_all_exon_v6_r2_target_regions_interval_list="S07604514_Regions.interval_list",
+            agilent_sureselect_all_exon_v6_r2_covered_by_probes_bed="S07604514_Covered.bed",
+            agilent_sureselect_all_exon_v6_r2_covered_by_probes_interval_list="S07604514_Covered.interval_list",
+            agilent_sureselect_all_exon_v6_utr_r2_target_regions_bed="S07604624_Regions.bed",
+            agilent_sureselect_all_exon_v6_utr_r2_target_regions_interval_list="S07604624_Regions.interval_list",
+            agilent_sureselect_all_exon_v5_utrs_target_regions_bed="S04380219_Regions.bed",
+            agilent_sureselect_all_exon_v5_utrs_target_regions_interval_list="S04380219_Regions.interval_list",
+            agilent_sureselect_all_exon_v5_utrs_covered_by_probes_bed="S04380219_Covered.bed",
+            agilent_sureselect_all_exon_v5_utrs_covered_by_probes_interval_list="S04380219_Covered.interval_list",
+            agilent_sureselect_all_exon_v4_utrs_target_regions_bed="S04380110_Regions.bed",
+            agilent_sureselect_all_exon_v4_utrs_target_regions_interval_list="S04380110_Regions.interval_list",
+            agilent_sureselect_all_exon_v4_utrs_covered_by_probes_bed="S04380110_Covered.bed",
+            agilent_sureselect_all_exon_v4_utrs_covered_by_probes_interval_list="S04380110_Covered.interval_list",
+            agilent_sureselect_focused_exome_target_regions_bed="S07084713_Regions.bed",
+            agilent_sureselect_focused_exome_target_regions_interval_list="S07084713_Regions.interval_list",
+            agilent_sureselect_focused_exome_covered_by_probes_bed="S07084713_Covered.bed",
+            agilent_sureselect_focused_exome_covered_by_probes_interval_list="S07084713_Covered.interval_list",
+            agilent_sureselect_clinical_research_exome_v2_target_regions_bed="S30409818_Regions.bed",
+            agilent_sureselect_clinical_research_exome_v2_target_regions_interval_list="S30409818_Regions.interval_list",
+            agilent_sureselect_clinical_research_exome_v2_covered_by_probes_bed="S30409818_Covered.bed",
+            agilent_sureselect_clinical_research_exome_v2_covered_by_probes_interval_list="S30409818_Covered.interval_list",
             # Agilent SureSelect Clinical Research Exome v1 (S06588914), hg19 source lifted via picard.
             # CRE v1 is built on the SureSelectXT All Exon V5 backbone, which was specified at exon
             # resolution; Regions and Covered intervals are identical by construction (Agilent's
             # portal Regions track header literally says "This is same as Covered.bed"). Only the
             # Regions BED is shipped. CREv2 (S30409818) is a ground-up redesign with distinct
             # sub-exon Regions vs probe-footprint Covered, so it keeps both entries.
-            agilent_sureselect_clinical_research_exome_v1_target_regions_bed='S06588914_Regions_hg38.bed',
-            agilent_sureselect_clinical_research_exome_v1_target_regions_interval_list='S06588914_Regions_hg38.interval_list',
-            roche_seqcap_ez_medexome_mito_empirical_target_regions_bed='SeqCap_EZ_MedExomePlusMito_hg38_empirical_targets.bed',
-            roche_seqcap_ez_medexome_mito_empirical_target_regions_interval_list='SeqCap_EZ_MedExomePlusMito_hg38_empirical_targets.interval_list',
-            roche_seqcap_ez_medexome_mito_capture_probe_footprint_bed='SeqCap_EZ_MedExomePlusMito_hg38_capture_targets.bed',
-            roche_seqcap_ez_medexome_mito_capture_probe_footprint_interval_list='SeqCap_EZ_MedExomePlusMito_hg38_capture_targets.interval_list',
-            roche_seqcap_ez_medexome_empirical_target_regions_bed='SeqCap_EZ_MedExome_hg38_empirical_targets.bed',
-            roche_seqcap_ez_medexome_empirical_target_regions_interval_list='SeqCap_EZ_MedExome_hg38_empirical_targets.interval_list',
-            roche_seqcap_ez_medexome_capture_probe_footprint_bed='SeqCap_EZ_MedExome_hg38_capture_targets.bed',
-            roche_seqcap_ez_medexome_capture_probe_footprint_interval_list='SeqCap_EZ_MedExome_hg38_capture_targets.interval_list',
-            roche_kapa_hyperexome_primary_target_regions_bed='KAPA_HyperExome_hg38_primary_targets.bed',
-            roche_kapa_hyperexome_primary_target_regions_interval_list='KAPA_HyperExome_hg38_primary_targets.interval_list',
-            roche_kapa_hyperexome_capture_probe_footprint_bed='KAPA_HyperExome_hg38_capture_targets.bed',
-            roche_kapa_hyperexome_capture_probe_footprint_interval_list='KAPA_HyperExome_hg38_capture_targets.interval_list',
-            idt_xgen_exome_research_panel_v2_target_regions_bed='xgen-exome-research-panel-v2-targets-hg38.bed',
-            idt_xgen_exome_research_panel_v2_target_regions_interval_list='xgen-exome-research-panel-v2-targets-hg38.interval_list',
-            idt_xgen_exome_research_panel_v2_probes_bed='xgen-exome-research-panel-v2-probes-hg38.bed',
-            idt_xgen_exome_research_panel_v2_probes_interval_list='xgen-exome-research-panel-v2-probes-hg38.interval_list',
-            idt_xgen_exome_research_panel_v1_target_regions_bed='xgen-exome-research-panel-targets-hg38.bed',
-            idt_xgen_exome_research_panel_v1_target_regions_interval_list='xgen-exome-research-panel-targets-hg38.interval_list',
-            idt_xgen_exome_research_panel_v1_probes_bed='xgen-exome-research-panel-probes-hg38.bed',
-            idt_xgen_exome_research_panel_v1_probes_interval_list='xgen-exome-research-panel-probes-hg38.interval_list',
+            agilent_sureselect_clinical_research_exome_v1_target_regions_bed="S06588914_Regions_hg38.bed",
+            agilent_sureselect_clinical_research_exome_v1_target_regions_interval_list="S06588914_Regions_hg38.interval_list",
+            roche_seqcap_ez_medexome_mito_empirical_target_regions_bed="SeqCap_EZ_MedExomePlusMito_hg38_empirical_targets.bed",
+            roche_seqcap_ez_medexome_mito_empirical_target_regions_interval_list="SeqCap_EZ_MedExomePlusMito_hg38_empirical_targets.interval_list",
+            roche_seqcap_ez_medexome_mito_capture_probe_footprint_bed="SeqCap_EZ_MedExomePlusMito_hg38_capture_targets.bed",
+            roche_seqcap_ez_medexome_mito_capture_probe_footprint_interval_list="SeqCap_EZ_MedExomePlusMito_hg38_capture_targets.interval_list",
+            roche_seqcap_ez_medexome_empirical_target_regions_bed="SeqCap_EZ_MedExome_hg38_empirical_targets.bed",
+            roche_seqcap_ez_medexome_empirical_target_regions_interval_list="SeqCap_EZ_MedExome_hg38_empirical_targets.interval_list",
+            roche_seqcap_ez_medexome_capture_probe_footprint_bed="SeqCap_EZ_MedExome_hg38_capture_targets.bed",
+            roche_seqcap_ez_medexome_capture_probe_footprint_interval_list="SeqCap_EZ_MedExome_hg38_capture_targets.interval_list",
+            roche_kapa_hyperexome_primary_target_regions_bed="KAPA_HyperExome_hg38_primary_targets.bed",
+            roche_kapa_hyperexome_primary_target_regions_interval_list="KAPA_HyperExome_hg38_primary_targets.interval_list",
+            roche_kapa_hyperexome_capture_probe_footprint_bed="KAPA_HyperExome_hg38_capture_targets.bed",
+            roche_kapa_hyperexome_capture_probe_footprint_interval_list="KAPA_HyperExome_hg38_capture_targets.interval_list",
+            idt_xgen_exome_research_panel_v2_target_regions_bed="xgen-exome-research-panel-v2-targets-hg38.bed",
+            idt_xgen_exome_research_panel_v2_target_regions_interval_list="xgen-exome-research-panel-v2-targets-hg38.interval_list",
+            idt_xgen_exome_research_panel_v2_probes_bed="xgen-exome-research-panel-v2-probes-hg38.bed",
+            idt_xgen_exome_research_panel_v2_probes_interval_list="xgen-exome-research-panel-v2-probes-hg38.interval_list",
+            idt_xgen_exome_research_panel_v1_target_regions_bed="xgen-exome-research-panel-targets-hg38.bed",
+            idt_xgen_exome_research_panel_v1_target_regions_interval_list="xgen-exome-research-panel-targets-hg38.interval_list",
+            idt_xgen_exome_research_panel_v1_probes_bed="xgen-exome-research-panel-probes-hg38.bed",
+            idt_xgen_exome_research_panel_v1_probes_interval_list="xgen-exome-research-panel-probes-hg38.interval_list",
             # Superseded by per-design beds (twist_vcgs_custom_*,
             # agilent_sureselect_clinical_research_exome_v{1,2}_*). Retained for any
             # pipeline still pinned to the merged designs.
-            mackenzie_intersect_exome_probes_bed='mackenzie_intersect_exome_regions.bed',
-            mackenzie_intersect_exome_probes_interval_list='mackenzie_intersect_exome_regions.interval_list',
-            mackenzie_union_exome_probes_bed='mackenzie_union_exome_regions.bed',
-            mackenzie_union_exome_probes_interval_list='mackenzie_union_exome_regions.interval_list'
-            ),
+            mackenzie_intersect_exome_probes_bed="mackenzie_intersect_exome_regions.bed",
+            mackenzie_intersect_exome_probes_interval_list="mackenzie_intersect_exome_regions.interval_list",
+            mackenzie_union_exome_probes_bed="mackenzie_union_exome_regions.bed",
+            mackenzie_union_exome_probes_interval_list="mackenzie_union_exome_regions.interval_list",
+        ),
     ),
     Source(
         # Alphagenome reference file(s)
-        'alphagenome_feather',
-        src='https://storage.googleapis.com/alphagenome/reference/gencode/hg38/gencode.v46.annotation.gtf.gz.feather',
-        dst='alphagenome/gencode.v46.annotation.gtf.gz.feather',
+        "alphagenome_feather",
+        src="https://storage.googleapis.com/alphagenome/reference/gencode/hg38/gencode.v46.annotation.gtf.gz.feather",
+        dst="alphagenome/gencode.v46.annotation.gtf.gz.feather",
         transfer_cmd=curl,
     ),
     Source(
-        'new_seqr_loftee',
-        src='gs://seqr-reference-data/vep_data/loftee-beta/GRCh38.tar.gz',
-        dst='new_seqr/vep',
+        "new_seqr_loftee",
+        src="gs://seqr-reference-data/vep_data/loftee-beta/GRCh38.tar.gz",
+        dst="new_seqr/vep",
         transfer_cmd=gcs_cp_single,
     ),
     Source(
-        'new_seqr_vep',
-        src='gs://seqr-reference-data/vep/GRCh38',
-        dst='new_seqr/vep',
+        "new_seqr_vep",
+        src="gs://seqr-reference-data/vep/GRCh38",
+        dst="new_seqr/vep",
         transfer_cmd=gcs_cp_r,
         files={
-            'vep_reference': 'homo_sapiens_vep_110_GRCh38.tar.gz',
-            'ref_genome': 'Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz',
-            'ref_genome_fai': 'Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz.fai',
-            'ref_genome_gzi': 'Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz.gzi',
-            'utranno_conf': 'uORF_5UTR_GRCh38_PUBLIC.txt',
-            'vep_conf': 'vep-GRCh38.json',
-            'alphamissense': 'AlphaMissense_hg38.tsv.gz',
-            'alphamissense_idx': 'AlphaMissense_hg38.tsv.gz.tbi',
-        }
+            "vep_reference": "homo_sapiens_vep_110_GRCh38.tar.gz",
+            "ref_genome": "Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz",
+            "ref_genome_fai": "Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz.fai",
+            "ref_genome_gzi": "Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz.gzi",
+            "utranno_conf": "uORF_5UTR_GRCh38_PUBLIC.txt",
+            "vep_conf": "vep-GRCh38.json",
+            "alphamissense": "AlphaMissense_hg38.tsv.gz",
+            "alphamissense_idx": "AlphaMissense_hg38.tsv.gz.tbi",
+        },
     ),
     Source(
         # Phased hgdp + 1kg bcfs from Koenig et. al. Genome Res. 2024 Jun 25;34(5):796-809. doi: 10.1101/gr.278378.123
         # genome v38
-        'phased_hgdp_1kg',
-        src='gs://gcp-public-data--gnomad/resources/hgdp_1kg/phased_haplotypes_v2',
-        dst='gnomad/hgdp_1kg_phased_haplotypes/v2',
+        "phased_hgdp_1kg",
+        src="gs://gcp-public-data--gnomad/resources/hgdp_1kg/phased_haplotypes_v2",
+        dst="gnomad/hgdp_1kg_phased_haplotypes/v2",
         transfer_cmd=gcs_rsync,
         files=dict(
-            hgdp1kgp_chr1_bcf='hgdp1kgp_chr1.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr1_bcf_index='hgdp1kgp_chr1.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr2_bcf='hgdp1kgp_chr2.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr2_bcf_index='hgdp1kgp_chr2.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr3_bcf='hgdp1kgp_chr3.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr3_bcf_index='hgdp1kgp_chr3.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr4_bcf='hgdp1kgp_chr4.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr4_bcf_index='hgdp1kgp_chr4.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr5_bcf='hgdp1kgp_chr5.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr5_bcf_index='hgdp1kgp_chr5.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr6_bcf='hgdp1kgp_chr6.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr6_bcf_index='hgdp1kgp_chr6.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr7_bcf='hgdp1kgp_chr7.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr7_bcf_index='hgdp1kgp_chr7.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr8_bcf='hgdp1kgp_chr8.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr8_bcf_index='hgdp1kgp_chr8.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr9_bcf='hgdp1kgp_chr9.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr9_bcf_index='hgdp1kgp_chr9.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr10_bcf='hgdp1kgp_chr10.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr10_bcf_index='hgdp1kgp_chr10.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr11_bcf='hgdp1kgp_chr11.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr11_bcf_index='hgdp1kgp_chr11.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr12_bcf='hgdp1kgp_chr12.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr12_bcf_index='hgdp1kgp_chr12.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr13_bcf='hgdp1kgp_chr13.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr13_bcf_index='hgdp1kgp_chr13.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr14_bcf='hgdp1kgp_chr14.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr14_bcf_index='hgdp1kgp_chr14.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr15_bcf='hgdp1kgp_chr15.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr15_bcf_index='hgdp1kgp_chr15.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr16_bcf='hgdp1kgp_chr16.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr16_bcf_index='hgdp1kgp_chr16.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr17_bcf='hgdp1kgp_chr17.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr17_bcf_index='hgdp1kgp_chr17.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr18_bcf='hgdp1kgp_chr18.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr18_bcf_index='hgdp1kgp_chr18.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr19_bcf='hgdp1kgp_chr19.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr19_bcf_index='hgdp1kgp_chr19.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr20_bcf='hgdp1kgp_chr20.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr20_bcf_index='hgdp1kgp_chr20.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr21_bcf='hgdp1kgp_chr21.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr21_bcf_index='hgdp1kgp_chr21.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chr22_bcf='hgdp1kgp_chr22.filtered.SNV_INDEL.phased.shapeit5.bcf',
-            hgdp1kgp_chr22_bcf_index='hgdp1kgp_chr22.filtered.SNV_INDEL.phased.shapeit5.bcf.csi',
-            hgdp1kgp_chrX_non_par_bcf='hgdp1kgp_chrX_non_par.full.shapeit5_rare.bcf',
-            hgdp1kgp_chrX_non_par_bcf_index='hgdp1kgp_chrX_non_par.full.shapeit5_rare.bcf.csi',
-            hgdp1kgp_chrX_par1_bcf='hgdp1kgp_chrX_par1.shapeit5_common.bcf',
-            hgdp1kgp_chrX_par1_bcf_index='hgdp1kgp_chrX_par1.shapeit5_common.bcf.csi',
-            hgdp1kgp_chrX_par2_bcf='hgdp1kgp_chrX_par2.shapeit5_common.bcf',
-            hgdp1kgp_chrX_par2_bcf_index='hgdp1kgp_chrX_par2.shapeit5_common.bcf.csi'
+            hgdp1kgp_chr1_bcf="hgdp1kgp_chr1.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr1_bcf_index="hgdp1kgp_chr1.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr2_bcf="hgdp1kgp_chr2.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr2_bcf_index="hgdp1kgp_chr2.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr3_bcf="hgdp1kgp_chr3.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr3_bcf_index="hgdp1kgp_chr3.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr4_bcf="hgdp1kgp_chr4.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr4_bcf_index="hgdp1kgp_chr4.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr5_bcf="hgdp1kgp_chr5.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr5_bcf_index="hgdp1kgp_chr5.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr6_bcf="hgdp1kgp_chr6.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr6_bcf_index="hgdp1kgp_chr6.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr7_bcf="hgdp1kgp_chr7.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr7_bcf_index="hgdp1kgp_chr7.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr8_bcf="hgdp1kgp_chr8.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr8_bcf_index="hgdp1kgp_chr8.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr9_bcf="hgdp1kgp_chr9.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr9_bcf_index="hgdp1kgp_chr9.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr10_bcf="hgdp1kgp_chr10.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr10_bcf_index="hgdp1kgp_chr10.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr11_bcf="hgdp1kgp_chr11.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr11_bcf_index="hgdp1kgp_chr11.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr12_bcf="hgdp1kgp_chr12.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr12_bcf_index="hgdp1kgp_chr12.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr13_bcf="hgdp1kgp_chr13.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr13_bcf_index="hgdp1kgp_chr13.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr14_bcf="hgdp1kgp_chr14.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr14_bcf_index="hgdp1kgp_chr14.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr15_bcf="hgdp1kgp_chr15.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr15_bcf_index="hgdp1kgp_chr15.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr16_bcf="hgdp1kgp_chr16.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr16_bcf_index="hgdp1kgp_chr16.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr17_bcf="hgdp1kgp_chr17.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr17_bcf_index="hgdp1kgp_chr17.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr18_bcf="hgdp1kgp_chr18.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr18_bcf_index="hgdp1kgp_chr18.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr19_bcf="hgdp1kgp_chr19.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr19_bcf_index="hgdp1kgp_chr19.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr20_bcf="hgdp1kgp_chr20.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr20_bcf_index="hgdp1kgp_chr20.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr21_bcf="hgdp1kgp_chr21.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr21_bcf_index="hgdp1kgp_chr21.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chr22_bcf="hgdp1kgp_chr22.filtered.SNV_INDEL.phased.shapeit5.bcf",
+            hgdp1kgp_chr22_bcf_index="hgdp1kgp_chr22.filtered.SNV_INDEL.phased.shapeit5.bcf.csi",
+            hgdp1kgp_chrX_non_par_bcf="hgdp1kgp_chrX_non_par.full.shapeit5_rare.bcf",
+            hgdp1kgp_chrX_non_par_bcf_index="hgdp1kgp_chrX_non_par.full.shapeit5_rare.bcf.csi",
+            hgdp1kgp_chrX_par1_bcf="hgdp1kgp_chrX_par1.shapeit5_common.bcf",
+            hgdp1kgp_chrX_par1_bcf_index="hgdp1kgp_chrX_par1.shapeit5_common.bcf.csi",
+            hgdp1kgp_chrX_par2_bcf="hgdp1kgp_chrX_par2.shapeit5_common.bcf",
+            hgdp1kgp_chrX_par2_bcf_index="hgdp1kgp_chrX_par2.shapeit5_common.bcf.csi",
         ),
     ),
     Source(
         # Illumina microarray reference files, sourced from Illumina's webserver
         # behind a login and manually copied to the references.py locations.
-        'illumina_microarray',
-        dst='illumina_microarray',
+        "illumina_microarray",
+        dst="illumina_microarray",
         files=dict(
-            GCA_000001405_15_GRCh38_no_alt_analysis_set_fna='GCA_000001405.15_GRCh38_no_alt_analysis_set.fna',
-            GCA_000001405_15_GRCh38_no_alt_analysis_set_fna_fai='GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.fai',
-            GDA_8v1_0_D1_ClusterFile_egt='GDA-8v1-0_D1_ClusterFile.egt',
+            GCA_000001405_15_GRCh38_no_alt_analysis_set_fna="GCA_000001405.15_GRCh38_no_alt_analysis_set.fna",
+            GCA_000001405_15_GRCh38_no_alt_analysis_set_fna_fai="GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.fai",
+            GDA_8v1_0_D1_ClusterFile_egt="GDA-8v1-0_D1_ClusterFile.egt",
             # Per-variant INFO from the GDA-8v1-0_D1 EGT cluster file,
             # This is the "expected" cluster geometry
             # (GenTrain_Score, Cluster_Sep, N_AA/AB/BB, meanTHETA_*, devTHETA_*,
             # meanR_*, devR_*) used by the popgen-genotyping SNP QC report as the
             # reference half of every observed-vs-EGT comparison.
-            GDA_8v1_0_D1_ClusterFile_egt_info_bcf='GDA-8v1-0_D1_ClusterFile_info.bcf',
-            GDA_8v1_0_D1_ClusterFile_egt_info_bcf_index='GDA-8v1-0_D1_ClusterFile_info.bcf.csi',
-            GDA_8v1_0_D2_bpm='GDA-8v1-0_D2.bpm',
+            GDA_8v1_0_D1_ClusterFile_egt_info_bcf="GDA-8v1-0_D1_ClusterFile_info.bcf",
+            GDA_8v1_0_D1_ClusterFile_egt_info_bcf_index="GDA-8v1-0_D1_ClusterFile_info.bcf.csi",
+            GDA_8v1_0_D2_bpm="GDA-8v1-0_D2.bpm",
             # Biallelic SNV BED derived from the BPM, polarised against the
             # GRCh38 fasta. Produced by
             # illumina_microarray/run_generate_bed_from_illumina_bpm.py.
-            GDA_8v1_0_D2_biallelic_snps_bed='GDA-8v1-0_D2-biallelic-snps.bed',
-        )
-
+            GDA_8v1_0_D2_biallelic_snps_bed="GDA-8v1-0_D2-biallelic-snps.bed",
+        ),
     ),
     Source(
         # HGDP+1KG reference panel subset to GDA-8v1-0_D2 biallelic SNV sites,
         # in PLINK2 .pgen/.pvar/.psam format. Staged in
         # gs://cpg-common-test/references/genotype_array_reference_data/ and
         # rsynced to cpg-common-main by CI on merge.
-        'genotype_array_reference_data',
-        src='gs://cpg-common-test/references/genotype_array_reference_data',
-        dst='genotype_array_reference_data',
+        "genotype_array_reference_data",
+        src="gs://cpg-common-test/references/genotype_array_reference_data",
+        dst="genotype_array_reference_data",
         transfer_cmd=gcs_rsync,
         files=dict(
-            hgdp_1kg_gda_biallelic_snps_pgen='hgdp-1kg-v1-GDA_8v1_0_D2_biallelic_snps.pgen',
-            hgdp_1kg_gda_biallelic_snps_pvar='hgdp-1kg-v1-GDA_8v1_0_D2_biallelic_snps.pvar',
-            hgdp_1kg_gda_biallelic_snps_psam='hgdp-1kg-v1-GDA_8v1_0_D2_biallelic_snps.psam',
+            hgdp_1kg_gda_biallelic_snps_pgen="hgdp-1kg-v1-GDA_8v1_0_D2_biallelic_snps.pgen",
+            hgdp_1kg_gda_biallelic_snps_pvar="hgdp-1kg-v1-GDA_8v1_0_D2_biallelic_snps.pvar",
+            hgdp_1kg_gda_biallelic_snps_psam="hgdp-1kg-v1-GDA_8v1_0_D2_biallelic_snps.psam",
         ),
     ),
 ]

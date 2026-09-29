@@ -44,15 +44,18 @@ CONTIG_RECODING = {
 }
 
 
-def import_cadd(path: str) -> hl.Table:
+def import_cadd(paths: list[str]) -> hl.Table:
     """
-    Read one CADD score TSV (#Chrom Pos Ref Alt RawScore PHRED) as a keyed table.
+    Read CADD score TSVs (#Chrom Pos Ref Alt RawScore PHRED) as one keyed table.
+
+    One import over all files so the key_by is a single sort; comment='#' drops each
+    file's header line.
 
     Args:
-        path: bgzipped CADD TSV
+        paths: bgzipped CADD TSVs
     """
     ht = hl.import_table(
-        path,
+        paths,
         force_bgz=True,
         comment='#',
         no_header=True,
@@ -108,7 +111,7 @@ def main(snvs: str, indels: str, intervals_bed: str, out: str):
     init_batch(driver_cores=2, driver_memory='highmem')
     intervals = read_intervals(intervals_bed)
 
-    ht = import_cadd(snvs).union(import_cadd(indels))
+    ht = import_cadd([snvs, indels])
 
     # The shuffle decides its own layout; re-read on the shared intervals before writing.
     tmp = hl.utils.new_temp_file('cadd_keyed', 'ht')

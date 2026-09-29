@@ -35,7 +35,7 @@ DEFAULT_INDELS = f'{SPLICEAI}/spliceai_scores.masked.indel.hg38.vcf.gz'
 DEFAULT_INTERVALS = (
     f'{REFERENCES}/hail_intervals/hg38/gnomad_v4.1_variants_balanced_intervals.bed.gz'
 )
-DEFAULT_OUT = f'{SPLICEAI}/spliceai_v1-3.ht'
+DEFAULT_OUT = f'{REFERENCES}/ourdna_browser/v0/spliceai_v1-3.ht'
 
 # The hg38 files name contigs without the chr prefix.
 CONTIG_RECODING = {
@@ -107,8 +107,13 @@ def collect_by_variant(vcf_path: str) -> hl.Table:
     ht = ht.select(gene=parse_scores(ht.entries))
     # Consecutive records share a key, so this groups without a shuffle.
     ht = ht.collect_by_key()
+    # hl.dict keeps one entry per key, so a repeated symbol at one variant would drop a
+    # record from by_gene while ds_max still counted it. Fail instead.
+    by_gene = hl.dict(ht.values.map(lambda v: (v.gene.symbol, v.gene.scores)))
     return ht.select(
-        by_gene=hl.dict(ht.values.map(lambda v: (v.gene.symbol, v.gene.scores))),
+        by_gene=hl.case()
+        .when(hl.len(by_gene) == hl.len(ht.values), by_gene)
+        .or_error('repeated gene symbol at ' + hl.str(ht.locus)),
         ds_max=hl.max(
             ht.values.flatmap(
                 lambda v: hl.array([v.gene.scores[f] for f in SCORE_FIELDS])
