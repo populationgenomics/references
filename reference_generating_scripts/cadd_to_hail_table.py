@@ -24,7 +24,7 @@ import gzip
 from argparse import ArgumentParser
 
 import hail as hl
-from cpg_utils import to_path
+import hailtop.fs as hfs
 from cpg_utils.hail_batch import init_batch
 
 REFERENCES = 'gs://cpg-common-main/references'
@@ -91,7 +91,7 @@ def read_intervals(bed_path: str) -> list[hl.Interval]:
     parser ourdna_genomic_atlas uses for this file. BED is 0-based half-open, Hail loci
     are 1-based, so start + 1 with both ends included.
     """
-    with to_path(bed_path).open('rb') as raw, gzip.open(raw, 'rt') as bed:
+    with hfs.open(bed_path, 'rb') as raw, gzip.open(raw, 'rt') as bed:
         rows = (line.split('\t') for line in bed if line.strip() and line[0] not in '#t')
         return [
             hl.Interval(

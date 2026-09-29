@@ -25,7 +25,7 @@ import gzip
 from argparse import ArgumentParser
 
 import hail as hl
-from cpg_utils import to_path
+import hailtop.fs as hfs
 from cpg_utils.hail_batch import init_batch
 
 REFERENCES = 'gs://cpg-common-main/references'
@@ -59,14 +59,39 @@ def parse_scores(record: hl.expr.StringExpression) -> hl.expr.StructExpression:
     )
 
 
+def check_contigs(vcf_path: str) -> None:
+    """
+    Refuse a VCF whose header declares any contig outside chr1-22, X, Y, M.
+
+    Only those contigs are wanted, and the import would otherwise have to skip records on
+    unknown contigs silently (skip_invalid_loci) or fail mid-way through the file. The header
+    is a few KB at the front of the bgzipped file, so this costs nothing.
+
+    Raises:
+        ValueError: naming the unexpected contigs.
+    """
+    declared = []
+    # hfs streams from the bucket, so this reads a few KB and stops at the first record;
+    # a cloudpathlib open would download the whole file first.
+    with hfs.open(vcf_path, 'rb') as raw, gzip.open(raw, 'rt') as vcf:
+        for line in vcf:
+            if not line.startswith('##'):
+                break
+            if line.startswith('##contig=<ID='):
+                declared.append(line[len('##contig=<ID='):].split(',', 1)[0].rstrip('>\n'))
+    unexpected = sorted(set(declared) - set(CONTIG_RECODING))
+    if unexpected:
+        raise ValueError(f'{vcf_path} declares contigs outside chr1-22, X, Y, M: {unexpected}')
+
+
 def collect_by_variant(vcf_path: str) -> hl.Table:
     """One masked SpliceAI VCF as a keyed table with one row per (locus, alleles)."""
+    check_contigs(vcf_path)
     ht = hl.import_vcf(
         vcf_path,
         reference_genome='GRCh38',
         contig_recoding=CONTIG_RECODING,
         force_bgz=True,
-        skip_invalid_loci=True,
     ).rows()
     # The field is Number=., so it arrives as an array: one element per gene in the record
     # (SpliceAI's own files write one record per gene, but nothing here relies on that).
@@ -100,7 +125,7 @@ def read_intervals(bed_path: str) -> list[hl.Interval]:
     parser ourdna_genomic_atlas uses for this file. BED is 0-based half-open, Hail loci
     are 1-based, so start + 1 with both ends included.
     """
-    with to_path(bed_path).open('rb') as raw, gzip.open(raw, 'rt') as bed:
+    with hfs.open(bed_path, 'rb') as raw, gzip.open(raw, 'rt') as bed:
         rows = (line.split('\t') for line in bed if line.strip() and line[0] not in '#t')
         return [
             hl.Interval(
