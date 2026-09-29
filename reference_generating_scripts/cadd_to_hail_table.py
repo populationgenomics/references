@@ -20,9 +20,11 @@ Runs on Hail Query-on-Batch, writing straight to cpg-common-main, e.g.
 The key_by is a full sort shuffle of the SNV file; expect a few hundred core-hours.
 """
 
+import gzip
 from argparse import ArgumentParser
 
 import hail as hl
+from cpg_utils import to_path
 from cpg_utils.hail_batch import init_batch
 
 REFERENCES = 'gs://cpg-common-main/references'
@@ -82,19 +84,37 @@ def import_cadd(path: str) -> hl.Table:
 
 
 def read_intervals(bed_path: str) -> list[hl.Interval]:
-    """The variant-balanced intervals as a Python list, for a partitioned read."""
-    return hl.import_bed(bed_path, reference_genome='GRCh38').interval.collect()
+    """
+    The variant-balanced intervals as Python Interval objects, for a partitioned read.
+
+    Parsed here rather than with hl.import_bed, which cannot open a .gz path; the same
+    parser ourdna_genomic_atlas uses for this file. BED is 0-based half-open, Hail loci
+    are 1-based, so start + 1 with both ends included.
+    """
+    with to_path(bed_path).open('rb') as raw, gzip.open(raw, 'rt') as bed:
+        rows = (line.split('\t') for line in bed if line.strip() and line[0] not in '#t')
+        return [
+            hl.Interval(
+                hl.Locus(chrom, int(start) + 1, reference_genome='GRCh38'),
+                hl.Locus(chrom, int(end), reference_genome='GRCh38'),
+                includes_start=True,
+                includes_end=True,
+            )
+            for chrom, start, end, *_ in rows
+        ]
 
 
 def main(snvs: str, indels: str, intervals_bed: str, out: str):
     init_batch(driver_cores=2, driver_memory='highmem')
+    intervals = read_intervals(intervals_bed)
 
     ht = import_cadd(snvs).union(import_cadd(indels))
 
     # The shuffle decides its own layout; re-read on the shared intervals before writing.
     tmp = hl.utils.new_temp_file('cadd_keyed', 'ht')
     ht.checkpoint(tmp)
-    ht = hl.read_table(tmp, _intervals=read_intervals(intervals_bed))
+    # _intervals is a private Hail argument, the standard idiom for read-time partitioning.
+    ht = hl.read_table(tmp, _intervals=intervals)
     ht.write(out, overwrite=True)
     ht = hl.read_table(out)
     ht.describe()
