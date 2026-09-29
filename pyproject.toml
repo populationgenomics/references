@@ -15,3 +15,14 @@ exclude = '''
 
 [tool.mypy]
 ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.format]
+# Match flake8-quotes (inline-quotes = single in .flake8); editors running ruff
+# format would otherwise rewrite every string to double quotes.
+quote-style = "single"
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "single"
