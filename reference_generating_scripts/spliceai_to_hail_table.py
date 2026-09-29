@@ -17,7 +17,8 @@ Runs on Hail Query-on-Batch, writing straight to cpg-common-main, e.g.
         --description "SpliceAI v1.3 Hail Table" \
         python3 reference_generating_scripts/spliceai_to_hail_table.py
 
-The VCFs are sorted, so no shuffle: import, collect records per key, write.
+Each VCF is sorted, so imported one at a time there is no shuffle: import, collect
+records per key, union the two keyed tables, write.
 """
 
 import gzip
@@ -58,6 +59,29 @@ def parse_scores(record: hl.expr.StringExpression) -> hl.expr.StructExpression:
     )
 
 
+def collect_by_variant(vcf_path: str) -> hl.Table:
+    """One masked SpliceAI VCF as a keyed table with one row per (locus, alleles)."""
+    ht = hl.import_vcf(
+        vcf_path,
+        reference_genome='GRCh38',
+        contig_recoding=CONTIG_RECODING,
+        force_bgz=True,
+        skip_invalid_loci=True,
+    ).rows()
+    # One record per gene; the field is Number=. so it arrives as a one-element array.
+    ht = ht.select(gene=parse_scores(ht.info.SpliceAI[0]))
+    # Consecutive records share a key, so this groups without a shuffle.
+    ht = ht.collect_by_key()
+    return ht.select(
+        by_gene=hl.dict(ht.values.map(lambda v: (v.gene.symbol, v.gene.scores))),
+        ds_max=hl.max(
+            ht.values.flatmap(
+                lambda v: hl.array([v.gene.scores[f] for f in SCORE_FIELDS])
+            )
+        ),
+    )
+
+
 def read_intervals(bed_path: str) -> list[hl.Interval]:
     """
     The variant-balanced intervals as Python Interval objects, for a partitioned read.
@@ -83,25 +107,11 @@ def main(snvs: str, indels: str, intervals_bed: str, out: str):
     init_batch(driver_cores=2, driver_memory='highmem')
     intervals = read_intervals(intervals_bed)
 
-    ht = hl.import_vcf(
-        [snvs, indels],
-        reference_genome='GRCh38',
-        contig_recoding=CONTIG_RECODING,
-        force_bgz=True,
-        skip_invalid_loci=True,
-    ).rows()
-    # One record per gene; the field is Number=. so it arrives as a one-element array.
-    ht = ht.select(gene=parse_scores(ht.info.SpliceAI[0]))
-    # Consecutive records share a key, so this groups without a shuffle.
-    ht = ht.collect_by_key()
-    ht = ht.select(
-        by_gene=hl.dict(ht.values.map(lambda v: (v.gene.symbol, v.gene.scores))),
-        ds_max=hl.max(
-            ht.values.flatmap(
-                lambda v: hl.array([v.gene.scores[f] for f in SCORE_FIELDS])
-            )
-        ),
-    )
+    # Each file is sorted on its own, so imported on its own Hail keeps that order and
+    # collect_by_key stays partition-local. One import over both files would interleave two
+    # whole-genome partition sets and send ~14B rows through a distributed sort. The union of
+    # two keyed tables is a range merge, not a shuffle; the SNV and indel keys never collide.
+    ht = collect_by_variant(snvs).union(collect_by_variant(indels))
 
     tmp = hl.utils.new_temp_file('spliceai_by_key', 'ht')
     ht.checkpoint(tmp)
