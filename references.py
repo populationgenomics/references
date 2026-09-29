@@ -322,6 +322,10 @@ SOURCES = [
             splice_ai_snvs_index='spliceai_scores.masked.snv.hg38.vcf.gz.tbi',
             splice_ai_indels='spliceai_scores.masked.indel.hg38.vcf.gz',
             splice_ai_indels_index='spliceai_scores.masked.indel.hg38.vcf.gz.tbi',
+            # The two masked VCFs as one Hail Table keyed by (locus, alleles), written
+            # straight to main by reference_generating_scripts/spliceai_to_hail_table.py
+            # (Query-on-Batch); the rsync above is non-destructive so it leaves it be.
+            ht='spliceai_v1-3.ht',
         ),
         transfer_cmd=gcs_rsync,
     ),
@@ -671,6 +675,14 @@ SOURCES = [
         src='https://krishna.gs.washington.edu/download/CADD/v1.7/GRCh38/gnomad.genomes.r4.0.indel.tsv.gz.tbi',
         dst='CADD/v1.7/GRCh38/gnomad.genomes.r4.0.indel.tsv.gz.tbi',
         transfer_cmd=curl,
+    ),
+    Source(
+        'CADD_v1.7_ht',
+        # The four CADD v1.7 files above as one Hail Table keyed by (locus, alleles),
+        # written straight to this path by
+        # reference_generating_scripts/cadd_to_hail_table.py (Query-on-Batch), so
+        # there is no transfer step.
+        dst='CADD/v1.7/GRCh38/cadd_v1.7.ht',
     ),
     Source(
         'ensembl_113',
