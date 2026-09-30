@@ -169,6 +169,19 @@ SOURCES = [
         dst='vep/110/mount',
     ),
     Source(
+        'vep_115',
+        # gnomAD's context table: every possible GRCh38 SNV annotated with VEP 115
+        # (LOFTEE included), 8.77 billion rows, 9,860 partitions, 29,589 objects, 482 GB.
+        # A complete copy has that object count (gcloud storage ls -r | wc -l). Its globals
+        # carry the exact VEP command (`vep_config`) and `vep_help`, so an indel-only
+        # VEP run can be checked to match before the two are mixed. Copied in-region
+        # because every join reads all of it. The public bucket is not requester-pays,
+        # and the copy outruns the ~60 min billing-project window in CI.
+        src='gs://gcp-public-data--gnomad/resources/context/grch38_context_vep_annotated.v115.ht',
+        dst='vep/115/grch38_context_vep_annotated.v115.ht',
+        transfer_cmd=gcs_rsync_no_billing_project,
+    ),
+    Source(
         'liftover_38_to_37',
         # Liftover chain file to translate from GRCh38 to GRCh37 coordinates
         src='gs://hail-common/references/grch38_to_grch37.over.chain.gz',
@@ -372,6 +385,14 @@ SOURCES = [
             splice_ai_indels_index='spliceai_scores.masked.indel.hg38.vcf.gz.tbi',
         ),
         transfer_cmd=gcs_rsync,
+    ),
+    Source(
+        'spliceai_v1-3_ht',
+        # The two masked spliceai_resources VCFs as one Hail Table keyed by
+        # (locus, alleles), written straight to this path by
+        # reference_generating_scripts/spliceai_to_hail_table.py (Query-on-Batch), so
+        # there is no transfer step.
+        dst='SpliceAI/v1.3/GRCh38/spliceai_v1.3.ht',
     ),
     Source(
         'seqr_combined_reference_data',
@@ -682,7 +703,9 @@ SOURCES = [
             # sites table — each interval contains roughly the same number of
             # variants, so Spark partitions stay evenly loaded.
             # Originally bundled in populationgenomics/ourdna_genomic_atlas
-            # @ c915366 (src/ourdna_genomic_atlas/resources/).
+            # @ 788fa19 (src/ourdna_genomic_atlas/resources/gnomad_v4.1_intervals.bed.gz,
+            # md5 409e3fecee7139f8af49f8da40ade236); earlier revisions of that file
+            # start chr1 at 10030 and stop chrY short, this one spans every contig.
             gnomad_v4_1_variants_balanced_intervals_bed='gnomad_v4.1_variants_balanced_intervals.bed.gz',
         ),
     ),
@@ -719,6 +742,14 @@ SOURCES = [
         src='https://krishna.gs.washington.edu/download/CADD/v1.7/GRCh38/gnomad.genomes.r4.0.indel.tsv.gz.tbi',
         dst='CADD/v1.7/GRCh38/gnomad.genomes.r4.0.indel.tsv.gz.tbi',
         transfer_cmd=curl,
+    ),
+    Source(
+        'CADD_v1.7_ht',
+        # The CADD v1.7 SNV and indel TSVs above as one Hail Table keyed by (locus, alleles),
+        # written straight to this path by
+        # reference_generating_scripts/cadd_to_hail_table.py (Query-on-Batch), so
+        # there is no transfer step.
+        dst='CADD/v1.7/GRCh38/cadd_v1.7.ht',
     ),
     Source(
         'ensembl_113',
