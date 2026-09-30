@@ -3,7 +3,6 @@ Transfer one reference source
 """
 
 import argparse
-import os
 import subprocess
 import sys
 
@@ -49,15 +48,12 @@ def main(name: str, references_prefix: str, gcp_project: str) -> None:
     """
     source = {s.name: s for s in SOURCES}[name]
     if source.transfer_cmd and source.src:
-        cmd = source.transfer_cmd(
-            src=source.src,
-            dst=os.path.join(references_prefix, source.dst),
-            project=gcp_project,
-        )
-        print(cmd)
-        # A failed or partial copy must fail the job, or the config deploys pointing at it
-        # and prep_matrix treats the destination as done on every later push.
-        subprocess.run(cmd, shell=True, check=True)
+        for src, dst in source.transfers(references_prefix):
+            cmd = source.transfer_cmd(src=src, dst=dst, project=gcp_project)
+            print(cmd)
+            # bash for `set -o pipefail` in the curl commands; check so a failed copy
+            # fails the job instead of deploying a config that points at it.
+            subprocess.run(cmd, shell=True, check=True, executable='/bin/bash')
 
 
 if __name__ == '__main__':

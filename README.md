@@ -63,4 +63,8 @@ The transfer commands are actioned in CI using appropriate credentials, and the 
 
 * `gcs_rsync`: Uses a recursive, non-destructive, `gcloud storage rsync` to copy the source to the destination. i.e. it doesn't delete files in the destination that are not in the source.
 * `gcs_cp_r`: Uses a recursive `gcloud storage cp` to copy the source to the destination
-* `curl`: uses a `curl` & `gcloud storage cp` to pull resources from an HTTP URL
+* `gcs_cp_single`: Copies one object with `gcloud storage cp`
+* `curl`: uses a `curl` & `gcloud storage cp` to pull one object from an HTTP URL. A failed download removes the partial object so the next run retries it.
+* `curl_with_user_agent`: `curl` with a browser user agent, for hosts that refuse curl's default
+
+`gcs_cp_single`, `curl` and `curl_with_user_agent` copy one object per call. To pull several files from one HTTP directory, set `src` to the directory URL (ending in `/`) and list each file's relative path in `files`; every file is then transferred on its own to `dst/<suffix>`, and a missing one is enough to schedule the source again. A single-object `src` ending in `/` without `files` is rejected on import.
