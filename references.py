@@ -89,9 +89,16 @@ def curl_with_user_agent(src: str, dst: str, project: str) -> str:
     return _curl_pipe('-A "Mozilla/5.0" -fL', src, dst, project)
 
 
-# Commands that move one object per call. A Source using one of these with `files`
-# is transferred one file at a time; the recursive commands copy the whole prefix.
+# Commands that move one object per call, as opposed to a whole prefix.
 SINGLE_OBJECT_CMDS = frozenset({curl, curl_with_user_agent, gcs_cp_single})
+
+
+def is_folder(path: str) -> bool:
+    """
+    Whether a source path is a directory: a Hail table or matrix table, a trailing
+    slash, or a last component with no extension (dragen_reference, phenix, ...).
+    """
+    return path.endswith(('.ht', '.mt', '.vds', '/')) or '.' not in path.rsplit('/', 1)[-1]
 
 
 @dataclasses.dataclass
@@ -119,31 +126,32 @@ class Source:
                 f'{self.transfer_cmd.__name__} copies one object; list its files'
             )
 
-    def transfers(self, references_prefix: str) -> list[tuple[str, str]]:
+    def transfers(
+        self, references_prefix: str
+    ) -> list[tuple[SyncCommandProtocol, str, str]]:
         """
-        (src, dst) pairs for transfer_cmd: one per file when a single-object command
-        has `files`, otherwise one for the whole source.
+        (command, src, dst) triples to run for this Source.
+
+        A Source with `files` copies exactly those entries and nothing else under `src`:
+        only listed files reach the config, so only listed files are copied, checked for
+        and paid for. Each entry gets a command that fits it: the Source's own for an HTTP
+        source, `gcs_rsync` for a directory-like entry (.ht/.mt/.vds), `gcs_cp_single`
+        otherwise. A Source without `files` copies `src` whole with its own command.
         """
         assert self.src and self.transfer_cmd, f'{self.name} has nothing to transfer'
         dst = os.path.join(references_prefix, self.dst)
-        if self.files and self.transfer_cmd in SINGLE_OBJECT_CMDS:
-            src = self.src.rstrip('/')
-            return [
-                (f'{src}/{suffix}', os.path.join(dst, suffix))
-                for suffix in self.files.values()
-            ]
-        return [(self.src, dst)]
+        if not self.files:
+            return [(self.transfer_cmd, self.src, dst)]
+        src = self.src.rstrip('/')
+        return [
+            (self._file_cmd(suffix), f'{src}/{suffix}', os.path.join(dst, suffix))
+            for suffix in self.files.values()
+        ]
 
-    def is_folder(self) -> bool:
-        """simple folder check using known extensions"""
-        if self.files:
-            return True
-
-        return (
-            self.dst.endswith('.ht')
-            or self.dst.endswith('.mt')
-            or self.dst.endswith('.vds')
-        )
+    def _file_cmd(self, suffix: str) -> SyncCommandProtocol:
+        if self.transfer_cmd in SINGLE_OBJECT_CMDS:
+            return self.transfer_cmd
+        return gcs_rsync if is_folder(suffix) else gcs_cp_single
 
 
 # Genome build. Only GRCh38 is currently supported.
@@ -182,7 +190,7 @@ SOURCES = [
         # Liftover chain file to translate from GRCh38 to GRCh37 coordinates
         src='gs://hail-common/references/grch38_to_grch37.over.chain.gz',
         dst='liftover/grch38_to_grch37.over.chain.gz',
-        transfer_cmd=gcs_rsync,
+        transfer_cmd=gcs_cp_single,
     ),
     Source(
         'liftover_37_to_38',

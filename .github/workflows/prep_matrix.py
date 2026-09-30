@@ -78,7 +78,7 @@ def generate_matrix(references_prefix: str) -> dict:
         if source.src and source.transfer_cmd:
             missing = [
                 dst
-                for _, dst in source.transfers(references_prefix)
+                for _, _, dst in source.transfers(references_prefix)
                 if not gcs_file_exists(dst)
             ]
             if missing:

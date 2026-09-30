@@ -48,8 +48,8 @@ def main(name: str, references_prefix: str, gcp_project: str) -> None:
     """
     source = {s.name: s for s in SOURCES}[name]
     if source.transfer_cmd and source.src:
-        for src, dst in source.transfers(references_prefix):
-            cmd = source.transfer_cmd(src=src, dst=dst, project=gcp_project)
+        for transfer_cmd, src, dst in source.transfers(references_prefix):
+            cmd = transfer_cmd(src=src, dst=dst, project=gcp_project)
             print(cmd)
             # bash for `set -o pipefail` in the curl commands; check so a failed copy
             # fails the job instead of deploying a config that points at it.
