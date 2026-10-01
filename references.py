@@ -1011,4 +1011,21 @@ SOURCES = [
             hgdp_1kg_gda_biallelic_snps_psam='hgdp-1kg-v1-GDA_8v1_0_D2_biallelic_snps.psam',
         ),
     ),
+    Source(
+        # deCODE 2019 sex-averaged GRCh38 genetic map (Halldorsson et al. 2019,
+        # Science 363, eaau1043, Data S3), chr1-22 and X; chrX carries the
+        # maternal rate. Staged in gs://cpg-common-test/references/genetic_maps/
+        # decode2019/ and rsynced to cpg-common-main by CI on merge.
+        'genetic_maps_decode2019',
+        src='gs://cpg-common-test/references/genetic_maps/decode2019',
+        dst='genetic_maps/decode2019',
+        transfer_cmd=gcs_rsync,
+        files=dict(
+            # Data S3 as published, kept for provenance.
+            sexavg_grch38_source='aau1043_datas3.gz',
+            # Eagle-style map for `plink2 --cm-map`, produced by
+            # reference_generating_scripts/convert_decode2019_map_to_eagle.py.
+            sexavg_grch38_eagle='decode2019_sexavg_GRCh38.eagle.txt.gz',
+        ),
+    ),
 ]
