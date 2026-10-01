@@ -1011,4 +1011,35 @@ SOURCES = [
             hgdp_1kg_gda_biallelic_snps_psam='hgdp-1kg-v1-GDA_8v1_0_D2_biallelic_snps.psam',
         ),
     ),
+    Source(
+        # deCODE 2019 sex-averaged GRCh38 genetic map (Halldorsson et al. 2019,
+        # Science 363, eaau1043, Data S3), chr1-22 and X; chrX carries the
+        # maternal rate. Staged in gs://cpg-common-test/references/genetic_maps/
+        # decode2019/ and rsynced to cpg-common-main by CI on merge.
+        'genetic_maps_decode2019',
+        src='gs://cpg-common-test/references/genetic_maps/decode2019',
+        dst='genetic_maps/decode2019',
+        transfer_cmd=gcs_rsync,
+        # Maps for `plink2 --cm-map`, produced by
+        # reference_generating_scripts/convert_decode2019_map_for_plink2.py.
+        # Whole-genome dataset: use sexavg_grch38_eagle. Dataset restricted to some
+        # chromosomes (--chr, or one per job): use the per-chromosome files via
+        # plink2's '@' pattern, <dir>/decode2019_sexavg_GRCh38_chr@.txt.gz; the
+        # genome-wide file fails there ("Chromosome ... is split") because it
+        # lists chromosomes the dataset lacks. Variants before a chromosome's
+        # first row get extrapolated (possibly negative) cM; variants after its
+        # last row are clamped to the end value.
+        files={
+            # Data S3 as published, kept for provenance.
+            'sexavg_grch38_source': 'aau1043_datas3.gz',
+            # One genome-wide file with a chromosome column (Eagle-style).
+            'sexavg_grch38_eagle': 'decode2019_sexavg_GRCh38.eagle.txt.gz',
+            # One file per chromosome, 3 columns (plink2's "SHAPEIT-format").
+            **{
+                f'sexavg_grch38_{contig}': f'decode2019_sexavg_GRCh38_{contig}.txt.gz'
+                for contig in CANONICAL_CHROMOSOMES
+                if contig != 'chrY'
+            },
+        },
+    ),
 ]
