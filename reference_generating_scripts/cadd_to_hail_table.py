@@ -19,9 +19,8 @@ Query-on-Batch, writing straight to cpg-common-main, e.g.
         --description "CADD v1.7 Hail Table" \
         python3 reference_generating_scripts/cadd_to_hail_table.py
 
-An existing --out is refused unless --overwrite is given. Each file is sorted by
-position, so keyed on its own it should pass Hail's sortedness check without sort rounds;
-if it does not, the SNV sort is a few hundred core-hours.
+An existing --out is refused unless --overwrite is given. Keying each imported file is
+a distributed sort (a few hundred core-hours for the SNVs), run on highmem workers.
 """
 
 from argparse import ArgumentParser
@@ -78,7 +77,15 @@ def import_cadd(path: str) -> hl.Table:
 
 def main(snvs: str, indels: str, intervals_bed: str, out: str, overwrite: bool):
     refuse_existing(out, overwrite)
-    init_batch(driver_cores=2, driver_memory='highmem')
+    # key_by on an imported table is a distributed sort on Query-on-Batch. Its final
+    # local-sort step holds a whole partition in memory; on the default 1-core 3.75 GB
+    # worker the JVM died without an error (batch 1138455). 4 highmem cores is 26 GB.
+    init_batch(
+        driver_cores=2,
+        driver_memory='highmem',
+        worker_cores=4,
+        worker_memory='highmem',
+    )
     intervals = read_intervals(intervals_bed)
 
     # Imported one file at a time so each key_by sees a position-sorted input. One import
@@ -93,7 +100,10 @@ def main(snvs: str, indels: str, intervals_bed: str, out: str, overwrite: bool):
         out,
         overwrite,
         source=dict(
-            version='CADD v1.7 GRCh38', snvs=snvs, indels=indels, intervals=intervals_bed
+            version='CADD v1.7 GRCh38',
+            snvs=snvs,
+            indels=indels,
+            intervals=intervals_bed,
         ),
     )
 
@@ -110,13 +120,17 @@ def cli_main():
         ),
     )
     parser.add_argument('--out', help="default reference_path('CADD_v1.7_ht')")
-    parser.add_argument('--overwrite', action='store_true', help='replace an existing --out')
+    parser.add_argument(
+        '--overwrite', action='store_true', help='replace an existing --out'
+    )
     args = parser.parse_args()
     main(
         args.snvs or reference_path('CADD_v1.7_snvs'),
         args.indels or reference_path('CADD_v1.7_indels'),
         args.intervals_bed
-        or reference_path('hail_intervals_hg38/gnomad_v4_1_variants_balanced_intervals_bed'),
+        or reference_path(
+            'hail_intervals_hg38/gnomad_v4_1_variants_balanced_intervals_bed'
+        ),
         args.out or reference_path('CADD_v1.7_ht'),
         args.overwrite,
     )

@@ -7,8 +7,9 @@ Inputs are the spliceai_resources masked SNV and indel VCFs already in the refer
 bucket. SpliceAI scores a variant once per overlapping gene, one VCF record each, with
 INFO/SpliceAI = ALLELE|SYMBOL|DS_AG|DS_AL|DS_DG|DS_DL|DP_AG|DP_AL|DP_DG|DP_DL. Output is
 one row per (locus, alleles) holding every gene's scores in a dict keyed by gene symbol,
-plus ds_max across genes and score types. Every scored variant is kept. Partitioned on
-the hail_intervals_hg38 variant-balanced intervals.
+plus ds_max across genes and score types. Only chr1-22, X, Y, M are kept: the files carry
+records on 18 alt and random contigs that their headers do not declare, and those are
+dropped at import. Partitioned on the hail_intervals_hg38 variant-balanced intervals.
 
 Paths default to the deployed references config (cpg_utils reference_path), so the
 spliceai_v1-3_ht key must be deployed before the default --out resolves. Runs on Hail
@@ -24,12 +25,10 @@ one at a time there is no shuffle: import, collect records per key, union the tw
 tables, write.
 """
 
-import gzip
 import re
 from argparse import ArgumentParser
 
 import hail as hl
-import hailtop.fs as hfs
 from cpg_utils.config import reference_path
 from cpg_utils.hail_batch import init_batch
 from hail_reference_utils import (
@@ -43,6 +42,14 @@ SCORE_FIELDS = ['ds_ag', 'ds_al', 'ds_dg', 'ds_dl']
 POSITION_FIELDS = ['dp_ag', 'dp_al', 'dp_dg', 'dp_dl']
 # Which variants each masked file may contain, by the name used on the command line.
 VARIANT_KIND = {'snv': hl.is_snp, 'indel': hl.is_indel}
+# import_vcf drops any line this matches: a record whose contig is not chr1-22, X, Y, M,
+# with or without the chr prefix. The remaining records stay in GRCh38 contig order, so
+# the import needs no sort. Header lines are left alone.
+DROP_OTHER_CONTIGS = (
+    '^(?!#|('
+    + '|'.join(re.escape(c) for c in {*CONTIG_RECODING, *CONTIG_RECODING.values()})
+    + r')\t)'
+)
 
 
 def parse_scores(parts: hl.expr.ArrayExpression) -> hl.expr.StructExpression:
@@ -56,36 +63,6 @@ def parse_scores(parts: hl.expr.ArrayExpression) -> hl.expr.StructExpression:
     )
 
 
-def check_contigs(vcf_path: str) -> None:
-    """
-    Refuse a VCF whose header declares any contig outside chr1-22, X, Y, M, with or
-    without the chr prefix.
-
-    Only those contigs are wanted, and the import would otherwise have to skip records on
-    unknown contigs silently (skip_invalid_loci) or fail mid-way through the file. The header
-    is a few KB at the front of the bgzipped file, so this costs nothing.
-
-    Raises:
-        ValueError: naming the unexpected contigs.
-    """
-    declared = []
-    # hfs streams from the bucket, so this reads a few KB and stops at the first record;
-    # a cloudpathlib open would download the whole file first.
-    with hfs.open(vcf_path, 'rb') as raw, gzip.open(raw, 'rt') as vcf:
-        for line in vcf:
-            if not line.startswith('##'):
-                break
-            if line.startswith('##contig=<'):
-                match = re.search(r'[<,]ID=([^,>]+)', line)
-                if not match:
-                    raise ValueError(f'{vcf_path} has a contig header without an ID: {line!r}')
-                declared.append(match.group(1))
-    accepted = set(CONTIG_RECODING) | set(CONTIG_RECODING.values())
-    unexpected = sorted(set(declared) - accepted)
-    if unexpected:
-        raise ValueError(f'{vcf_path} declares contigs outside chr1-22, X, Y, M: {unexpected}')
-
-
 def collect_by_variant(vcf_path: str, kind: str) -> hl.Table:
     """
     One masked SpliceAI VCF as a keyed table with one row per (locus, alleles).
@@ -95,12 +72,12 @@ def collect_by_variant(vcf_path: str, kind: str) -> hl.Table:
         kind: 'snv' or 'indel'; a record of the other kind fails the run, since the
             union of the two tables relies on their keys never colliding.
     """
-    check_contigs(vcf_path)
     ht = hl.import_vcf(
         vcf_path,
         reference_genome='GRCh38',
         contig_recoding=CONTIG_RECODING,
         force_bgz=True,
+        filter=DROP_OTHER_CONTIGS,
     ).rows()
     # The field is Number=., so it arrives as an array: one element per gene in the record
     # (SpliceAI's own files write one record per gene, but nothing here relies on that).
@@ -145,7 +122,14 @@ def collect_by_variant(vcf_path: str, kind: str) -> hl.Table:
 
 def main(snvs: str, indels: str, intervals_bed: str, out: str, overwrite: bool):
     refuse_existing(out, overwrite)
-    init_batch(driver_cores=2, driver_memory='highmem')
+    # Same worker size as cadd_to_hail_table: a sort step holding a whole partition in
+    # memory killed the default 1-core 3.75 GB worker JVM there. 4 highmem cores is 26 GB.
+    init_batch(
+        driver_cores=2,
+        driver_memory='highmem',
+        worker_cores=4,
+        worker_memory='highmem',
+    )
     intervals = read_intervals(intervals_bed)
 
     # Each file is sorted on its own, so imported on its own Hail keeps that order and
@@ -185,13 +169,17 @@ def cli_main():
         ),
     )
     parser.add_argument('--out', help="default reference_path('spliceai_v1-3_ht')")
-    parser.add_argument('--overwrite', action='store_true', help='replace an existing --out')
+    parser.add_argument(
+        '--overwrite', action='store_true', help='replace an existing --out'
+    )
     args = parser.parse_args()
     main(
         args.snvs or reference_path('spliceai_resources/splice_ai_snvs'),
         args.indels or reference_path('spliceai_resources/splice_ai_indels'),
         args.intervals_bed
-        or reference_path('hail_intervals_hg38/gnomad_v4_1_variants_balanced_intervals_bed'),
+        or reference_path(
+            'hail_intervals_hg38/gnomad_v4_1_variants_balanced_intervals_bed'
+        ),
         args.out or reference_path('spliceai_v1-3_ht'),
         args.overwrite,
     )
