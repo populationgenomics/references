@@ -1025,6 +1025,11 @@ SOURCES = [
             sexavg_grch38_source='aau1043_datas3.gz',
             # Eagle-style map for `plink2 --cm-map`, produced by
             # reference_generating_scripts/convert_decode2019_map_to_eagle.py.
+            # plink2 fails ("Chromosome ... is split") if the map lists
+            # chromosomes the dataset lacks: for a --chr or per-chromosome run,
+            # subset it first, e.g. awk 'NR==1 || $1=="1"'. Variants before a
+            # chromosome's first row get extrapolated (possibly negative) cM;
+            # variants after its last row are clamped to the end value.
             sexavg_grch38_eagle='decode2019_sexavg_GRCh38.eagle.txt.gz',
         ),
     ),
