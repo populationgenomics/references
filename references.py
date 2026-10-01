@@ -120,6 +120,10 @@ class Source:
             assert not suffix.startswith(
                 '/'
             ), f'{self.name}: files suffix {suffix!r} must be relative'
+            assert '{' not in suffix.rpartition('/')[0], (
+                f'{self.name}: {suffix!r} has a placeholder outside the file name; '
+                'only the last path component may be a template'
+            )
         if self.src and self.transfer_cmd in SINGLE_OBJECT_CMDS and self.src.endswith('/'):
             assert self.files, (
                 f'{self.name}: {self.src} is a directory but '
@@ -137,21 +141,34 @@ class Source:
         and paid for. Each entry gets a command that fits it: the Source's own for an HTTP
         source, `gcs_rsync` for a directory-like entry (.ht/.mt/.vds), `gcs_cp_single`
         otherwise. A Source without `files` copies `src` whole with its own command.
+
+        A file name with a `{placeholder}` (gatk_sv's `shard-{shard}.tar.gz`) names a
+        family of files the consumer expands with `.format()`, not one object. Its
+        parent folder is rsynced instead, once however many templates share it.
         """
         assert self.src and self.transfer_cmd, f'{self.name} has nothing to transfer'
         dst = os.path.join(references_prefix, self.dst)
         if not self.files:
             return [(self.transfer_cmd, self.src, dst)]
         src = self.src.rstrip('/')
+        paths = dict.fromkeys(self._copy_path(s) for s in self.files.values())
         return [
-            (self._file_cmd(suffix), f'{src}/{suffix}', os.path.join(dst, suffix))
-            for suffix in self.files.values()
+            (self._file_cmd(path), f'{src}/{path}', os.path.join(dst, path))
+            for path in paths
         ]
 
-    def _file_cmd(self, suffix: str) -> SyncCommandProtocol:
+    @staticmethod
+    def _copy_path(suffix: str) -> str:
+        if '{' not in suffix:
+            return suffix
+        folder = suffix.rpartition('/')[0]
+        assert folder, f'{suffix!r}: a template must sit in a folder to copy instead'
+        return folder + '/'
+
+    def _file_cmd(self, path: str) -> SyncCommandProtocol:
         if self.transfer_cmd in SINGLE_OBJECT_CMDS:
             return self.transfer_cmd
-        return gcs_rsync if is_folder(suffix) else gcs_cp_single
+        return gcs_rsync if is_folder(path) else gcs_cp_single
 
 
 # Genome build. Only GRCh38 is currently supported.
@@ -311,6 +328,9 @@ SOURCES = [
             qc_definitions='ref-panel/1KG/v2/single_sample.qc_definitions.tsv',
             contig_ploidy_model_tar='ref-panel/1KG/v2/gcnv/ref_panel_1kg_v2-contig-ploidy-model.tar.gz',
             model_tar_tmpl='ref-panel/1KG/v2/gcnv/model_files/ref_panel_1kg_v2-gcnv-model-shard-{shard}.tar.gz',
+            # tws_SVEvidence no longer exists upstream. Our copy stays in place and is
+            # never re-copied while present; changing this Source's src or dst would
+            # try to and fail.
             ref_panel_PE_file_tmpl='ref-panel/tws_SVEvidence/pe/{sample}.pe.txt.gz',
             ref_panel_SR_file_tmpl='ref-panel/tws_SVEvidence/sr/{sample}.sr.txt.gz',
             ref_panel_SD_file_tmpl='ref-panel/tws_SVEvidence/sd/{sample}.sd.txt.gz',

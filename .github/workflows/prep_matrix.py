@@ -83,7 +83,7 @@ def generate_matrix(references_prefix: str) -> dict:
             ]
             if missing:
                 print(f'{missing} do not exist, will transfer', file=sys.stderr)
-                transfers[source.name] = {'src': source.src, 'dst': dst_path}
+                transfers[source.name] = {'src': source.src, 'dst': dst_path, 'force': False}
                 continue
             elif (
                 source.name not in old_sources_d
@@ -91,7 +91,7 @@ def generate_matrix(references_prefix: str) -> dict:
                 or source.dst != old_sources_d[source.name].dst
             ):
                 print(f'{source.name} has changed, will transfer', file=sys.stderr)
-                transfers[source.name] = {'src': source.src, 'dst': dst_path}
+                transfers[source.name] = {'src': source.src, 'dst': dst_path, 'force': True}
             else:
                 print(
                     f'{source.name} has not changed since previous revision',
@@ -106,6 +106,8 @@ def generate_matrix(references_prefix: str) -> dict:
                 'name': name,
                 'src': data['src'],
                 'dst': data['dst'],
+                # re-copy entries already in the bucket: src or dst changed
+                'force': data['force'],
             }
             for name, data in transfers.items()
         ]

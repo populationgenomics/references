@@ -68,3 +68,7 @@ The transfer commands are actioned in CI using appropriate credentials, and the 
 * `curl_with_user_agent`: `curl` with a browser user agent, for hosts that refuse curl's default
 
 A source with `files` transfers exactly those entries and nothing else under `src`: each is copied on its own to `dst/<suffix>`, and any missing one is enough to schedule the source again. For a `gs://` source a directory-like entry (`.ht`, `.mt`, `.vds`) is rsynced and anything else is copied as a single object, whatever `transfer_cmd` says; for an HTTP source `src` must be the directory URL (ending in `/`) and each entry is curled. Only listed files reach the config, so only listed files are copied and paid for; the rest of an upstream prefix is never pulled. A source without `files` copies `src` whole with its `transfer_cmd`. A single-object `src` ending in `/` without `files` is rejected on import.
+
+A file name holding a `{placeholder}` (such as `gatk_sv`'s `shard-{shard}.tar.gz`) stands for a family of files the consumer expands with `.format()`. Its parent folder is rsynced and checked for instead, once however many templates share it. The placeholder may only appear in the last path component.
+
+A source scheduled because an entry is missing copies only the missing entries, so a listed entry that has since disappeared upstream does not fail the run while our copy exists. A source whose `src` or `dst` changed is copied in full.
