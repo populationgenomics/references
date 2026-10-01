@@ -24,12 +24,6 @@ jobs:
       - name: "Checkout repo"
         uses: actions/checkout@v4
 
-      - name: "Checkout revision before change"
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.before }}
-          path: "before"
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -51,7 +45,6 @@ jobs:
         run: |
           pip install google-cloud-storage
           cp references.py .github/workflows/references.py
-          cp before/references.py .github/workflows/references_before.py;
           result=$(python .github/workflows/prep_matrix.py --references-prefix ${{ env.REFERENCES_PREFIX }})
           echo "matrix=$result" >> $GITHUB_OUTPUT
 
@@ -90,6 +83,7 @@ jobs:
 
       - name: "transfer"
         run: |
+          pip install google-cloud-storage
           cp references.py .github/workflows/references.py
           python .github/workflows/transfer.py \
             --gcp-project ${{env.PROJECT}} \

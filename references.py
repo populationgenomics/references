@@ -89,13 +89,16 @@ def curl_with_user_agent(src: str, dst: str, project: str) -> str:
     return _curl_pipe('-A "Mozilla/5.0" -fL', src, dst, project)
 
 
-# Commands that move one object per call. A Source using one of these with `files`
-# is transferred one file at a time; the recursive commands copy the whole prefix.
+# Commands that move one object per call, as opposed to a whole prefix.
 SINGLE_OBJECT_CMDS = frozenset({curl, curl_with_user_agent, gcs_cp_single})
-# Commands that are a cheap no-op once the destination is complete, so prep_matrix
-# runs them on every push: a copy killed part-way (job limit, cancelled matrix) leaves a
-# prefix that looks present but is not, and only a re-run completes it.
-RSYNC_CMDS = frozenset({gcs_rsync, gcs_rsync_no_billing_project})
+
+
+def is_folder(path: str) -> bool:
+    """
+    Whether a source path is a directory: a Hail table or matrix table, a trailing
+    slash, or a last component with no extension (dragen_reference, phenix, ...).
+    """
+    return path.endswith(('.ht', '.mt', '.vds', '/')) or '.' not in path.rsplit('/', 1)[-1]
 
 
 @dataclasses.dataclass
@@ -117,37 +120,55 @@ class Source:
             assert not suffix.startswith(
                 '/'
             ), f'{self.name}: files suffix {suffix!r} must be relative'
+            assert '{' not in suffix.rpartition('/')[0], (
+                f'{self.name}: {suffix!r} has a placeholder outside the file name; '
+                'only the last path component may be a template'
+            )
         if self.src and self.transfer_cmd in SINGLE_OBJECT_CMDS and self.src.endswith('/'):
             assert self.files, (
                 f'{self.name}: {self.src} is a directory but '
                 f'{self.transfer_cmd.__name__} copies one object; list its files'
             )
 
-    def transfers(self, references_prefix: str) -> list[tuple[str, str]]:
+    def transfers(
+        self, references_prefix: str
+    ) -> list[tuple[SyncCommandProtocol, str, str]]:
         """
-        (src, dst) pairs for transfer_cmd: one per file when a single-object command
-        has `files`, otherwise one for the whole source.
+        (command, src, dst) triples to run for this Source.
+
+        A Source with `files` copies exactly those entries and nothing else under `src`:
+        only listed files reach the config, so only listed files are copied, checked for
+        and paid for. Each entry gets a command that fits it: the Source's own for an HTTP
+        source, `gcs_rsync` for a directory-like entry (.ht/.mt/.vds), `gcs_cp_single`
+        otherwise. A Source without `files` copies `src` whole with its own command.
+
+        A file name with a `{placeholder}` (gatk_sv's `shard-{shard}.tar.gz`) names a
+        family of files the consumer expands with `.format()`, not one object. Its
+        parent folder is rsynced instead, once however many templates share it.
         """
         assert self.src and self.transfer_cmd, f'{self.name} has nothing to transfer'
         dst = os.path.join(references_prefix, self.dst)
-        if self.files and self.transfer_cmd in SINGLE_OBJECT_CMDS:
-            src = self.src.rstrip('/')
-            return [
-                (f'{src}/{suffix}', os.path.join(dst, suffix))
-                for suffix in self.files.values()
-            ]
-        return [(self.src, dst)]
+        if not self.files:
+            return [(self.transfer_cmd, self.src, dst)]
+        src = self.src.rstrip('/')
+        paths = dict.fromkeys(self._copy_path(s) for s in self.files.values())
+        return [
+            (self._file_cmd(path), f'{src}/{path}', os.path.join(dst, path))
+            for path in paths
+        ]
 
-    def is_folder(self) -> bool:
-        """simple folder check using known extensions"""
-        if self.files:
-            return True
+    @staticmethod
+    def _copy_path(suffix: str) -> str:
+        if '{' not in suffix:
+            return suffix
+        folder = suffix.rpartition('/')[0]
+        assert folder, f'{suffix!r}: a template must sit in a folder to copy instead'
+        return folder + '/'
 
-        return (
-            self.dst.endswith('.ht')
-            or self.dst.endswith('.mt')
-            or self.dst.endswith('.vds')
-        )
+    def _file_cmd(self, path: str) -> SyncCommandProtocol:
+        if self.transfer_cmd in SINGLE_OBJECT_CMDS:
+            return self.transfer_cmd
+        return gcs_rsync if is_folder(path) else gcs_cp_single
 
 
 # Genome build. Only GRCh38 is currently supported.
@@ -186,7 +207,7 @@ SOURCES = [
         # Liftover chain file to translate from GRCh38 to GRCh37 coordinates
         src='gs://hail-common/references/grch38_to_grch37.over.chain.gz',
         dst='liftover/grch38_to_grch37.over.chain.gz',
-        transfer_cmd=gcs_rsync,
+        transfer_cmd=gcs_cp_single,
     ),
     Source(
         'liftover_37_to_38',
@@ -307,6 +328,9 @@ SOURCES = [
             qc_definitions='ref-panel/1KG/v2/single_sample.qc_definitions.tsv',
             contig_ploidy_model_tar='ref-panel/1KG/v2/gcnv/ref_panel_1kg_v2-contig-ploidy-model.tar.gz',
             model_tar_tmpl='ref-panel/1KG/v2/gcnv/model_files/ref_panel_1kg_v2-gcnv-model-shard-{shard}.tar.gz',
+            # tws_SVEvidence no longer exists upstream. Our copy stays in place and is
+            # never re-copied while present; changing this Source's src or dst would
+            # try to and fail.
             ref_panel_PE_file_tmpl='ref-panel/tws_SVEvidence/pe/{sample}.pe.txt.gz',
             ref_panel_SR_file_tmpl='ref-panel/tws_SVEvidence/sr/{sample}.sr.txt.gz',
             ref_panel_SD_file_tmpl='ref-panel/tws_SVEvidence/sd/{sample}.sd.txt.gz',

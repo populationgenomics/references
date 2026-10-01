@@ -6,6 +6,7 @@ import argparse
 import subprocess
 import sys
 
+from prep_matrix import gcs_file_exists
 from references import SOURCES
 
 
@@ -39,7 +40,11 @@ def parser(args: list[str]) -> argparse.Namespace:
 
 
 def main(name: str, references_prefix: str, gcp_project: str) -> None:
-    """Main function for the script
+    """Copy the entries of one source that are missing from the bucket.
+
+    Entries already present are left alone, so a listed entry that has since
+    vanished upstream is harmless while our copy exists, and reference data is
+    never overwritten in place.
 
     Args:
         name (str): Name of the reference source to transfer
@@ -48,8 +53,11 @@ def main(name: str, references_prefix: str, gcp_project: str) -> None:
     """
     source = {s.name: s for s in SOURCES}[name]
     if source.transfer_cmd and source.src:
-        for src, dst in source.transfers(references_prefix):
-            cmd = source.transfer_cmd(src=src, dst=dst, project=gcp_project)
+        for transfer_cmd, src, dst in source.transfers(references_prefix):
+            if gcs_file_exists(dst):
+                print(f'{dst} exists, skipping')
+                continue
+            cmd = transfer_cmd(src=src, dst=dst, project=gcp_project)
             print(cmd)
             # bash for `set -o pipefail` in the curl commands; check so a failed copy
             # fails the job instead of deploying a config that points at it.
