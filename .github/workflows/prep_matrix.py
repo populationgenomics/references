@@ -8,13 +8,7 @@ from os.path import join
 
 from google.cloud import storage
 
-from references import SOURCES as NEW_SOURCES
-
-try:
-    # copied into place by the github action
-    from references_before import SOURCES as OLD_SOURCES
-except ImportError:
-    OLD_SOURCES = []
+from references import SOURCES
 
 GCS_CLIENT: storage.Client = storage.Client()
 
@@ -70,11 +64,11 @@ def generate_matrix(references_prefix: str) -> dict:
     Returns:
         dict: {"include": [<list of transfers>]}
     """
+    # A source is scheduled only for entries missing from the bucket; transfer.py
+    # copies just those. Reference data is never overwritten in place: a different
+    # upstream belongs under a new dst, the same way vep/105, 110 and 115 sit side by side.
     transfers = {}
-    for source in NEW_SOURCES:
-        old_sources_d = {s.name: s for s in OLD_SOURCES}
-        dst_path = join(references_prefix, source.dst)
-
+    for source in SOURCES:
         if source.src and source.transfer_cmd:
             missing = [
                 dst
@@ -83,20 +77,12 @@ def generate_matrix(references_prefix: str) -> dict:
             ]
             if missing:
                 print(f'{missing} do not exist, will transfer', file=sys.stderr)
-                transfers[source.name] = {'src': source.src, 'dst': dst_path, 'force': False}
-                continue
-            elif (
-                source.name not in old_sources_d
-                or source.src != old_sources_d[source.name].src
-                or source.dst != old_sources_d[source.name].dst
-            ):
-                print(f'{source.name} has changed, will transfer', file=sys.stderr)
-                transfers[source.name] = {'src': source.src, 'dst': dst_path, 'force': True}
+                transfers[source.name] = {
+                    'src': source.src,
+                    'dst': join(references_prefix, source.dst),
+                }
             else:
-                print(
-                    f'{source.name} has not changed since previous revision',
-                    file=sys.stderr,
-                )
+                print(f'{source.name} is complete', file=sys.stderr)
 
     if not transfers:
         return {}
@@ -106,8 +92,6 @@ def generate_matrix(references_prefix: str) -> dict:
                 'name': name,
                 'src': data['src'],
                 'dst': data['dst'],
-                # re-copy entries already in the bucket: src or dst changed
-                'force': data['force'],
             }
             for name, data in transfers.items()
         ]

@@ -71,4 +71,4 @@ A source with `files` transfers exactly those entries and nothing else under `sr
 
 A file name holding a `{placeholder}` (such as `gatk_sv`'s `shard-{shard}.tar.gz`) stands for a family of files the consumer expands with `.format()`. Its parent folder is rsynced and checked for instead, once however many templates share it. The placeholder may only appear in the last path component.
 
-A source scheduled because an entry is missing copies only the missing entries, so a listed entry that has since disappeared upstream does not fail the run while our copy exists. A source whose `src` or `dst` changed is copied in full.
+A source is scheduled only when an entry is missing from the bucket, and only the missing entries are copied. Reference data is never overwritten in place: a listed entry that has since disappeared upstream does not fail the run while our copy exists, and a source that should point at different data gets a new `dst` (as `vep/105`, `vep/110` and `vep/115` do) rather than a changed `src` over the old one.
