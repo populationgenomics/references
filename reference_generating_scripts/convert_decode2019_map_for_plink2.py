@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """
-Convert the deCODE 2019 sex-averaged GRCh38 genetic map to an Eagle-style map.
+Convert the deCODE 2019 sex-averaged GRCh38 genetic map to the two layouts that
+`plink2 --cm-map` reads.
 
-Provenance for decode2019_sexavg_GRCh38.eagle.txt.gz, staged under
+Provenance for decode2019_sexavg_GRCh38.eagle.txt.gz and
+decode2019_sexavg_GRCh38_chr{1..22,X}.txt.gz, staged under
 gs://cpg-common-*/references/genetic_maps/decode2019/ via the
 `genetic_maps_decode2019` Source in references.py.
 
@@ -17,40 +19,53 @@ coordinates, as intervals:
 where cM is the genetic position at End. chrX carries the maternal rate (its
 total is ~176 cM, the female X map length), which is the right scale for X IBD.
 
-Output: one gzipped whitespace-separated file in the Eagle map layout that
-`plink2 --cm-map` accepts in place of per-chromosome SHAPEIT maps:
-    chr position COMBINED_rate(cM/Mb) Genetic_Map(cM)
-with one row per interval start, carrying the published cM at the previous
+Output: the same rows in two gzipped, whitespace-separated layouts. Each has
+one row per interval start, carrying the published cM at the previous
 interval's end (back-calculated from rate for a chromosome's first interval),
-plus a closing row at the last interval end. Chromosome codes drop the 'chr'
-prefix; plink2 matches them to 'chr'-prefixed datasets. Rows are in natural
-chromosome order (1..22, X), since plink2 rejects a map whose chromosomes are
-out of order ("Chromosome ... is split").
+plus a closing row at the last interval end.
+  - decode2019_sexavg_GRCh38.eagle.txt.gz: one genome-wide file with a leading
+    chromosome column (plink2's "Eagle-style" map):
+        chr position COMBINED_rate(cM/Mb) Genetic_Map(cM)
+    Chromosome codes drop the 'chr' prefix; plink2 matches them to
+    'chr'-prefixed datasets. Rows are in natural chromosome order (1..22, X),
+    since plink2 rejects a map whose chromosomes are out of order.
+  - decode2019_sexavg_GRCh38_chr{1..22,X}.txt.gz: one file per chromosome, with
+    no chromosome column (the 3-column layout plink2 calls "SHAPEIT-format",
+    from the SHAPEIT2/IMPUTE2 maps; SHAPEIT4/5 read a different layout):
+        pposition rrate gposition
 
 Using the map with plink2 --cm-map:
-  - plink2 also reports "Chromosome ... is split" when the map lists chromosomes
-    the dataset lacks, so a run restricted to some chromosomes (--chr, or one
-    chromosome per job) must subset the map to those first, e.g.
-    awk 'NR==1 || $1=="1"'.
+  - Whole-genome dataset: either layout; they give identical positions.
+  - Dataset restricted to some chromosomes (--chr, or one chromosome per job):
+    use the per-chromosome files through plink2's '@' pattern,
+    --cm-map <dir>/decode2019_sexavg_GRCh38_chr@.txt.gz. plink2 only opens the
+    files for chromosomes present. The genome-wide file fails there with
+    "Chromosome ... is split", because it lists chromosomes the dataset lacks.
   - Variants before a chromosome's first map row get an extrapolated cM, which
     can be slightly negative; variants after its last row are clamped to the
     end value.
+
+Gzip headers carry no timestamp, so re-running on the same input reproduces the
+staged files byte for byte.
 
 Fails on a missing header, a malformed row, an empty or inverted interval,
 non-contiguous intervals, a decreasing genetic position, or a rate-derived
 interval start that disagrees with the previous interval's published cM.
 
 Usage:
-    python convert_decode2019_map_to_eagle.py aau1043_datas3 \
-        decode2019_sexavg_GRCh38.eagle.txt.gz
+    python convert_decode2019_map_for_plink2.py aau1043_datas3.gz <output dir>
 """
 
 import argparse
 import gzip
+import io
 import itertools
+import os
 
 CHROM_ORDER = [str(i) for i in range(1, 23)] + ['X']
-HEADER = 'chr position COMBINED_rate(cM/Mb) Genetic_Map(cM)\n'
+OUTPUT_PREFIX = 'decode2019_sexavg_GRCh38'
+EAGLE_HEADER = 'chr position COMBINED_rate(cM/Mb) Genetic_Map(cM)\n'
+PER_CHROM_HEADER = 'pposition rrate gposition\n'
 # Allowed float error between a rate-derived interval start and the previous
 # interval's published end cM (the published file agrees to within ~3e-14).
 CM_TOLERANCE = 1e-6
@@ -149,19 +164,47 @@ def to_eagle_rows(
     return rows
 
 
+def write_gzip_text(path: str, lines: list[str]) -> None:
+    """
+    Write text lines to a gzip file with no timestamp or name in its header.
+
+    Args:
+        path: Output path.
+        lines: Lines to write, each ending in a newline.
+    """
+    with (
+        open(path, 'wb') as raw,
+        gzip.GzipFile(filename='', mode='wb', fileobj=raw, mtime=0) as gz,
+        io.TextIOWrapper(gz, encoding='utf-8', newline='\n') as out,
+    ):
+        out.writelines(lines)
+
+
 def main() -> None:
-    """Parse arguments, convert the map, and write the gzipped Eagle-style file."""
+    """Parse arguments, convert the map, and write both gzipped layouts."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[1])
     parser.add_argument('input', help='aau1043_datas3 from the paper (plain or .gz)')
-    parser.add_argument('output', help='Output path, ending .txt.gz')
+    parser.add_argument('output_dir', help='Existing directory to write the maps to')
     args = parser.parse_args()
 
     rows = to_eagle_rows(read_intervals(args.input))
-    with gzip.open(args.output, 'wt') as out:
-        out.write(HEADER)
-        for chrom, pos, rate, cm in rows:
-            out.write(f'{chrom} {pos} {rate:.10g} {cm:.10g}\n')
-    print(f'Wrote {len(rows)} rows for {len(CHROM_ORDER)} chromosomes to {args.output}')
+
+    eagle_path = os.path.join(args.output_dir, f'{OUTPUT_PREFIX}.eagle.txt.gz')
+    write_gzip_text(
+        eagle_path,
+        [EAGLE_HEADER]
+        + [f'{chrom} {pos} {rate:.10g} {cm:.10g}\n' for chrom, pos, rate, cm in rows],
+    )
+    print(f'Wrote {len(rows)} rows for {len(CHROM_ORDER)} chromosomes to {eagle_path}')
+
+    for chrom, chrom_rows in itertools.groupby(rows, key=lambda row: row[0]):
+        chrom_path = os.path.join(args.output_dir, f'{OUTPUT_PREFIX}_chr{chrom}.txt.gz')
+        write_gzip_text(
+            chrom_path,
+            [PER_CHROM_HEADER]
+            + [f'{pos} {rate:.10g} {cm:.10g}\n' for _, pos, rate, cm in chrom_rows],
+        )
+    print(f'Wrote {len(CHROM_ORDER)} per-chromosome maps to {args.output_dir}')
 
 
 if __name__ == '__main__':

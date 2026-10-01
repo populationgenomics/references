@@ -1020,17 +1020,26 @@ SOURCES = [
         src='gs://cpg-common-test/references/genetic_maps/decode2019',
         dst='genetic_maps/decode2019',
         transfer_cmd=gcs_rsync,
-        files=dict(
+        # Maps for `plink2 --cm-map`, produced by
+        # reference_generating_scripts/convert_decode2019_map_for_plink2.py.
+        # Whole-genome dataset: use sexavg_grch38_eagle. Dataset restricted to some
+        # chromosomes (--chr, or one per job): use the per-chromosome files via
+        # plink2's '@' pattern, <dir>/decode2019_sexavg_GRCh38_chr@.txt.gz; the
+        # genome-wide file fails there ("Chromosome ... is split") because it
+        # lists chromosomes the dataset lacks. Variants before a chromosome's
+        # first row get extrapolated (possibly negative) cM; variants after its
+        # last row are clamped to the end value.
+        files={
             # Data S3 as published, kept for provenance.
-            sexavg_grch38_source='aau1043_datas3.gz',
-            # Eagle-style map for `plink2 --cm-map`, produced by
-            # reference_generating_scripts/convert_decode2019_map_to_eagle.py.
-            # plink2 fails ("Chromosome ... is split") if the map lists
-            # chromosomes the dataset lacks: for a --chr or per-chromosome run,
-            # subset it first, e.g. awk 'NR==1 || $1=="1"'. Variants before a
-            # chromosome's first row get extrapolated (possibly negative) cM;
-            # variants after its last row are clamped to the end value.
-            sexavg_grch38_eagle='decode2019_sexavg_GRCh38.eagle.txt.gz',
-        ),
+            'sexavg_grch38_source': 'aau1043_datas3.gz',
+            # One genome-wide file with a chromosome column (Eagle-style).
+            'sexavg_grch38_eagle': 'decode2019_sexavg_GRCh38.eagle.txt.gz',
+            # One file per chromosome, 3 columns (plink2's "SHAPEIT-format").
+            **{
+                f'sexavg_grch38_{contig}': f'decode2019_sexavg_GRCh38_{contig}.txt.gz'
+                for contig in CANONICAL_CHROMOSOMES
+                if contig != 'chrY'
+            },
+        },
     ),
 ]
