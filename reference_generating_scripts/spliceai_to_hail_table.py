@@ -110,12 +110,14 @@ def collect_by_variant(vcf_path: str, kind: str) -> hl.Table:
     )
     # Consecutive records share a key, so this groups without a shuffle.
     ht = ht.collect_by_key()
-    # Illumina's precomputed files repeat some (variant, gene) records with slightly
-    # different scores and positions: 2 to 7 copies each over chr2:1222604-1223330 in
-    # SNTG2, the only such window found (the SpliceAI annotation lists SNTG2 once, so it
-    # looks like a chunk-boundary artefact of the precompute). hl.dict alone would keep
-    # an arbitrary copy; keep the copy with the highest score instead, so the positions
-    # stored alongside the scores are the ones SpliceAI reported with them.
+    # Illumina's precomputed files repeat some (variant, gene) records with different
+    # scores and positions. A whole-genome scan of both files found 21 genes, 2 to 7
+    # copies per record, all in segmental duplications or multi-isoform regions (NBPF10,
+    # NBPF12, NBPF20, FCGBP, CEACAM3, PNMA6A, NEU4, SNTG2, CRLF2 in the PAR, ...), and
+    # copies can disagree outright (FCGBP DS_AL 0 vs 1), so they look like separate
+    # transcript models filed under one symbol. hl.dict alone would keep an arbitrary
+    # copy; keep the copy with the highest score instead, so the positions stored
+    # alongside the scores are the ones SpliceAI reported with them.
     ht = ht.select(
         by_gene=ht.values.group_by(lambda v: v.gene.symbol).map_values(
             lambda copies: copies[hl.argmax(copies.map(max_score))].gene.scores
