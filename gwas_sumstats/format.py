@@ -8,6 +8,11 @@ NCBI36 positions to GRCh38, check both alleles against the GRCh38 reference, sor
 write a bgzipped TSV with a tabix index. Nothing is filtered on frequency or P value;
 rows are dropped only when they cannot be placed on GRCh38 (reasons are counted).
 
+The largest sources hold ~200 million rows, more than a job's memory. So a file is
+first split, streaming, into one file per chromosome on disk, and formatted one
+chromosome at a time: peak memory follows the largest chromosome (~7 GB for 17
+million rows), not the file.
+
 Output columns, in order (missing values are NA):
 
     chromosome  base_pair_location  effect_allele  other_allele  beta
@@ -46,7 +51,14 @@ Once every job has finished, the manifest:
         --description "Biomarker GWAS summary statistics manifest" \
         python3 gwas_sumstats/format.py --manifest
 
-Locally (needs polars, pysam, pyliftover, numpy):
+Before either, check that every source's columns resolve, from the first 200 kB of
+each file at its source URL (no download, no cloud); writes columns_used.tsv, the
+mapping per file, and exits non-zero if any file fails:
+
+    python3 gwas_sumstats/format.py --check-columns
+
+Locally (needs polars, pysam, pyliftover, numpy; where to get the fasta and chain
+files: README.md, Running locally):
 
     python3 gwas_sumstats/format.py --local --originals ./original --out ./v1 \
         --stats ./stats --web ./web --fasta GRCh38.fa \
@@ -59,22 +71,34 @@ import argparse
 import csv
 import gzip
 import html
+import itertools
 import json
 import re
 import shlex
 import shutil
 import tempfile
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from download import FILES_CSV, original_name, read_files_csv
+from download import FILES_CSV, fetch_head, original_name, read_files_csv
 
 DEFAULT_ORIGINALS = 'gs://cpg-common-main-tmp/gwas_sumstats/original'
 DEFAULT_STATS = 'gs://cpg-common-main/references/gwas_sumstats/v1/stats'
 DEFAULT_OUT = 'gs://cpg-common-main/references/gwas_sumstats/v1'
 DEFAULT_WEB = 'gs://cpg-common-main-web/gwas_sumstats'
+COLUMNS_USED_TSV = Path(__file__).with_name('columns_used.tsv')
+# The same pins appear in README.md (Running locally, Tests) and the test_format.py
+# docstring; test_pins_match_everywhere fails if they drift apart.
 PIP_PACKAGES = 'polars==1.34.0 pysam==0.23.3 pyliftover==0.4.1 numpy'
 
+FLOAT_COLUMNS = [
+    'beta',
+    'standard_error',
+    'effect_allele_frequency',
+    'neg_log_10_p_value',
+    'z',
+]
 OUTPUT_COLUMNS = [
     'chromosome',
     'base_pair_location',
@@ -95,13 +119,15 @@ OUTPUT_COLUMNS = [
 ALIASES = {
     'chromosome': ['chromosome', 'chr', 'chrom', '#chrom', 'chr_num'],
     'base_pair_location': ['base_pair_location', 'pos', 'position', 'bp', 'pos_b37'],
-    # allele1/a1 = effect allele follows METAL and GCTA. SAIGE and REGENIE use
-    # Allele2 as the effect allele: give those files a `columns` override.
-    'effect_allele': ['effect_allele', 'allele1', 'a1', 'ea', 'tested_allele'],
-    'other_allele': ['other_allele', 'allele2', 'a2', 'nea', 'non_effect_allele'],
+    # Only the unambiguous GWAS-SSF names. Allele1/A1/ALT mean the effect allele
+    # in some tools and the other allele in others (METAL: Allele1 is the effect
+    # allele; SAIGE: Allele2 is), so a file using them needs a `columns` override
+    # saying which is which, and its frequency column with it.
+    'effect_allele': ['effect_allele'],
+    'other_allele': ['other_allele'],
     'beta': ['beta', 'effect', 'b'],
     'standard_error': ['standard_error', 'se', 'stderr', 'sebeta'],
-    'effect_allele_frequency': ['effect_allele_frequency', 'eaf', 'freq1', 'af1'],
+    'effect_allele_frequency': ['effect_allele_frequency', 'eaf'],
     'p_value': ['p_value', 'p', 'pvalue', 'p-value', 'pval', 'p.value'],
     'neg_log_10_p_value': ['neg_log_10_p_value', 'mlog10p', 'log10p'],
     'odds_ratio': ['odds_ratio', 'or'],
@@ -112,8 +138,11 @@ ALIASES = {
 }
 RSID_CANDIDATES = ['rsid', 'rs_id', 'rs_number', 'variant_id', 'snp', 'markername']
 MARKER_CANDIDATES = ['markername', 'variant_id', 'variant', 'snp', 'id']
-MARKER_PATTERN = r'^(?:chr)?([0-9XYMT]+)[:_](\d+)'
-NULL_TOKENS = ['', 'NA', '#NA', '.', 'NAN', 'NULL', 'INF', '-INF', 'NONE']
+# (?i) in the pattern itself: looks_like (re) and the polars extract must agree.
+MARKER_PATTERN = r'(?i)^(?:chr)?([0-9XYMT]+)[:_](\d+)'
+# Infinities are not here: number() turns every non-finite value into NA, and a
+# +inf -log10 P is counted as an underflowed P.
+NULL_TOKENS = ['', 'NA', '#NA', '.', 'NAN', 'NULL', 'NONE']
 
 # GWAS-SSF chromosome codes, and the contig names each needs in the chain file
 # (UCSC hg19ToHg38) and in a GRCh38 fasta named either way (Ensembl '1', UCSC 'chr1').
@@ -135,6 +164,12 @@ UCSC_CONTIGS = {i: f'chr{i}' for i in range(1, 23)} | {
     25: 'chrM',
 }
 Z_95 = 1.959963984540054
+# A P value is kept only as plain numeric text in (0, 1]. A P of exactly 0 is an
+# underflow (the strongest hits, e.g. APOE in Timsina 2026): NA, counted as
+# p_value_zero, beta and SE kept. Anything else ('<1e-300', '-0.01', '1.5') becomes
+# NA as p_value_unparseable; more than MAX_UNPARSEABLE_P of those fails the file.
+P_TEXT_PATTERN = r'^(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$'
+MAX_UNPARSEABLE_P = 0.01
 MAX_PALINDROMIC_MISMATCH = 0.10
 MIN_PALINDROMIC_FOR_CHECK = 100
 
@@ -160,54 +195,95 @@ def as_path(path: str):
     return Path(path)
 
 
+def is_compressed(path: Path) -> bool:
+    """True for gzip or bgzip."""
+    with path.open('rb') as handle:
+        return handle.read(2) == b'\x1f\x8b'
+
+
 def open_text(path: Path):
     """Open a text file that may or may not be gzip/bgzip compressed."""
-    with path.open('rb') as handle:
-        compressed = handle.read(2) == b'\x1f\x8b'
-    if compressed:
+    if is_compressed(path):
         return gzip.open(path, 'rt', newline='')
     return path.open(newline='')
 
 
-def read_table(path: Path, workdir: Path):
+def detect_separator(path: Path) -> str | None:
+    """
+    '\t' or ',' from the header; ' ' if every sampled line splits on single spaces
+    into as many fields as the header (an empty field, e.g. a missing rsID, is then
+    two spaces and must not shift the row); None for space-padded columns, which
+    are split on runs of whitespace.
+    """
+    with open_text(path) as handle:
+        lines = (line.rstrip('\r\n') for line in handle if not line.startswith('##'))
+        sample = list(itertools.islice(lines, 1001))
+    header = sample[0]
+    if '\t' in header:
+        return '\t'
+    if ',' in header:
+        return ','
+    names = header.split(' ')
+    if '' not in names and all(len(line.split(' ')) == len(names) for line in sample):
+        return ' '
+    return None
+
+
+def read_table(
+    path: Path,
+    workdir: Path,
+    columns: list[str] | None = None,
+    n_rows: int | None = None,
+):
     """
     Read a summary statistics file with every column as text.
 
-    Tab- and comma-separated files are read directly; whitespace-separated ones
-    (runs of spaces) are first rewritten as tab-separated. Lines starting with '##'
-    are skipped.
+    polars would decompress a gzip input wholly in memory, so a compressed input is
+    first streamed, decompressed, to `workdir`. Whitespace-separated files (runs of
+    spaces) are rewritten as tab-separated on the way. Lines starting with '##' are
+    skipped. format_one reads a 10,000-row sample through this, then the
+    per-chromosome files from split_by_chromosome with only the columns it uses.
 
     Args:
         path: the original file
-        workdir: scratch folder for the rewritten copy
+        workdir: scratch folder for the decompressed / rewritten copy
+        columns: source columns to read; all if None
+        n_rows: read only the first n_rows data rows (for a sample)
     """
     import polars as pl
 
-    with open_text(path) as handle:
-        header = next(line for line in handle if not line.startswith('##'))
-    if '\t' in header:
-        separator = '\t'
-    elif ',' in header:
-        separator = ','
-    else:
-        rewritten = workdir / 'tab_separated.tsv'
-        with open_text(path) as source, rewritten.open('w') as out:
-            for line in source:
-                if not line.startswith('##'):
-                    out.write('\t'.join(line.split()) + '\n')
-        path, separator = rewritten, '\t'
+    separator = detect_separator(path)
+    if separator is None or is_compressed(path):
+        plain = workdir / ('sample.tsv' if n_rows else 'plain.tsv')
+        with open_text(path) as source, plain.open('w') as out:
+            lines = (line for line in source if not line.startswith('##'))
+            for count, line in enumerate(lines):
+                if n_rows is not None and count > n_rows:
+                    break
+                out.write(line if separator else '\t'.join(line.split()) + '\n')
+        path, separator = plain, separator or '\t'
     return pl.read_csv(
         path,
         separator=separator,
         infer_schema=False,
         quote_char=None,
         comment_prefix='##',
+        columns=columns,
+        n_rows=n_rows,
     )
 
 
-def looks_like(values, pattern: str) -> bool:
-    """True if most non-null values in a sample match the pattern."""
-    sample = [v for v in values[:1000] if v]
+def looks_like(column, pattern: str) -> bool:
+    """
+    True if most of the first 1000 non-missing values match the pattern. Missing
+    values (null, '', NULL_TOKENS) are skipped first, so a column whose early rows
+    are empty is still judged on the values it has.
+    """
+    present = column.drop_nulls()
+    present = present.filter(
+        ~present.str.strip_chars().str.to_uppercase().is_in(NULL_TOKENS)
+    )
+    sample = present.head(1000).to_list()
     hits = sum(bool(re.match(pattern, v, re.IGNORECASE)) for v in sample)
     return bool(sample) and hits / len(sample) > 0.9
 
@@ -243,17 +319,18 @@ def resolve_columns(df, override: str) -> dict[str, str]:
         if name is not None:
             found[field] = name
     for name in (by_lower[c] for c in RSID_CANDIDATES if c in by_lower):
-        if looks_like(df[name].to_list(), r'^rs\d+'):
+        if looks_like(df[name], r'^rs\d+'):
             found['rsid'] = name
             break
     if 'chromosome' not in found or 'base_pair_location' not in found:
         for name in (by_lower[c] for c in MARKER_CANDIDATES if c in by_lower):
-            if looks_like(df[name].to_list(), MARKER_PATTERN):
+            if looks_like(df[name], MARKER_PATTERN):
                 found['marker'] = name
                 break
     for item in filter(None, override.split(';')):
         field, name = item.split('=', 1)
-        assert name in df.columns, f'override {item}: no column {name}'
+        if name not in df.columns:
+            raise ValueError(f'override {item}: no column {name}')
         found[field] = name
     return found
 
@@ -279,20 +356,25 @@ def standardise(df, columns: dict[str, str], n_study: int, counts: dict):
         )
 
     def number(field):
-        return text(field).cast(pl.Float64, strict=False)
+        # Non-finite values (inf, Infinity, 1e999) become NA like any unparseable one.
+        value = text(field).cast(pl.Float64, strict=False)
+        return pl.when(value.is_finite()).then(value).otherwise(None)
 
     def has(field):
         return field in columns
 
-    assert has('effect_allele') and has('other_allele'), f'no alleles: {columns}'
-    assert has('p_value') or has('neg_log_10_p_value'), f'no P value: {columns}'
+    if not (has('effect_allele') and has('other_allele')):
+        raise ValueError(f'no alleles: {columns}')
+    if not (has('p_value') or has('neg_log_10_p_value')):
+        raise ValueError(f'no P value: {columns}')
     notes = {}
     out = {}
 
     if has('chromosome') and has('base_pair_location'):
         chromosome, position = text('chromosome'), number('base_pair_location')
     else:
-        assert has('marker'), f'no chromosome/position or chr:pos column: {columns}'
+        if not has('marker'):
+            raise ValueError(f'no chromosome/position or chr:pos column: {columns}')
         marker = text('marker')
         chromosome = marker.str.extract(MARKER_PATTERN, 1)
         position = marker.str.extract(MARKER_PATTERN, 2).cast(pl.Float64)
@@ -324,9 +406,12 @@ def standardise(df, columns: dict[str, str], n_study: int, counts: dict):
     if has('standard_error'):
         out['standard_error'] = number('standard_error')
     elif has('odds_ratio') and has('ci_lower') and has('ci_upper'):
+        lower, upper = number('ci_lower'), number('ci_upper')
         out['standard_error'] = (
-            number('ci_upper').log() - number('ci_lower').log()
-        ) / (2 * Z_95)
+            pl.when((lower > 0) & (upper > lower))
+            .then((upper.log() - lower.log()) / (2 * Z_95))
+            .otherwise(None)
+        )
         notes['effect_source'] += ', SE from 95% CI'
     else:
         out['standard_error'] = pl.lit(None, pl.Float64)
@@ -344,14 +429,37 @@ def standardise(df, columns: dict[str, str], n_study: int, counts: dict):
         p_text = text('p_value').str.replace(r'^\.', '0.')
         mantissa = p_text.str.extract(r'^([0-9.]+)', 1).cast(pl.Float64, strict=False)
         exponent = p_text.str.extract(r'[eE]([-+]?\d+)$', 1).cast(pl.Int64).fill_null(0)
-        out['p_value'] = p_text
+        minus_log = -mantissa.log10() - exponent
+        numeric = p_text.str.contains(P_TEXT_PATTERN).fill_null(False)
+        zero = numeric & (mantissa == 0).fill_null(False)
+        valid = (numeric & (mantissa > 0) & (minus_log > -1e-6)).fill_null(False)
+        out['p_value'] = pl.when(valid).then(p_text).otherwise(None)
         out['neg_log_10_p_value'] = (
-            pl.when(mantissa > 0)
-            .then(-mantissa.log10() - exponent)
-            .otherwise(None)
-            .round(6)
+            pl.when(valid).then(minus_log).otherwise(None).round(6)
         )
+        checked = df.select(p=p_text, ok=valid, zero=zero)
+        counts['p_value_zero'] = int(checked['zero'].sum())
+        unparseable = checked.filter(
+            pl.col('p').is_not_null() & ~pl.col('ok') & ~pl.col('zero')
+        )['p']
+        counts['p_value_unparseable'] = unparseable.len()
+        notes['p_value_unparseable_examples'] = unparseable.unique().head(5).to_list()
     else:
+        raw_text = text('neg_log_10_p_value')
+        checked = df.select(t=raw_text, v=raw_text.cast(pl.Float64, strict=False))
+        lowest = checked['v'].min()
+        if lowest is not None and lowest < 0:
+            raise ValueError(
+                f'{columns["neg_log_10_p_value"]} has negative values: is it '
+                'log10(P) rather than -log10(P)?'
+            )
+        # +inf is an underflowed P, like P = 0 in a P value column.
+        counts['p_value_zero'] = checked.filter(pl.col('v').is_infinite()).height
+        unparseable = checked.filter(pl.col('t').is_not_null() & pl.col('v').is_null())
+        counts['p_value_unparseable'] = unparseable.height
+        notes['p_value_unparseable_examples'] = (
+            unparseable['t'].unique().head(5).to_list()
+        )
         minus_log = number('neg_log_10_p_value')
         exponent = minus_log.ceil()
         mantissa = (10 ** (exponent - minus_log)).round(4)
@@ -372,14 +480,12 @@ def standardise(df, columns: dict[str, str], n_study: int, counts: dict):
         notes['n_source'] = 'study total from GWAS Catalog' if n_study else 'none'
     out['z'] = number('z') if has('z') else pl.lit(None, pl.Float64)
 
-    table = df.select(**out)
-    if notes.get('p_value_source') == 'from neg_log_10_p_value':
-        lowest = table['neg_log_10_p_value'].min()
-        if lowest is not None and lowest < 0:
-            raise ValueError(
-                f'{columns["neg_log_10_p_value"]} has negative values: is it '
-                'log10(P) rather than -log10(P)?'
-            )
+    # Safety net: no inf or NaN reaches the output, whatever path made it (write_csv
+    # would print them as text, not as NA).
+    table = df.select(**out).with_columns(
+        pl.when(pl.col(column).is_finite()).then(pl.col(column)).otherwise(None)
+        for column in FLOAT_COLUMNS
+    )
     counts['rows_in'] = table.height
     for reason, condition in [
         ('non_canonical_chromosome', pl.col('chromosome').is_null()),
@@ -406,10 +512,11 @@ def check_liftover_offsets(lifter, build: str) -> None:
     """Assert 1-based in, 1-based out on variants with known positions."""
     for chromosome, source, grch38 in LIFTOVER_KNOWN[build]:
         hits = lifter.convert_coordinate(CHAIN_CONTIGS[chromosome], source - 1)
-        assert hits and hits[0][1] + 1 == grch38, (
-            f'{build} liftover offset check failed: chr{chromosome}:{source} -> '
-            f'{hits}, expected {grch38}'
-        )
+        if not (hits and hits[0][1] + 1 == grch38):
+            raise RuntimeError(
+                f'{build} liftover offset check failed: chr{chromosome}:{source} -> '
+                f'{hits}, expected {grch38}'
+            )
 
 
 def lift_to_grch38(table, chain: Path, build: str, counts: dict):
@@ -491,7 +598,35 @@ def lift_to_grch38(table, chain: Path, build: str, counts: dict):
     return lifted.drop('_chromosome', '_position', '_minus')
 
 
-def check_reference(table, fasta: Path, counts: dict):
+def check_build(counts: dict) -> None:
+    """
+    Fail if more than MAX_PALINDROMIC_MISMATCH of A/T and C/G SNPs mismatched
+    GRCh38, or if no row survived the reference check. Any other SNP matches on one
+    strand or the other wherever it is placed, so only palindromic SNPs show whether
+    positions are on the right build. Takes the reference_* counts summed over
+    every chromosome, and adds reference_palindromic_mismatch_rate.
+    """
+    palindromic = counts.get('reference_palindromic', 0)
+    mismatched = counts.get('reference_palindromic_mismatch', 0)
+    rate = mismatched / palindromic if palindromic else 0.0
+    counts['reference_palindromic_mismatch_rate'] = round(rate, 5)
+    # False when too few A/T and C/G SNPs to judge, e.g. GWAS Catalog harmonised
+    # files, which have them removed.
+    counts['reference_build_checked'] = palindromic >= MIN_PALINDROMIC_FOR_CHECK
+    if counts['reference_build_checked'] and rate > MAX_PALINDROMIC_MISMATCH:
+        raise ValueError(
+            f'{rate:.1%} of A/T and C/G SNPs do not match GRCh38: positions are not '
+            'on the expected build. Correct source_build in files.csv, then rerun '
+            'format.py --only <file_id> --force (the download is reused)'
+        )
+    if not counts.get('reference_ok', 0) + counts.get('reference_strand_flipped', 0):
+        raise ValueError(
+            f'no rows survived the GRCh38 reference check, so nothing is written; '
+            f'counts: {dict(counts)}'
+        )
+
+
+def check_reference(table, fasta: Path, counts: dict, verdict: bool = True):
     """
     Check that one of the two alleles matches GRCh38 at the position.
 
@@ -500,9 +635,9 @@ def check_reference(table, fasta: Path, counts: dict):
     Multi-base alleles must match the reference as written. Rows matching
     neither way are dropped.
 
-    Fails if more than MAX_PALINDROMIC_MISMATCH of A/T and C/G SNPs mismatch.
-    Any other SNP matches on one strand or the other wherever it is placed, so
-    only palindromic SNPs show whether positions are on the right build.
+    With verdict, also runs check_build on this table's counts. format_one checks
+    one chromosome at a time, so it passes verdict=False and calls check_build once
+    on the totals.
     """
     import numpy as np
     import polars as pl
@@ -574,20 +709,62 @@ def check_reference(table, fasta: Path, counts: dict):
         ).height
         kept.append(part.filter(pl.col('_status') != 'mismatch'))
     counts.update({f'reference_{k}': int(v) for k, v in tally.items()})
-    palindromic = tally['palindromic']
-    rate = tally['palindromic_mismatch'] / palindromic if palindromic else 0.0
-    counts['reference_palindromic_mismatch_rate'] = round(rate, 5)
-    assert (
-        palindromic < MIN_PALINDROMIC_FOR_CHECK or rate <= MAX_PALINDROMIC_MISMATCH
-    ), (
-        f'{rate:.1%} of A/T and C/G SNPs do not match GRCh38: positions are not on '
-        'the expected build (check source_build in files.csv)'
-    )
+    if verdict:
+        check_build(counts)
     if not kept:
-        raise ValueError(
-            f'no rows left to check against GRCh38; drop counts so far: {counts}'
-        )
+        return table.head(0)
     return pl.concat(kept).drop('_ref', '_status', '_palindromic')
+
+
+SORT_KEY = ['chromosome', 'base_pair_location', 'effect_allele', 'other_allele']
+
+
+def chromosome_key(value: str, from_marker: bool) -> int:
+    """GWAS-SSF code for a raw chromosome (or chr:pos marker) value; 0 if unknown."""
+    if from_marker:
+        match = re.match(MARKER_PATTERN, value)
+        value = match.group(1) if match else ''
+    value = value.strip().upper()
+    if value.startswith('CHR'):
+        value = value[3:]
+    return CHROMOSOME_CODES.get(value, 0)
+
+
+def split_by_chromosome(
+    path: Path, workdir: Path, columns: dict[str, str]
+) -> dict[int, Path]:
+    """
+    Stream a source file into one tab-separated file per chromosome, so each can
+    be formatted with only that chromosome in memory. Rows whose chromosome is not
+    recognised go to key 0, where standardise drops and counts them.
+
+    Returns:
+        chromosome code -> file, in chromosome order
+    """
+    from_marker = not ('chromosome' in columns and 'base_pair_location' in columns)
+    field = columns['marker'] if from_marker else columns['chromosome']
+    handles: dict = {}
+    try:
+        with open_text(path) as source:
+            lines = (line for line in source if not line.startswith('##'))
+            header = next(lines)
+            separator = detect_separator(path)
+            names = [name.strip() for name in header.rstrip('\r\n').split(separator)]
+            index = names.index(field)
+            for line in lines:
+                fields = line.rstrip('\r\n').split(separator)
+                if not fields or fields == ['']:
+                    continue
+                value = fields[index] if index < len(fields) else ''
+                key = chromosome_key(value, from_marker)
+                if key not in handles:
+                    handles[key] = (workdir / f'chromosome_{key}.tsv').open('w')
+                    handles[key].write('\t'.join(names) + '\n')
+                handles[key].write('\t'.join(fields) + '\n')
+    finally:
+        for handle in handles.values():
+            handle.close()
+    return {key: workdir / f'chromosome_{key}.tsv' for key in sorted(handles)}
 
 
 def format_one(
@@ -613,34 +790,66 @@ def format_one(
     """
     import pysam
 
-    counts: dict = {}
+    import polars as pl
+
+    build = row['source_build']
+    if build not in LIFTOVER_KNOWN and build != 'GRCh38':
+        raise ValueError(f'unsupported source_build {build}')
+    if not Path(f'{fasta}.fai').exists():
+        pysam.faidx(str(fasta))
+    counts: Counter = Counter()
+    notes: dict = {}
+    bad_p: set[str] = set()
     with tempfile.TemporaryDirectory(dir=out_root.parent) as tmp:
         workdir = Path(tmp)
-        source = read_table(original, workdir)
-        columns = resolve_columns(source, row['columns'])
-        table, notes = standardise(source, columns, int(row['n_study'] or 0), counts)
-        del source
-        build = row['source_build']
-        if build in LIFTOVER_KNOWN:
-            table = lift_to_grch38(table, chains[build], build, counts)
-        else:
-            assert build == 'GRCh38', f'unsupported source_build {build}'
-        if not Path(f'{fasta}.fai').exists():
-            pysam.faidx(str(fasta))
-        table = check_reference(table, fasta, counts)
-        table = table.sort(
-            ['chromosome', 'base_pair_location', 'effect_allele', 'other_allele']
-        )
-        counts['duplicate_variants'] = (
-            table.height
-            - table.unique(
-                ['chromosome', 'base_pair_location', 'effect_allele', 'other_allele']
-            ).height
-        )
-        counts['rows_out'] = table.height
-        empty = [c for c in OUTPUT_COLUMNS if table[c].null_count() == table.height]
+        sample = read_table(original, workdir, n_rows=10_000)
+        columns = resolve_columns(sample, row['columns'])
+        used = sorted(set(columns.values()))
+        # One source chromosome at a time; results are kept on disk per GRCh38
+        # chromosome, since liftover can move a few rows to another chromosome.
+        parts: dict[int, list[Path]] = defaultdict(list)
+        for key, path in split_by_chromosome(original, workdir, columns).items():
+            source = read_table(path, workdir, columns=used)
+            path.unlink()
+            step: dict = {}
+            table, notes = standardise(source, columns, int(row['n_study'] or 0), step)
+            del source
+            bad_p.update(notes.pop('p_value_unparseable_examples', []))
+            if build in LIFTOVER_KNOWN:
+                table = lift_to_grch38(table, chains[build], build, step)
+            table = check_reference(table, fasta, step, verdict=False)
+            counts.update(step)
+            for (chromosome,), part in table.group_by(['chromosome']):
+                part_path = workdir / f'part_{key}_{chromosome}.parquet'
+                part.write_parquet(part_path)
+                parts[chromosome].append(part_path)
+        check_build(counts)
+        if counts['p_value_unparseable'] > MAX_UNPARSEABLE_P * counts['rows_in']:
+            raise ValueError(
+                f'{counts["p_value_unparseable"]:,} of {counts["rows_in"]:,} P values '
+                f'are not numbers in (0, 1], e.g. {sorted(bad_p)[:5]}: wrong column, '
+                'or a format to handle?'
+            )
+        if bad_p:
+            notes['p_value_unparseable_examples'] = sorted(bad_p)[:5]
         plain = workdir / 'formatted.tsv'
-        table.select(OUTPUT_COLUMNS).write_csv(plain, separator='\t', null_value='NA')
+        filled = Counter()
+        with plain.open('wb') as out:
+            out.write(('\t'.join(OUTPUT_COLUMNS) + '\n').encode())
+            for chromosome in sorted(parts):
+                table = pl.concat([pl.read_parquet(p) for p in parts[chromosome]])
+                table = table.sort(SORT_KEY)
+                counts['duplicate_variants'] += (
+                    table.height - table.unique(SORT_KEY).height
+                )
+                counts['rows_out'] += table.height
+                filled.update(
+                    {c: table.height - table[c].null_count() for c in OUTPUT_COLUMNS}
+                )
+                table.select(OUTPUT_COLUMNS).write_csv(
+                    out, separator='\t', null_value='NA', include_header=False
+                )
+        empty = [c for c in OUTPUT_COLUMNS if not filled[c]]
         compressed = pysam.tabix_index(
             str(plain), seq_col=0, start_col=1, end_col=1, line_skip=1, force=True
         )
@@ -656,13 +865,89 @@ def format_one(
         'columns_used': columns,
         'columns_all_missing': empty,
         **notes,
-        **counts,
+        **dict(counts),
         'formatted_at': datetime.now(timezone.utc).isoformat(timespec='seconds'),
     }
     stats_path.write_text(json.dumps(stats, indent=1) + '\n')
     print(
         f'{row["file_id"]}: {counts["rows_in"]:,} rows in, {counts["rows_out"]:,} out'
     )
+
+
+COLUMNS_USED_FIELDS = [
+    'chromosome',
+    'base_pair_location',
+    'marker',
+    'effect_allele',
+    'other_allele',
+    'beta',
+    'odds_ratio',
+    'standard_error',
+    'effect_allele_frequency',
+    'p_value',
+    'neg_log_10_p_value',
+    'z',
+    'n',
+    'rsid',
+]
+
+
+def check_one_source(row: dict) -> dict:
+    """
+    Resolve and standardise the first lines of one source file, read from its URL.
+
+    Returns:
+        one columns_used.tsv line: the source column behind each output field,
+        where beta and N come from, and how many sample rows survived
+    """
+    line = {'file_id': row['file_id'], 'override': row['columns']}
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            head = Path(tmp) / 'head.tsv'
+            head.write_text(fetch_head(row['source_url']))
+            source = read_table(head, Path(tmp))
+            columns = resolve_columns(source, row['columns'])
+            counts: dict = {}
+            table, notes = standardise(
+                source, columns, int(row['n_study'] or 0), counts
+            )
+        line |= {field: columns.get(field, '') for field in COLUMNS_USED_FIELDS}
+        line |= {
+            'status': 'ok',
+            'effect_source': notes['effect_source'],
+            'n_source': notes['n_source'],
+            'sample_rows_in': counts['rows_in'],
+            'sample_rows_kept': table.height,
+        }
+    except (OSError, ValueError) as error:
+        line |= {'status': f'error: {error}'}
+    return line
+
+
+def check_columns(rows: list[dict], out: Path) -> bool:
+    """
+    Run check_one_source on every row (8 at a time) and write the result to `out`.
+
+    Returns:
+        True if every file resolved
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(8) as pool:
+        lines = list(pool.map(check_one_source, rows))
+    fields = ['file_id', 'status', 'override', *COLUMNS_USED_FIELDS]
+    fields += ['effect_source', 'n_source', 'sample_rows_in', 'sample_rows_kept']
+    with out.open('w', newline='') as handle:
+        writer = csv.DictWriter(
+            handle, fieldnames=fields, delimiter='\t', lineterminator='\n'
+        )
+        writer.writeheader()
+        writer.writerows(lines)
+    failed = [line for line in lines if line['status'] != 'ok']
+    for line in failed:
+        print(f'{line["file_id"]}: {line["status"]}')
+    print(f'{len(lines) - len(failed)} of {len(lines)} files resolved -> {out}')
+    return not failed
 
 
 def local_chains(args) -> dict[str, str | None]:
@@ -729,11 +1014,15 @@ def run_batch(rows: list[dict], args) -> None:
         for name in ('download.py', 'format.py')
     }
     if to_path(f'{fasta}.fai').exists():
-        fasta_input = batch.read_input_group(base=fasta, fai=f'{fasta}.fai').base
+        # pysam looks for <fasta>.fai. hailtop 0.2.139 keeps each input's own file
+        # name; older versions name group members {root}.<key>. The keys 'fa' and
+        # 'fa.fai' put the index next to the fasta under either scheme.
+        fasta_group = batch.read_input_group(**{'fa': fasta, 'fa.fai': f'{fasta}.fai'})
+        fasta_input = fasta_group['fa']
     else:
         fasta_input = batch.read_input(fasta)
     chain_inputs = {build: batch.read_input(path) for build, path in chains.items()}
-    submitted = 0
+    submitted, not_submitted = 0, []
     for row in rows:
         original = f'{args.originals}/{original_name(row)}'
         out_root = f'{args.out}/{formatted_name(row)}'
@@ -741,18 +1030,19 @@ def run_batch(rows: list[dict], args) -> None:
             print(f'{row["file_id"]}: exists, skipped')
             continue
         if not to_path(original).exists():
-            print(f'{row["file_id"]}: not downloaded, skipped')
+            not_submitted.append(f'{row["file_id"]} (not downloaded)')
             continue
         record = to_path(f'{original}.json')
         if not record.exists():
-            print(f'{row["file_id"]}: no download record, skipped')
+            not_submitted.append(f'{row["file_id"]} (no download record)')
             continue
         size_gib = int(row['size_bytes'] or 0) / 2**30
         job = batch.new_bash_job(f'format {row["file_id"]}')
         job.image(config_retrieve(['workflow', 'driver_image']))
         job.cpu(8 if size_gib > 1 else 4)
         job.memory('highmem')
-        job.storage(f'{int(size_gib * 8) + 20}Gi')
+        # decompressed copy (gzip ratio up to ~6) + output + fasta
+        job.storage(f'{int(size_gib * 12) + 20}Gi')
         job.declare_resource_group(
             out={'tsv.gz': '{root}.tsv.gz', 'tsv.gz.tbi': '{root}.tsv.gz.tbi'}
         )
@@ -777,6 +1067,11 @@ def run_batch(rows: list[dict], args) -> None:
         batch.write_output(job.stats, f'{args.stats}/{row["file_id"]}.json')
         submitted += 1
     print(f'{submitted} format jobs submitted')
+    if not_submitted:
+        print(
+            f'{len(not_submitted)} files NOT submitted, so they will be missing from '
+            f'{args.out} until downloaded:\n  ' + '\n  '.join(not_submitted)
+        )
     if submitted:
         batch.run(wait=False)
 
@@ -815,17 +1110,19 @@ def write_manifest(rows: list[dict], args) -> None:
     manifest.csv next to the formatted files, plus an HTML copy for the web bucket.
     One line per formatted file, joining files.csv and the formatting stats (every
     count in the stats JSON becomes a column). Fails if a formatted file has no stats,
-    rather than writing a manifest that leaves it out.
+    rather than writing a manifest that leaves it out. Fails too if any files.csv row
+    is not formatted, unless args.allow_missing; then the missing file_ids are listed
+    in the log and in manifest.html.
     """
     out_dir, stats_dir = as_path(args.out), as_path(args.stats)
-    lines, missing_stats, not_formatted = [], [], 0
+    lines, missing_stats, not_formatted = [], [], []
     for row in rows:
         stats_file = stats_dir / f'{row["file_id"]}.json'
         if not stats_file.exists():
             if (out_dir / f'{formatted_name(row)}.tsv.gz').exists():
                 missing_stats.append(row['file_id'])
             else:
-                not_formatted += 1
+                not_formatted.append(row['file_id'])
             continue
         stats = json.loads(stats_file.read_text())
         line = {k: row.get(k, '') for k in MANIFEST_FIELDS}
@@ -840,9 +1137,15 @@ def write_manifest(rows: list[dict], args) -> None:
             f'{len(missing_stats)} formatted files have no stats in {stats_dir}: '
             + ', '.join(missing_stats)
         )
-    assert lines, f'no stats found in {stats_dir}'
+    if not lines:
+        raise ValueError(f'no stats found in {stats_dir}')
     if not_formatted:
-        print(f'{not_formatted} files in files.csv are not formatted yet, left out')
+        listing = f'{len(not_formatted)} files in files.csv are not formatted: ' + (
+            ', '.join(not_formatted)
+        )
+        if not args.allow_missing:
+            raise ValueError(f'{listing}. Format them, or pass --allow-missing.')
+        print(f'{listing}. Left out of the manifest (--allow-missing).')
     fields = MANIFEST_FIELDS + sorted(
         {k for line in lines for k in line} - set(MANIFEST_FIELDS)
     )
@@ -865,7 +1168,13 @@ def write_manifest(rows: list[dict], args) -> None:
         'th{position:sticky;top:0;background:#eef}</style>'
         f'<h1>GWAS summary statistics</h1><p>{len(lines)} files in '
         f'{html.escape(args.out)}, written {datetime.now(timezone.utc):%Y-%m-%d}.</p>'
-        f'<table><tr>{cells}</tr>{body}</table>'
+        + (
+            f'<p><b>{len(not_formatted)} files in files.csv are not formatted:</b> '
+            f'{html.escape(", ".join(not_formatted))}</p>'
+            if not_formatted
+            else ''
+        )
+        + f'<table><tr>{cells}</tr>{body}</table>'
     )
     web = as_path(args.web)
     if isinstance(web, Path):
@@ -892,6 +1201,18 @@ def main():
     )
     parser.add_argument('--local', action='store_true', help='run here, not on Batch')
     parser.add_argument('--manifest', action='store_true', help='write the manifest')
+    parser.add_argument(
+        '--allow-missing',
+        action='store_true',
+        help='with --manifest: write it even if some files.csv rows are not formatted',
+    )
+    parser.add_argument(
+        '--check-columns',
+        type=Path,
+        nargs='?',
+        const=COLUMNS_USED_TSV,
+        help='resolve every source header from its URL; writes columns_used.tsv',
+    )
     parser.add_argument('--one', help='a single files.csv row as JSON (job mode)')
     parser.add_argument('--original', type=Path, help='job mode: input file')
     parser.add_argument('--out-root', type=Path, help='job mode: output path root')
@@ -900,6 +1221,18 @@ def main():
     args = parser.parse_args()
     if args.force and not args.only:
         parser.error('--force needs --only, so every file is not redone by mistake')
+    if args.allow_missing and not args.manifest:
+        parser.error('--allow-missing only applies to --manifest')
+    if args.check_columns == COLUMNS_USED_TSV and args.only:
+        parser.error(
+            '--check-columns with --only would replace columns_used.tsv with a '
+            'subset; give an output path: --check-columns subset.tsv'
+        )
+    if args.manifest and args.only:
+        parser.error(
+            '--manifest indexes every formatted file and replaces the existing '
+            'manifest, so it takes no --only'
+        )
     for name in ('originals', 'out', 'stats', 'web'):
         setattr(args, name, getattr(args, name).rstrip('/'))
 
@@ -915,7 +1248,10 @@ def main():
         )
         return
     rows = read_files_csv(args.files, args.only)
-    if args.manifest:
+    if args.check_columns:
+        if not check_columns(rows, args.check_columns):
+            raise SystemExit(1)
+    elif args.manifest:
         write_manifest(rows, args)
     elif args.local:
         check_local_args(rows, args, parser)

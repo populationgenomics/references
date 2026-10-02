@@ -20,6 +20,11 @@ rerun of either script skips files already written.
 Both scripts need `--access-level full` (writes to main), so they run from `main`
 after merge.
 
+Prerequisites: the Google Cloud CLI (`gcloud`, https://cloud.google.com/sdk/docs/install)
+and full access to the `common` dataset in analysis-runner. Who holds that is not
+listed in `common`'s `members.yaml`; ask Software Platforms if analysis-runner
+refuses the job.
+
 1. Merge the PR, then wait for the **Deploy resources and config** action on `main` to
    go green (GitHub, Actions tab). It copies the NCBI36 chain file and adds
    `liftover_36_to_38` to the references config; `format.py` fails until it has run.
@@ -46,7 +51,11 @@ after merge.
    every download is done. If some failed, run the same command again; files already
    downloaded are skipped.
 
-4. Format, within 8 days of the download, and check the batch page the same way:
+4. Format, within 8 days of the download, and check the batch page the same way.
+   If the 8 days have passed, the originals are gone from `-main-tmp`: run step 3
+   again, then this step, which skips files already formatted and lists any it
+   could not submit. Step 3 downloads every original no longer in `-main-tmp`, so
+   add `--only <file_id> ...` to it to fetch just the files still to format.
 
    ```bash
    analysis-runner --dataset common --access-level full --output-dir gwas_sumstats --description "Format biomarker GWAS summary statistics" python3 gwas_sumstats/format.py
@@ -61,10 +70,51 @@ after merge.
 `--output-dir` is required by analysis-runner but unused: outputs go to the buckets
 listed above.
 
-Add `--only <file_id> ...` to any of these to run a subset. `--local` runs on your
-machine instead of Batch (see each script's docstring). After correcting a row in
+Add `--only <file_id> ...` to the download or format command to run a subset. The
+manifest command takes no `--only`: it always indexes every formatted file, so rerun
+it as is after a partial download or format. It fails, listing them, if any
+`files.csv` row is not formatted; `--allow-missing` writes it anyway and lists the
+missing files in `manifest.html`. `--local` runs on your
+machine instead of Batch (see Running locally, below). After correcting a row in
 `files.csv`, rerun `format.py --only <file_id> --force` to redo that file: without
 `--force`, files already formatted are skipped.
+
+## Running locally
+
+To download and format a few files on your machine, without the cloud. Use a folder
+outside the repo (here `~/gwas_sumstats_local`) so nothing gets committed by
+accident. From the repo root:
+
+```bash
+mkdir -p ~/gwas_sumstats_local/ref
+python3 -m venv ~/gwas_sumstats_local/venv
+source ~/gwas_sumstats_local/venv/bin/activate
+pip install polars==1.34.0 pysam==0.23.3 pyliftover==0.4.1 numpy
+curl -fL -o ~/gwas_sumstats_local/ref/GRCh38.fasta https://storage.googleapis.com/gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta
+curl -fL -o ~/gwas_sumstats_local/ref/GRCh38.fasta.fai https://storage.googleapis.com/gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta.fai
+curl -fL -o ~/gwas_sumstats_local/ref/hg19ToHg38.over.chain.gz https://hgdownload.soe.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz
+curl -fL -o ~/gwas_sumstats_local/ref/hg18ToHg38.over.chain.gz https://hgdownload.soe.ucsc.edu/goldenPath/hg18/liftOver/hg18ToHg38.over.chain.gz
+```
+
+Then, for one file (Wheeler 2017 is small, 18 MB, and NCBI36, so it exercises the
+liftover):
+
+```bash
+python3 gwas_sumstats/download.py --local --out ~/gwas_sumstats_local/original --only 2017_Wheeler_PLoSMed_HbA1c_SAS_GCST007951
+python3 gwas_sumstats/format.py --local --originals ~/gwas_sumstats_local/original --out ~/gwas_sumstats_local/v1 --stats ~/gwas_sumstats_local/stats --web ~/gwas_sumstats_local/web --fasta ~/gwas_sumstats_local/ref/GRCh38.fasta --chain-grch37 ~/gwas_sumstats_local/ref/hg19ToHg38.over.chain.gz --chain-ncbi36 ~/gwas_sumstats_local/ref/hg18ToHg38.over.chain.gz --only 2017_Wheeler_PLoSMed_HbA1c_SAS_GCST007951
+```
+
+- The fasta is Google's public copy of the Broad GRCh38 reference (3.2 GB, about
+  10 minutes; UCSC contig names `chr1`). The cloud jobs use the Ensembl 113 primary
+  assembly from the references config (`ensembl_113/unmasked_reference`, contigs
+  `1`); `format.py` accepts either, and the primary chromosomes are the same
+  sequence. Ensembl's own FTP is much slower, and copying the references bucket's
+  copy to a laptop is billed as egress.
+- The chain files are the same UCSC files the references config points at
+  (`liftover_37_to_38`, `liftover_36_to_38`). Each is needed only if a selected
+  file is on that build; `format.py --local` says which flag is missing.
+- `python3 gwas_sumstats/format.py --check-columns` needs none of these: it reads
+  the start of each source straight from its URL.
 
 ## Tests
 
@@ -95,7 +145,13 @@ effect_allele_frequency  p_value  neg_log_10_p_value  rsid  n  z`
   are dropped (`dropped_non_acgt_allele` in the manifest).
 - `effect_allele_frequency` is the study's own frequency. The Wheeler 2017 HbA1c
   files give only HapMap reference panel frequencies, so theirs is NA.
-- `p_value` keeps the source text, so values below the float range survive.
+- `p_value` keeps the source text, so values below the float range survive. Only
+  numeric text in (0, 1] is kept. A P of exactly 0 (an underflowed top hit) becomes
+  NA, counted as `p_value_zero`, with beta and SE kept. Anything else (`<1e-300`,
+  `-0.01`) becomes NA as `p_value_unparseable`, and a file with more than 1% of
+  those fails.
+- Space-separated files keep empty fields in place (a missing rsID is two spaces),
+  so their rows are not shifted.
 - `n` is per variant where the source gives it, otherwise the study total.
 - Nothing is filtered on frequency or P value. `manifest.csv` counts every row dropped
   and why.

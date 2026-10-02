@@ -4,9 +4,11 @@
 Download the GWAS summary statistics listed in files.csv, unchanged, and check each
 one against its published MD5 where the source publishes one.
 
-Each file lands as <file_id>_<source_build>_<original|harmonised><suffix>, next to a
-<same name>.json record of where it came from (URL, MD5, size, download time). A file
-whose destination already exists is skipped, so a rerun resumes where the last stopped.
+Each file lands as <file_id>_<original|harmonised><suffix>, next to a <same name>.json
+record of where it came from (URL, MD5, size, download time). The name leaves out the
+genome build: that is files.csv's claim, which format.py checks and may prove wrong,
+and correcting it must not orphan the download. A file whose destination already
+exists is skipped, so a rerun resumes where the last stopped.
 
 On Hail Batch, one job per file, writing to the tmp bucket (objects there are deleted
 after 8 days, so run format.py within the week):
@@ -25,11 +27,13 @@ Locally, sequentially, into a folder (for testing on a few files):
 import argparse
 import csv
 import hashlib
+import http.client
 import json
 import shlex
 import shutil
 import time
 import urllib.request
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -52,21 +56,39 @@ def read_files_csv(path: Path, only: list[str] | None = None) -> list[dict]:
         rows = list(csv.DictReader(handle))
     if only:
         missing = set(only) - {row['file_id'] for row in rows}
-        assert not missing, f'not in {path.name}: {sorted(missing)}'
+        if missing:
+            raise ValueError(f'not in {path.name}: {sorted(missing)}')
         rows = [row for row in rows if row['file_id'] in only]
     return rows
 
 
 def original_name(row: dict) -> str:
-    """File name of the downloaded original, e.g. ..._GRCh37_original.tsv.gz"""
+    """File name of the downloaded original, e.g. ..._original.tsv.gz"""
     kind = 'harmonised' if row['source_kind'] == 'catalog_harmonised' else 'original'
-    return f'{row["file_id"]}_{row["source_build"]}_{kind}{row["suffix"]}'
+    return f'{row["file_id"]}_{kind}{row["suffix"]}'
 
 
-def open_url(url: str):
+def open_url(url: str, headers: dict | None = None):
     """Open a URL with a user agent; some hosts refuse urllib's default one."""
-    request = urllib.request.Request(url, headers={'User-Agent': USER_AGENT})
+    headers = {'User-Agent': USER_AGENT} | (headers or {})
+    request = urllib.request.Request(url, headers=headers)
     return urllib.request.urlopen(request, timeout=300)  # noqa: S310
+
+
+def fetch_head(url: str, n_bytes: int = 200_000) -> str:
+    """
+    The first complete lines of a (possibly gzip/bgzip) file, from its first
+    n_bytes. A server that ignores the Range header is read only that far.
+    """
+    with open_url(url, {'Range': f'bytes=0-{n_bytes - 1}'}) as response:
+        data = response.read(n_bytes)
+    text = b''
+    while data[:2] == b'\x1f\x8b':
+        member = zlib.decompressobj(31)
+        text += member.decompress(data)
+        data = member.unused_data
+    lines = (text or data).decode('utf-8', 'replace').splitlines(keepends=True)
+    return ''.join(lines[:-1])
 
 
 def published_md5(row: dict) -> str | None:
@@ -92,13 +114,19 @@ def published_md5(row: dict) -> str | None:
     raise ValueError(f'{file_name} is not listed in {row["md5_url"]}')
 
 
-def fetch(url: str, dest: Path) -> tuple[str, int]:
+def fetch(url: str, dest: Path, expected_md5: str | None = None) -> tuple[str, int]:
     """
-    Stream a URL to a local file, retrying with backoff.
+    Stream a URL to a local file, retrying with backoff until it arrives whole.
+
+    A body shorter than its Content-Length counts as a failed attempt: urllib
+    returns it without raising (http.client only raises IncompleteRead for chunked
+    responses). So does an MD5 that differs from expected_md5. After the last
+    failed attempt the partial file is deleted and the error raised.
 
     Args:
         url: source URL
         dest: local file to write
+        expected_md5: the publisher's MD5, if any
 
     Returns:
         (MD5 hex digest, size in bytes) of what was written
@@ -108,16 +136,24 @@ def fetch(url: str, dest: Path) -> tuple[str, int]:
             md5 = hashlib.md5()  # noqa: S324
             size = 0
             with open_url(url) as response, dest.open('wb') as out:
+                length = response.headers.get('Content-Length')
                 while chunk := response.read(CHUNK):
                     md5.update(chunk)
                     size += len(chunk)
                     out.write(chunk)
+            if length is not None and size != int(length):
+                raise OSError(f'got {size:,} of {int(length):,} bytes')
+            if expected_md5 and md5.hexdigest() != expected_md5:
+                raise OSError(f'MD5 {md5.hexdigest()} != published {expected_md5}')
             return md5.hexdigest(), size
-        except OSError as error:
+        except (OSError, http.client.HTTPException) as error:
             if attempt == RETRIES:
+                dest.unlink(missing_ok=True)
+                if isinstance(error, http.client.HTTPException):
+                    raise OSError(f'{url}: {error!r}') from error
                 raise
             wait = 30 * attempt
-            print(f'{url}: {error}; retry {attempt}/{RETRIES - 1} in {wait}s')
+            print(f'{url}: {error!r}; retry {attempt}/{RETRIES - 1} in {wait}s')
             time.sleep(wait)
     raise AssertionError('unreachable')
 
@@ -133,10 +169,7 @@ def download_one(row: dict, data_path: Path, record_path: Path) -> None:
         record_path: local path for the JSON record
     """
     expected = published_md5(row)
-    md5, size = fetch(row['source_url'], data_path)
-    if expected and md5 != expected:
-        data_path.unlink()
-        raise ValueError(f'{row["file_id"]}: MD5 {md5} != published {expected}')
+    md5, size = fetch(row['source_url'], data_path, expected)
     record = {
         'file_id': row['file_id'],
         'file_name': original_name(row),
