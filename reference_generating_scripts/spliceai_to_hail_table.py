@@ -63,6 +63,11 @@ def parse_scores(parts: hl.expr.ArrayExpression) -> hl.expr.StructExpression:
     )
 
 
+def max_score(entry: hl.expr.StructExpression) -> hl.expr.Float32Expression:
+    """Highest of the four delta scores of one parsed INFO/SpliceAI entry."""
+    return hl.max(hl.array([entry.gene.scores[f] for f in SCORE_FIELDS]))
+
+
 def collect_by_variant(vcf_path: str, kind: str) -> hl.Table:
     """
     One masked SpliceAI VCF as a keyed table with one row per (locus, alleles).
@@ -105,19 +110,21 @@ def collect_by_variant(vcf_path: str, kind: str) -> hl.Table:
     )
     # Consecutive records share a key, so this groups without a shuffle.
     ht = ht.collect_by_key()
-    # hl.dict keeps one entry per key, so a repeated symbol at one variant would drop a
-    # record from by_gene while ds_max still counted it. Fail instead.
-    by_gene = hl.dict(ht.values.map(lambda v: (v.gene.symbol, v.gene.scores)))
-    return ht.select(
-        by_gene=hl.case()
-        .when(hl.len(by_gene) == hl.len(ht.values), by_gene)
-        .or_error('repeated gene symbol at ' + hl.str(ht.locus)),
-        ds_max=hl.max(
-            ht.values.flatmap(
-                lambda v: hl.array([v.gene.scores[f] for f in SCORE_FIELDS])
-            )
+    # Illumina's precomputed files repeat some (variant, gene) records with different
+    # scores and positions. A whole-genome scan of both files found 21 genes, 2 to 7
+    # copies per record, all in segmental duplications or multi-isoform regions (NBPF10,
+    # NBPF12, NBPF20, FCGBP, CEACAM3, PNMA6A, NEU4, SNTG2, CRLF2 in the PAR, ...), and
+    # copies can disagree outright (FCGBP DS_AL 0 vs 1), so they look like separate
+    # transcript models filed under one symbol. hl.dict alone would keep an arbitrary
+    # copy; keep the copy with the highest score instead, so the positions stored
+    # alongside the scores are the ones SpliceAI reported with them.
+    ht = ht.select(
+        by_gene=ht.values.group_by(lambda v: v.gene.symbol).map_values(
+            lambda copies: copies[hl.argmax(copies.map(max_score))].gene.scores
         ),
+        ds_max=hl.max(ht.values.map(max_score)),
     )
+    return ht
 
 
 def main(snvs: str, indels: str, intervals_bed: str, out: str, overwrite: bool):
