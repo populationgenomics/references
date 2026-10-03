@@ -1042,4 +1042,39 @@ SOURCES = [
             },
         },
     ),
+    Source(
+        # SHAPEIT5's GRCh38 genetic maps and its UKB-derived phasing chunks, from the
+        # author's repository at a pinned commit. odelaneau/shapeit replaced
+        # odelaneau/shapeit5, which GitHub has blocked since 2026-05. The maps and the
+        # chr1-22 chunk files are byte-identical (same git blobs) to the v5.1.1
+        # release's; the chrX chunk files are new in this repository.
+        # Maps: tab-separated `pos chr cM`, chr without the `chr` prefix (`20`, `X`);
+        # chrX is the non-PAR map and the PARs have their own.
+        # Chunks: 4 columns, index, contig, region with buffers, region without
+        # buffers. 20cM feeds phase_common --region (column 3); 4cM feeds phase_rare
+        # --scaffold-region (column 3) and --input-region (column 4). The chrX files
+        # cover the whole of chrX, PARs included; the consumer clips to PAR bounds.
+        'shapeit_b38',
+        src=(
+            'https://raw.githubusercontent.com/odelaneau/shapeit/'
+            'c34d4db3e99a2f7e23deb727671ae260901a5886/resources/'
+        ),
+        dst='shapeit/c34d4db',
+        transfer_cmd=curl,
+        files={
+            **{
+                f'map_{contig}': f'maps/b38/{contig}.b38.gmap.gz'
+                for contig in CANONICAL_CHROMOSOMES + ['chrX_par1', 'chrX_par2']
+                if contig != 'chrY'
+            },
+            **{
+                f'chunks_{size}_{contig}': f'chunks/b38/{size}/chunks_{contig}.txt'
+                for size in ('20cM', '4cM')
+                for contig in CANONICAL_CHROMOSOMES
+                if contig != 'chrY'
+            },
+            # The upstream README that defines the chunk columns, kept for provenance.
+            'chunks_readme': 'chunks/b38/README',
+        },
+    ),
 ]
