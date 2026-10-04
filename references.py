@@ -1016,6 +1016,10 @@ SOURCES = [
         # Science 363, eaau1043, Data S3), chr1-22 and X; chrX carries the
         # maternal rate. Staged in gs://cpg-common-test/references/genetic_maps/
         # decode2019/ and rsynced to cpg-common-main by CI on merge.
+        # Genetic maps live under genetic_maps/ and their Sources sit together here,
+        # named genetic_maps_*; see also genetic_maps_shapeit_b38 below. The formats
+        # differ, so a map is not interchangeable between tools: these per-chromosome
+        # files are `pposition rrate gposition`, SHAPEIT5's are `pos chr cM`.
         'genetic_maps_decode2019',
         src='gs://cpg-common-test/references/genetic_maps/decode2019',
         dst='genetic_maps/decode2019',
@@ -1040,6 +1044,55 @@ SOURCES = [
                 for contig in CANONICAL_CHROMOSOMES
                 if contig != 'chrY'
             },
+        },
+    ),
+    Source(
+        # SHAPEIT5's GRCh38 genetic map (HapMap-derived; the map SHAPEIT5 ships for
+        # --map), chr1-22, chrX non-PAR and the two PARs as separate files. Format
+        # `pos chr cM`, tab-separated with a header, chr without the `chr` prefix
+        # (`20`, `X`). See genetic_maps_decode2019 above for the other genetic map.
+        # Fetched from the author's repository at a pinned commit: odelaneau/shapeit
+        # replaced odelaneau/shapeit5, which GitHub has blocked since 2026-05. These
+        # files are byte-identical (same git blobs) to the v5.1.1 release's
+        # resources/maps/b38, and to odelaneau/GLIMPSE's maps/genetic_maps.b38.
+        'genetic_maps_shapeit_b38',
+        src=(
+            'https://raw.githubusercontent.com/odelaneau/shapeit/'
+            'c34d4db3e99a2f7e23deb727671ae260901a5886/resources/maps/b38/'
+        ),
+        dst='genetic_maps/shapeit/c34d4db/b38',
+        transfer_cmd=curl,
+        files={
+            f'map_{contig}': f'{contig}.b38.gmap.gz'
+            for contig in CANONICAL_CHROMOSOMES + ['chrX_par1', 'chrX_par2']
+            if contig != 'chrY'
+        },
+    ),
+    Source(
+        # SHAPEIT5's GRCh38 phasing chunks, derived from UKB in cM and so
+        # independent of the cohort being phased, from the same pinned commit as
+        # genetic_maps_shapeit_b38. Four columns: index, contig, region with
+        # buffers, region without buffers. 20cM feeds phase_common --region
+        # (column 3); 4cM feeds phase_rare --scaffold-region (column 3) and
+        # --input-region (column 4); chunks_readme is upstream's description. The
+        # chr1-22 files are byte-identical to the v5.1.1 release's; the chrX files
+        # are new in odelaneau/shapeit and span all of chrX, PARs included, so a
+        # consumer phasing the PARs separately clips to the PAR bounds.
+        'shapeit_chunks_b38',
+        src=(
+            'https://raw.githubusercontent.com/odelaneau/shapeit/'
+            'c34d4db3e99a2f7e23deb727671ae260901a5886/resources/chunks/b38/'
+        ),
+        dst='shapeit/c34d4db/chunks/b38',
+        transfer_cmd=curl,
+        files={
+            **{
+                f'chunks_{size}_{contig}': f'{size}/chunks_{contig}.txt'
+                for size in ('20cM', '4cM')
+                for contig in CANONICAL_CHROMOSOMES
+                if contig != 'chrY'
+            },
+            'chunks_readme': 'README',
         },
     ),
 ]
