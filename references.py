@@ -1095,4 +1095,76 @@ SOURCES = [
             'chunks_readme': 'README',
         },
     ),
+    Source(
+        # AADR v66.p1, 2M panel: 2,142,271 hg19 sites lifted to GRCh38 and converted to
+        # PLINK2 format. the union of the 1240k and Twist Ancient DNA capture targets plus nearby sites
+        # captured as a by-product (Rohland et al. 2022); the densest panel.
+        #
+        # Converted from the Allen Ancient DNA Resource v66.p1 EIGENSTRAT release
+        # (Reich lab, Harvard Dataverse) by populationgenomics/popgen-ancestry's
+        # reference preparation: plink2 --eigfile with --split-par b37, REF checked against
+        # GRCh37 (0 mismatches), then bcftools +liftover to the GRCh38 no-alt analysis set.
+        # Variant IDs are chr:pos:ref:alt with the AADR ID in INFO/AADR_ID; genetic positions
+        # come from the deCODE 2019 sex-averaged map.
+        #
+        # Every input site is accounted for: sites that did not lift are in .reject.bcf, sites
+        # that are no longer biallelic SNVs on hg38 in .nonsnv.bcf, and sites on GRCh37 N bases
+        # in .hg19.refN.bcf. .variant_ids.tsv maps the new IDs to the AADR IDs, and .hg38.log is
+        # the conversion log.
+        #
+        # Staged in gs://cpg-common-test/references/aadr/v66.p1/2M/ and rsynced to
+        # cpg-common-main by CI on merge.
+        'aadr_v66_p1_2m',
+        src='gs://cpg-common-test/references/aadr/v66.p1/2M',
+        dst='aadr/v66.p1/2M',
+        transfer_cmd=gcs_rsync,
+        files=dict(
+            aadr_v66_p1_2m_hg38_pgen='aadr_v66.p1_2M.hg38.pgen',
+            aadr_v66_p1_2m_hg38_pvar='aadr_v66.p1_2M.hg38.pvar',
+            aadr_v66_p1_2m_hg38_psam='aadr_v66.p1_2M.hg38.psam',
+            aadr_v66_p1_2m_hg38_sites_bcf='aadr_v66.p1_2M.hg38.sites.bcf',
+            aadr_v66_p1_2m_hg38_sites_bcf_index='aadr_v66.p1_2M.hg38.sites.bcf.csi',
+            aadr_v66_p1_2m_variant_ids='aadr_v66.p1_2M.variant_ids.tsv',
+            aadr_v66_p1_2m_hg38_reject_bcf='aadr_v66.p1_2M.hg38.reject.bcf',
+            aadr_v66_p1_2m_hg38_nonsnv_bcf='aadr_v66.p1_2M.hg38.nonsnv.bcf',
+            aadr_v66_p1_2m_hg19_refn_bcf='aadr_v66.p1_2M.hg19.refN.bcf',
+            aadr_v66_p1_2m_hg38_log='aadr_v66.p1_2M.hg38.log',
+        ),
+    ),
+    Source(
+        # AADR v66.p1, compatibility_2M panel: 1,243,531 hg19 sites lifted to GRCh38 and converted to
+        # PLINK2 format. a subset of 2M chosen to reduce bias when co-analysing Agilent, Twist and shotgun
+        # data (Fournier et al. 2025).
+        #
+        # Converted from the Allen Ancient DNA Resource v66.p1 EIGENSTRAT release
+        # (Reich lab, Harvard Dataverse) by populationgenomics/popgen-ancestry's
+        # reference preparation: plink2 --eigfile with --split-par b37, REF checked against
+        # GRCh37 (0 mismatches), then bcftools +liftover to the GRCh38 no-alt analysis set.
+        # Variant IDs are chr:pos:ref:alt with the AADR ID in INFO/AADR_ID; genetic positions
+        # come from the deCODE 2019 sex-averaged map.
+        #
+        # Every input site is accounted for: sites that did not lift are in .reject.bcf, sites
+        # that are no longer biallelic SNVs on hg38 in .nonsnv.bcf, and sites on GRCh37 N bases
+        # in .hg19.refN.bcf. .variant_ids.tsv maps the new IDs to the AADR IDs, and .hg38.log is
+        # the conversion log.
+        #
+        # Staged in gs://cpg-common-test/references/aadr/v66.p1/2M_compatibility/ and rsynced to
+        # cpg-common-main by CI on merge.
+        'aadr_v66_p1_2m_compatibility',
+        src='gs://cpg-common-test/references/aadr/v66.p1/2M_compatibility',
+        dst='aadr/v66.p1/2M_compatibility',
+        transfer_cmd=gcs_rsync,
+        files=dict(
+            aadr_v66_p1_2m_compatibility_hg38_pgen='aadr_v66.p1_2M_compatibility.hg38.pgen',
+            aadr_v66_p1_2m_compatibility_hg38_pvar='aadr_v66.p1_2M_compatibility.hg38.pvar',
+            aadr_v66_p1_2m_compatibility_hg38_psam='aadr_v66.p1_2M_compatibility.hg38.psam',
+            aadr_v66_p1_2m_compatibility_hg38_sites_bcf='aadr_v66.p1_2M_compatibility.hg38.sites.bcf',
+            aadr_v66_p1_2m_compatibility_hg38_sites_bcf_index='aadr_v66.p1_2M_compatibility.hg38.sites.bcf.csi',
+            aadr_v66_p1_2m_compatibility_variant_ids='aadr_v66.p1_2M_compatibility.variant_ids.tsv',
+            aadr_v66_p1_2m_compatibility_hg38_reject_bcf='aadr_v66.p1_2M_compatibility.hg38.reject.bcf',
+            aadr_v66_p1_2m_compatibility_hg38_nonsnv_bcf='aadr_v66.p1_2M_compatibility.hg38.nonsnv.bcf',
+            aadr_v66_p1_2m_compatibility_hg19_refn_bcf='aadr_v66.p1_2M_compatibility.hg19.refN.bcf',
+            aadr_v66_p1_2m_compatibility_hg38_log='aadr_v66.p1_2M_compatibility.hg38.log',
+        ),
+    ),
 ]
