@@ -148,7 +148,9 @@ effect_allele_frequency  p_value  neg_log_10_p_value  rsid  n  z`
   chain files (`liftover_37_to_38`, `liftover_36_to_38`).
 - Both alleles are checked against GRCh38; SNVs reported on the other strand are
   complemented. A file whose A/T and C/G SNPs mostly fail this check is on the wrong
-  build, and formatting stops rather than writing it.
+  build, and formatting stops rather than writing it. A file with too few A/T and
+  C/G SNPs (Timsina 2026, whose authors removed them) is judged on its indels
+  instead; `reference_build_check` in the manifest says which test ran.
 - `beta` is per effect allele; odds ratios become ln(OR), and a source with only z
   and SE gets beta = z x SE. A source with no effect size keeps `beta` as NA (none
   in the current list).

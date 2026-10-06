@@ -592,3 +592,26 @@ def test_beta_from_z_and_standard_error():
     table, notes, _ = standardise(df)
     assert table['beta'].to_list() == pytest.approx([0.05, -0.04])
     assert notes['effect_source'] == 'z x standard_error'
+
+
+def test_build_check_falls_back_to_indels():
+    # Too few A/T and C/G SNPs: judged on indels instead.
+    right = {
+        'reference_ok': 900,
+        'reference_palindromic': 0,
+        'reference_multibase': 500,
+        'reference_multibase_mismatch': 2,
+    }
+    fmt.check_build(right)
+    assert right['reference_build_check'] == 'indels'
+    assert right['reference_build_checked'] is True
+    wrong = dict(right, reference_multibase_mismatch=380)
+    with pytest.raises(ValueError, match=r'76.0% of indels do not match GRCh38'):
+        fmt.check_build(wrong)
+    neither = {
+        'reference_ok': 900,
+        'reference_palindromic': 10,
+        'reference_multibase': 20,
+    }
+    fmt.check_build(neither)
+    assert neither['reference_build_checked'] is False

@@ -27,13 +27,14 @@ p_value keeps the source's text, so values below the float range (e.g. 8.51e-355
 survive; neg_log_10_p_value is computed from that text.
 
 Liftover uses pyliftover, whose chain coordinates are 0-based: positions go in as
-pos - 1 and come back + 1. check_liftover_offsets() asserts this on two variants with
-known positions before any file is lifted.
+pos - 1 and come back + 1. check_liftover_offsets() checks this on variants with
+known positions (LIFTOVER_KNOWN) before any file is lifted.
 
 The build in files.csv is checked against the data: at the right positions both
 alleles of an A/T or C/G SNP match GRCh38 (on one strand or the other), at wrong
-positions about half do not. A file whose palindromic SNPs mismatch more than
-MAX_PALINDROMIC_MISMATCH fails rather than being written.
+positions about half do not. A file with too few of those is judged on its indels,
+which must match GRCh38 as written. Either way, a file mismatching more than
+MAX_BUILD_MISMATCH fails rather than being written (check_build).
 
 On Hail Batch, one job per file, after download.py has finished:
 
@@ -170,8 +171,8 @@ Z_95 = 1.959963984540054
 # NA as p_value_unparseable; more than MAX_UNPARSEABLE_P of those fails the file.
 P_TEXT_PATTERN = r'^(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$'
 MAX_UNPARSEABLE_P = 0.01
-MAX_PALINDROMIC_MISMATCH = 0.10
-MIN_PALINDROMIC_FOR_CHECK = 100
+MAX_BUILD_MISMATCH = 0.10
+MIN_SITES_FOR_BUILD_CHECK = 100
 
 # Known positions that check_liftover_offsets lifts before any file, through the same
 # lift_position() the data uses, failing the job if one lands elsewhere: a wrong chain
@@ -627,25 +628,39 @@ def lift_to_grch38(table, chain: Path, build: str, counts: dict):
 
 def check_build(counts: dict) -> None:
     """
-    Fail if more than MAX_PALINDROMIC_MISMATCH of A/T and C/G SNPs mismatched
-    GRCh38, or if no row survived the reference check. Any other SNP matches on one
-    strand or the other wherever it is placed, so only palindromic SNPs show whether
-    positions are on the right build. Takes the reference_* counts summed over
-    every chromosome, and adds reference_palindromic_mismatch_rate.
+    Fail if the positions are not on GRCh38, or if no row survived the reference
+    check. Any other SNP matches on one strand or the other wherever it is placed,
+    so the test uses A/T and C/G SNPs: at the right positions they match, at wrong
+    ones about half do not. A file with too few of them (Timsina 2026, whose authors
+    removed them) is judged on its indels instead, whose alleles must match the
+    reference as written: about 75% do not at wrong positions. Either way, more than
+    MAX_BUILD_MISMATCH mismatching fails. Takes the reference_* counts summed over
+    every chromosome, and adds the mismatch rates, reference_build_check (which test
+    ran) and reference_build_checked.
     """
-    palindromic = counts.get('reference_palindromic', 0)
-    mismatched = counts.get('reference_palindromic_mismatch', 0)
-    rate = mismatched / palindromic if palindromic else 0.0
-    counts['reference_palindromic_mismatch_rate'] = round(rate, 5)
-    # False when too few A/T and C/G SNPs to judge: a small file, or one whose
-    # authors removed them (Timsina 2026).
-    counts['reference_build_checked'] = palindromic >= MIN_PALINDROMIC_FOR_CHECK
-    if counts['reference_build_checked'] and rate > MAX_PALINDROMIC_MISMATCH:
-        raise ValueError(
-            f'{rate:.1%} of A/T and C/G SNPs do not match GRCh38: positions are not '
-            'on the expected build. Correct source_build in files.csv, then rerun '
-            'format.py --only <file_id> --force (the download is reused)'
-        )
+    tests = {
+        'palindromic SNPs': ('palindromic', 'A/T and C/G SNPs'),
+        'indels': ('multibase', 'indels'),
+    }
+    for key, _ in tests.values():
+        total = counts.get(f'reference_{key}', 0)
+        rate = counts.get(f'reference_{key}_mismatch', 0) / total if total else 0.0
+        counts[f'reference_{key}_mismatch_rate'] = round(rate, 5)
+    for name, (key, label) in tests.items():
+        rate = counts[f'reference_{key}_mismatch_rate']
+        if counts.get(f'reference_{key}', 0) >= MIN_SITES_FOR_BUILD_CHECK:
+            counts['reference_build_check'] = name
+            counts['reference_build_checked'] = True
+            if rate > MAX_BUILD_MISMATCH:
+                raise ValueError(
+                    f'{rate:.1%} of {label} do not match GRCh38: positions are not '
+                    'on the expected build. Correct source_build in files.csv, then '
+                    'rerun format.py --only <file_id> --force (the download is reused)'
+                )
+            break
+    else:
+        counts['reference_build_check'] = 'none: too few A/T, C/G SNPs and indels'
+        counts['reference_build_checked'] = False
     if not counts.get('reference_ok', 0) + counts.get('reference_strand_flipped', 0):
         raise ValueError(
             f'no rows survived the GRCh38 reference check, so nothing is written; '
@@ -679,6 +694,8 @@ def check_reference(table, fasta: Path, counts: dict, verdict: bool = True):
         'mismatch': 0,
         'palindromic': 0,
         'palindromic_mismatch': 0,
+        'multibase': 0,
+        'multibase_mismatch': 0,
     }
     for (chromosome,), part in table.group_by(['chromosome'], maintain_order=True):
         sequence = reference.fetch(contigs[chromosome]).upper()
@@ -727,6 +744,8 @@ def check_reference(table, fasta: Path, counts: dict, verdict: bool = True):
         multibase = multibase.with_columns(
             _status=pl.Series(status, dtype=pl.Utf8), _palindromic=pl.lit(False)
         )
+        tally['multibase'] += multibase.height
+        tally['multibase_mismatch'] += status.count('mismatch')
         part = pl.concat([snvs, multibase])
         for key, value in part['_status'].value_counts().iter_rows():
             tally[key] += value
