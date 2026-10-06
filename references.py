@@ -1180,4 +1180,22 @@ SOURCES = [
             aadr_v66_p1_compatibility_ho_anno='v66.p1_compatibility_HO.aadr.PUB.anno',
         ),
     ),
+    Source(
+        # The 1kGP high-coverage pedigree and populations (Byrska-Bishop et al. 2022, Cell): one
+        # row per sample of the 3,202, with family, father, mother, sex, population and
+        # superpopulation; 0 marks an absent parent. Its trios and duos are the ones Koenig et al.
+        # 2024 used when phasing the HGDP+1KG panel (phased_hgdp_1kg). popgen-phasing uses it to
+        # hold out 1KG trio children with their families and to score phasing against their
+        # trio-informed phase.
+        'pedigree_1kgp_3202',
+        src=(
+            'https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/'
+            '1000G_2504_high_coverage/'
+        ),
+        dst='1kgp/1000G_2504_high_coverage',
+        transfer_cmd=curl,
+        files=dict(
+            ped_population='20130606_g1k_3202_samples_ped_population.txt',
+        ),
+    ),
 ]
