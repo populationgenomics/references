@@ -1112,6 +1112,11 @@ SOURCES = [
         # in .hg19.refN.bcf. .variant_ids.tsv maps the new IDs to the AADR IDs, and .hg38.log is
         # the conversion log.
         #
+        # v66.p1_HO.aadr.PUB.anno is AADR's per-sample annotation, unchanged and under its release
+        # name (md5 548b011b4adbcd46f0ff66b957c59c3f, as in v66.p1__files.md5sum). Its Genetic ID
+        # column matches the .psam IIDs; it holds the date and data type that tell present-day
+        # diploid samples from ancient and pseudo-haploid ones, which the .psam does not.
+        #
         # Staged in gs://cpg-common-test/references/aadr/v66.p1/HO/ and rsynced to
         # cpg-common-main by CI on merge.
         'aadr_v66_p1_ho',
@@ -1129,6 +1134,7 @@ SOURCES = [
             aadr_v66_p1_ho_hg38_nonsnv_bcf='aadr_v66.p1_HO.hg38.nonsnv.bcf',
             aadr_v66_p1_ho_hg19_refn_bcf='aadr_v66.p1_HO.hg19.refN.bcf',
             aadr_v66_p1_ho_hg38_log='aadr_v66.p1_HO.hg38.log',
+            aadr_v66_p1_ho_anno='v66.p1_HO.aadr.PUB.anno',
         ),
     ),
     Source(
@@ -1148,6 +1154,12 @@ SOURCES = [
         # in .hg19.refN.bcf. .variant_ids.tsv maps the new IDs to the AADR IDs, and .hg38.log is
         # the conversion log.
         #
+        # v66.p1_compatibility_HO.aadr.PUB.anno is AADR's per-sample annotation, unchanged and
+        # under its release name (md5 548b011b4adbcd46f0ff66b957c59c3f, as in
+        # v66.p1__files.md5sum). Its Genetic ID column matches the .psam IIDs; it holds the date
+        # and data type that tell present-day diploid samples from ancient and pseudo-haploid
+        # ones, which the .psam does not.
+        #
         # Staged in gs://cpg-common-test/references/aadr/v66.p1/compatibility_HO/ and rsynced to
         # cpg-common-main by CI on merge.
         'aadr_v66_p1_compatibility_ho',
@@ -1165,6 +1177,7 @@ SOURCES = [
             aadr_v66_p1_compatibility_ho_hg38_nonsnv_bcf='aadr_v66.p1_compatibility_HO.hg38.nonsnv.bcf',
             aadr_v66_p1_compatibility_ho_hg19_refn_bcf='aadr_v66.p1_compatibility_HO.hg19.refN.bcf',
             aadr_v66_p1_compatibility_ho_hg38_log='aadr_v66.p1_compatibility_HO.hg38.log',
+            aadr_v66_p1_compatibility_ho_anno='v66.p1_compatibility_HO.aadr.PUB.anno',
         ),
     ),
 ]
