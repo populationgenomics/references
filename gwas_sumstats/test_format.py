@@ -615,3 +615,28 @@ def test_build_check_falls_back_to_indels():
     }
     fmt.check_build(neither)
     assert neither['reference_build_checked'] is False
+
+
+def test_duplicates_exact_kept_once_conflicting_dropped(fasta, tmp_path):
+    import gzip
+    import json
+
+    source = tmp_path / 'source.tsv'
+    source.write_text(
+        'chromosome\tbase_pair_location\teffect_allele\tother_allele\tbeta\tp_value\n'
+        '1\t50\tA\tC\t0.1\t0.01\n'
+        '1\t50\tA\tC\t0.1\t0.01\n'
+        '1\t251\tA\tG\t0.2\t0.02\n'
+        '1\t251\tA\tG\t0.9\t0.5\n'
+        '2\t990\tG\tA\t0.3\t0.03\n'
+    )
+    row = {'file_id': 'x', 'columns': '', 'n_study': '100', 'source_build': 'GRCh38'}
+    record = {'md5': 'x', 'md5_checked': False, 'downloaded_at': 'x'}
+    out_root, stats = tmp_path / 'out', tmp_path / 'stats.json'
+    fmt.format_one(row, source, out_root, stats, fasta, {}, record)
+    lines = gzip.open(f'{out_root}.tsv.gz', 'rt').read().splitlines()[1:]
+    assert [line.split('\t')[:2] for line in lines] == [['1', '50'], ['2', '990']]
+    counts = json.loads(stats.read_text())
+    assert counts['dropped_duplicate_exact'] == 1
+    assert counts['dropped_duplicate_conflicting'] == 2
+    assert counts['rows_out'] == 2

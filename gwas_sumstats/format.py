@@ -494,7 +494,7 @@ def standardise(df, columns: dict[str, str], n_study: int, counts: dict):
         notes['n_source'] = 'per variant'
     else:
         out['n'] = pl.lit(n_study or None, pl.Int64)
-        notes['n_source'] = 'study total from GWAS Catalog' if n_study else 'none'
+        notes['n_source'] = 'study total (files.csv n_study)' if n_study else 'none'
     out['z'] = number('z') if has('z') else pl.lit(None, pl.Float64)
 
     # Safety net: no inf or NaN reaches the output, whatever path made it (write_csv
@@ -813,6 +813,22 @@ def split_by_chromosome(
     return {key: workdir / f'chromosome_{key}.tsv' for key in sorted(handles)}
 
 
+def drop_duplicates(table, counts: dict):
+    """
+    One row per variant (chromosome, position, effect and other allele). Exact copies
+    keep one row; copies that disagree (Verma 2024 has the same variant twice with
+    different beta and P) are all dropped, since nothing says which is right.
+    Counted as dropped_duplicate_exact and dropped_duplicate_conflicting.
+    """
+    import polars as pl
+
+    unique = table.unique(maintain_order=True)
+    counts['dropped_duplicate_exact'] += table.height - unique.height
+    conflicting = pl.struct(SORT_KEY).is_duplicated()
+    counts['dropped_duplicate_conflicting'] += unique.filter(conflicting).height
+    return unique.filter(~conflicting)
+
+
 def format_one(
     row: dict,
     original: Path,
@@ -884,10 +900,7 @@ def format_one(
             out.write(('\t'.join(OUTPUT_COLUMNS) + '\n').encode())
             for chromosome in sorted(parts):
                 table = pl.concat([pl.read_parquet(p) for p in parts[chromosome]])
-                table = table.sort(SORT_KEY)
-                counts['duplicate_variants'] += (
-                    table.height - table.unique(SORT_KEY).height
-                )
+                table = drop_duplicates(table.sort(SORT_KEY), counts)
                 counts['rows_out'] += table.height
                 filled.update(
                     {c: table.height - table[c].null_count() for c in OUTPUT_COLUMNS}

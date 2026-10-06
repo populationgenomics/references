@@ -166,6 +166,9 @@ effect_allele_frequency  p_value  neg_log_10_p_value  rsid  n  z`
 - Space-separated files keep empty fields in place (a missing rsID is two spaces),
   so their rows are not shifted.
 - `n` is per variant where the source gives it, otherwise the study total.
+- One row per variant (position and both alleles): exact copies keep one row, and
+  copies that disagree are all dropped, as nothing says which is right
+  (`dropped_duplicate_exact`, `dropped_duplicate_conflicting`).
 - Nothing is filtered on frequency or P value. `manifest.csv` counts every row dropped
   and why.
 
