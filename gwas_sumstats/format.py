@@ -406,6 +406,27 @@ def standardise(df, columns: dict[str, str], n_study: int, counts: dict):
     )
     out['effect_allele'] = text('effect_allele').str.to_uppercase()
     out['other_allele'] = text('other_allele').str.to_uppercase()
+    if has('indels_from'):
+        # Indels coded D/I (deletion = shorter allele, insertion = longer; checked for
+        # Chen 2020 against 1000 Genomes frequencies), with the sequences in an ID
+        # such as 10:100009580_C_CCT: take each allele's sequence from there.
+        ids = text('indels_from')
+        first = ids.str.extract(r'_([ACGTacgt]+)_([ACGTacgt]+)$', 1).str.to_uppercase()
+        second = ids.str.extract(r'_([ACGTacgt]+)_([ACGTacgt]+)$', 2).str.to_uppercase()
+        longer_first = first.str.len_chars() > second.str.len_chars()
+        indel = first.str.len_chars() != second.str.len_chars()
+        shorter = pl.when(longer_first).then(second).otherwise(first)
+        longer = pl.when(longer_first).then(first).otherwise(second)
+        for field in ('effect_allele', 'other_allele'):
+            coded = out[field]
+            out[field] = (
+                pl.when((coded == 'D') & indel)
+                .then(shorter)
+                .when((coded == 'I') & indel)
+                .then(longer)
+                .otherwise(coded)
+            )
+        notes['indel_alleles'] = f'D/I sequences from {columns["indels_from"]}'
 
     if has('beta'):
         out['beta'] = number('beta')

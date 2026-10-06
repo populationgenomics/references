@@ -640,3 +640,20 @@ def test_duplicates_exact_kept_once_conflicting_dropped(fasta, tmp_path):
     assert counts['dropped_duplicate_exact'] == 1
     assert counts['dropped_duplicate_conflicting'] == 2
     assert counts['rows_out'] == 2
+
+
+def test_d_i_indels_take_sequences_from_the_id_column():
+    df = source_table(
+        rs_number=['10:100_C_CCT', '10:200_GCA_G', '10:300_A_G'],
+        chromosome=[10, 10, 10],
+        base_pair_location=[100, 200, 300],
+        reference_allele=['D', 'I', 'A'],
+        other_allele=['I', 'D', 'G'],
+        beta=[0.1, 0.2, 0.3],
+        p_value=['0.1', '0.2', '0.3'],
+    )
+    override = 'effect_allele=reference_allele;indels_from=rs_number'
+    table, notes = fmt.standardise(df, fmt.resolve_columns(df, override), 100, {})
+    assert table['effect_allele'].to_list() == ['C', 'GCA', 'A']
+    assert table['other_allele'].to_list() == ['CCT', 'G', 'G']
+    assert notes['indel_alleles'] == 'D/I sequences from rs_number'
