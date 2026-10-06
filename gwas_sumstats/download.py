@@ -4,7 +4,12 @@
 Download the GWAS summary statistics listed in files.csv, unchanged, and check each
 one against its published MD5 where the source publishes one.
 
-Each file lands as <file_id>_<original|harmonised><suffix>, next to a <same name>.json
+files.csv always points at the authors' own file, never the GWAS Catalog's
+harmonised copy, so every change to the data is made, and counted, by format.py,
+including any liftover. Older versions of the harmoniser lifted GRCh37 positions
+with an off-by-one error for some variants (gwas-catalog/sumstats-harmoniser#52).
+
+Each file lands as <file_id>_original<suffix>, next to a <same name>.json
 record of where it came from (URL, MD5, size, download time). The name leaves out the
 genome build: that is files.csv's claim, which format.py checks and may prove wrong,
 and correcting it must not orphan the download. A file whose destination already
@@ -64,8 +69,7 @@ def read_files_csv(path: Path, only: list[str] | None = None) -> list[dict]:
 
 def original_name(row: dict) -> str:
     """File name of the downloaded original, e.g. ..._original.tsv.gz"""
-    kind = 'harmonised' if row['source_kind'] == 'catalog_harmonised' else 'original'
-    return f'{row["file_id"]}_{kind}{row["suffix"]}'
+    return f'{row["file_id"]}_original{row["suffix"]}'
 
 
 def open_url(url: str, headers: dict | None = None):

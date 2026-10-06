@@ -10,6 +10,16 @@ OurDNA, colocalisation with TenK10K, ...).
 | `download.py` | Downloads each file unchanged into `gs://cpg-common-main-tmp/gwas_sumstats/original/` and checks its MD5 |
 | `format.py` | Converts each download to GRCh38 and the standard columns, writing to `gs://cpg-common-main/references/gwas_sumstats/v1/`; then writes `manifest.csv` there and `manifest.html` to `gs://cpg-common-main-web/gwas_sumstats/` |
 
+Every source is the authors' own file, never the GWAS Catalog's harmonised copy, so
+every change to the data is made, and counted, by `format.py`. Older versions of the
+harmoniser lifted GRCh37 positions with an off-by-one error for some variants
+([sumstats-harmoniser#52](https://github.com/gwas-catalog/sumstats-harmoniser/pull/52)).
+GRCh37 and NCBI36 sources are lifted by `format.py`; GRCh38 sources are used as
+published. `build_evidence` in `files.csv` says how each build is known and, for
+GRCh38 sources, whether the data were made natively on GRCh38 (sequencing or a
+GRCh38 imputation panel) where the GWAS Catalog metadata says so. Three studies
+(UKB-WGS 2025, Timsina 2026, Wei 2024) publish no rsID column, so their `rsid` is NA.
+
 Objects in `-main-tmp` are deleted after 8 days, so run `format.py` within a week of
 `download.py`. Each format job keeps its stats (row counts, drop reasons, and the
 download's MD5 and time) in `v1/stats/`, so `--manifest` can be rerun at any time. A
@@ -139,8 +149,9 @@ effect_allele_frequency  p_value  neg_log_10_p_value  rsid  n  z`
 - Both alleles are checked against GRCh38; SNVs reported on the other strand are
   complemented. A file whose A/T and C/G SNPs mostly fail this check is on the wrong
   build, and formatting stops rather than writing it.
-- `beta` is per effect allele; odds ratios become ln(OR). Sources with no effect
-  size (the Chen 2020 trans-ethnic blood-count files) keep `beta` as NA.
+- `beta` is per effect allele; odds ratios become ln(OR), and a source with only z
+  and SE gets beta = z x SE. A source with no effect size keeps `beta` as NA (none
+  in the current list).
 - Indels coded without sequence (`D`/`I`, `Y`/`Z`) cannot be placed on GRCh38 and
   are dropped (`dropped_non_acgt_allele` in the manifest).
 - `effect_allele_frequency` is the study's own frequency. The Wheeler 2017 HbA1c
@@ -164,6 +175,11 @@ where the accession is the GWAS Catalog study ID or the source's dataset ID.
 Sources that need a login or an access application are not in `files.csv`: UKB-PPP
 proteins (Synapse), ThyroidOmics (click-through terms), tau PET (ADNI), and the
 dbGaP-controlled and on-request studies.
+
+The Chen 2020 trans-ethnic blood-count files come from the authors' site
+(https://www.mhi-humangenetics.org/en/resources), not the GWAS Catalog: the Catalog
+holds only their MR-MEGA results (P value, no effect size), while the authors also
+publish a fixed-effect GWAMA meta-analysis of the same data with beta and SE.
 
 The Chen 2021 trans-ancestry glycaemic files (GCST90002229, GCST90002235,
 GCST90002241) are left out: they hold MR-MEGA Bayes factors, with no association P

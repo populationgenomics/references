@@ -21,8 +21,8 @@ Output columns, in order (missing values are NA):
 
 chromosome is GWAS-SSF numeric (1-22, X=23, Y=24, MT=25). base_pair_location is
 1-based. beta is per effect allele: odds ratios become ln(OR), with the standard error
-taken from the 95% CI if no SE is given. A source with no effect size (P value only)
-keeps beta as NA. z is filled only where the source has it.
+taken from the 95% CI if no SE is given; with only z and SE, beta = z x SE. A source
+with no effect size (P value only) keeps beta as NA. z is filled only where the source has it.
 p_value keeps the source's text, so values below the float range (e.g. 8.51e-3553)
 survive; neg_log_10_p_value is computed from that text.
 
@@ -173,11 +173,24 @@ MAX_UNPARSEABLE_P = 0.01
 MAX_PALINDROMIC_MISMATCH = 0.10
 MIN_PALINDROMIC_FOR_CHECK = 100
 
-# (chromosome, source position, GRCh38 position), 1-based. GRCh37: rs7412 and
-# rs429358 (APOE). NCBI36: rs1260326 (GCKR) and rs12565286. GRCh38 from Ensembl.
+# Known positions that check_liftover_offsets lifts before any file, through the same
+# lift_position() the data uses, failing the job if one lands elsewhere: a wrong chain
+# file, or 1-based positions passed to the 0-based chain (the GWAS Catalog harmoniser
+# bug, sumstats-harmoniser#52). That bug cancels out on plus-strand chain blocks and
+# shifts positions by 2 on minus-strand ones (~0.45% of positions), so each build has
+# a minus-strand variant. (chromosome, source position, GRCh38 position), 1-based;
+# GRCh38 positions from Ensembl.
 LIFTOVER_KNOWN = {
-    'GRCh37': [(19, 45412079, 44908822), (19, 45411941, 44908684)],
-    'NCBI36': [(2, 27584444, 27508073), (1, 711153, 785910)],
+    'GRCh37': [
+        (19, 45412079, 44908822),  # rs7412 (APOE), plus strand
+        (19, 45411941, 44908684),  # rs429358 (APOE), plus strand
+        (1, 144865454, 149019017),  # rs2798904, minus strand
+    ],
+    'NCBI36': [
+        (2, 27584444, 27508073),  # rs1260326 (GCKR), plus strand
+        (1, 711153, 785910),  # rs12565286, plus strand
+        (1, 2476391, 2566588),  # rs2495365, minus strand
+    ],
 }
 
 
@@ -400,6 +413,9 @@ def standardise(df, columns: dict[str, str], n_study: int, counts: dict):
         odds = number('odds_ratio')
         out['beta'] = pl.when(odds > 0).then(odds.log()).otherwise(None)
         notes['effect_source'] = 'ln(odds_ratio)'
+    elif has('z') and has('standard_error'):
+        out['beta'] = number('z') * number('standard_error')
+        notes['effect_source'] = 'z x standard_error'
     else:
         out['beta'] = pl.lit(None, pl.Float64)
         notes['effect_source'] = 'z only' if has('z') else 'none (P value only)'
@@ -508,11 +524,22 @@ def complement(expr):
     return expr.str.replace_many(['A', 'C', 'G', 'T'], ['T', 'G', 'C', 'A'])
 
 
+def lift_position(lifter, contig: str, position: int) -> list[tuple[str, int, str]]:
+    """
+    Lift one 1-based position with pyliftover, whose chain coordinates are 0-based.
+
+    Returns:
+        (contig, 1-based position, strand) per hit
+    """
+    hits = lifter.convert_coordinate(contig, position - 1) or []
+    return [(hit[0], hit[1] + 1, hit[2]) for hit in hits]
+
+
 def check_liftover_offsets(lifter, build: str) -> None:
-    """Assert 1-based in, 1-based out on variants with known positions."""
+    """Fail unless every LIFTOVER_KNOWN variant lands on its known GRCh38 position."""
     for chromosome, source, grch38 in LIFTOVER_KNOWN[build]:
-        hits = lifter.convert_coordinate(CHAIN_CONTIGS[chromosome], source - 1)
-        if not (hits and hits[0][1] + 1 == grch38):
+        hits = lift_position(lifter, CHAIN_CONTIGS[chromosome], source)
+        if not (hits and hits[0][1] == grch38):
             raise RuntimeError(
                 f'{build} liftover offset check failed: chr{chromosome}:{source} -> '
                 f'{hits}, expected {grch38}'
@@ -547,7 +574,7 @@ def lift_to_grch38(table, chain: Path, build: str, counts: dict):
         strict=True,
     ):
         contig = CHAIN_CONTIGS.get(chromosome)
-        hits = lifter.convert_coordinate(contig, position - 1) if contig else None
+        hits = lift_position(lifter, contig, position) if contig else None
         reason = None
         if chromosome == 25:
             reason = 'mt_not_lifted'
@@ -564,7 +591,7 @@ def lift_to_grch38(table, chain: Path, build: str, counts: dict):
             minus.append(None)
             continue
         new_chromosome.append(canonical[hits[0][0]])
-        new_position.append(hits[0][1] + 1)
+        new_position.append(hits[0][1])
         minus.append(hits[0][2] == '-')
     counts.update({f'liftover_{k}': v for k, v in reasons.items()})
     lifted = table.with_columns(
@@ -610,8 +637,8 @@ def check_build(counts: dict) -> None:
     mismatched = counts.get('reference_palindromic_mismatch', 0)
     rate = mismatched / palindromic if palindromic else 0.0
     counts['reference_palindromic_mismatch_rate'] = round(rate, 5)
-    # False when too few A/T and C/G SNPs to judge, e.g. GWAS Catalog harmonised
-    # files, which have them removed.
+    # False when too few A/T and C/G SNPs to judge: a small file, or one whose
+    # authors removed them (Timsina 2026).
     counts['reference_build_checked'] = palindromic >= MIN_PALINDROMIC_FOR_CHECK
     if counts['reference_build_checked'] and rate > MAX_PALINDROMIC_MISMATCH:
         raise ValueError(

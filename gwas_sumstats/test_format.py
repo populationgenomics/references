@@ -551,3 +551,44 @@ def test_se_from_bad_ci_is_na_not_inf_or_nan():
     expected = (math.log(2.6) - math.log(1.5)) / (2 * 1.959963984540054)
     assert se[3] == pytest.approx(expected)
     assert table['standard_error'].is_nan().sum() == 0
+
+
+def test_offset_check_catches_one_based_positions_on_minus_strand(chain, monkeypatch):
+    # The harmoniser bug: 1-based positions passed to the 0-based chain, result used
+    # as is. It cancels out on plus-strand blocks, so only a minus-strand known
+    # variant catches it. Fixture chr2 is minus strand: 1-based p -> 1001 - p.
+    monkeypatch.setitem(fmt.LIFTOVER_KNOWN, 'GRCh37', [(1, 51, 251), (2, 10, 991)])
+
+    def one_based_bug(lifter, contig, position):
+        hits = lifter.convert_coordinate(contig, position) or []
+        return [(hit[0], hit[1], hit[2]) for hit in hits]
+
+    table, _, _ = standardise(
+        source_table(
+            chromosome=[1],
+            base_pair_location=[51],
+            effect_allele=['A'],
+            other_allele=['G'],
+            beta=[0.1],
+            p_value=['0.01'],
+        )
+    )
+    fmt.lift_to_grch38(table, chain, 'GRCh37', {})  # correct code passes
+    monkeypatch.setattr(fmt, 'lift_position', one_based_bug)
+    with pytest.raises(RuntimeError, match=r'chr2:10 .* expected 991'):
+        fmt.lift_to_grch38(table, chain, 'GRCh37', {})
+
+
+def test_beta_from_z_and_standard_error():
+    df = source_table(
+        chromosome=[1, 1],
+        base_pair_location=[10, 20],
+        effect_allele=['A', 'A'],
+        other_allele=['G', 'G'],
+        z=[2.5, -4],
+        standard_error=[0.02, 0.01],
+        p_value=['0.01', '0.0001'],
+    )
+    table, notes, _ = standardise(df)
+    assert table['beta'].to_list() == pytest.approx([0.05, -0.04])
+    assert notes['effect_source'] == 'z x standard_error'
