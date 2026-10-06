@@ -17,7 +17,13 @@ Output columns, in order (missing values are NA):
 
     chromosome  base_pair_location  effect_allele  other_allele  beta
     standard_error  effect_allele_frequency  p_value  neg_log_10_p_value
-    rsid  n  z
+    rsid  n  z  effect_allele_is_alt
+
+other_allele is the GRCh38 reference allele and effect_allele the alternative
+(orient_to_alt); effect_allele_is_alt is NA on indels the genome cannot orient.
+
+README.md compares these steps with the GWAS Catalog harmoniser; update that table
+whenever what this script does changes.
 
 chromosome is GWAS-SSF numeric (1-22, X=23, Y=24, MT=25). base_pair_location is
 1-based. beta is per effect allele: odds ratios become ln(OR), with the standard error
@@ -113,6 +119,7 @@ OUTPUT_COLUMNS = [
     'rsid',
     'n',
     'z',
+    'effect_allele_is_alt',
 ]
 
 # Source column names accepted for each field, matched case-insensitively, first
@@ -172,6 +179,7 @@ Z_95 = 1.959963984540054
 P_TEXT_PATTERN = r'^(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$'
 MAX_UNPARSEABLE_P = 0.01
 MAX_BUILD_MISMATCH = 0.10
+STRAND_MODE_THRESHOLD = 0.99
 MIN_SITES_FOR_BUILD_CHECK = 100
 
 # Known positions that check_liftover_offsets lifts before any file, through the same
@@ -698,6 +706,13 @@ def check_reference(table, fasta: Path, counts: dict, verdict: bool = True):
     Multi-base alleles must match the reference as written. Rows matching
     neither way are dropped.
 
+    Adds reference_allele, the one of the two alleles that is the GRCh38 reference:
+    the genome base for an SNV; for an indel the allele that matches the genome. When
+    both match (A/AG where the genome reads AG: a deletion of G or an insertion of G)
+    the genome cannot tell, and reference_allele is null; orient_to_alt() then leaves
+    the row as the source gave it. Counts forward- and reverse-strand
+    non-palindromic SNVs for palindromic_strand().
+
     With verdict, also runs check_build on this table's counts. format_one checks
     one chromosome at a time, so it passes verdict=False and calls check_build once
     on the totals.
@@ -717,6 +732,7 @@ def check_reference(table, fasta: Path, counts: dict, verdict: bool = True):
         'palindromic_mismatch': 0,
         'multibase': 0,
         'multibase_mismatch': 0,
+        'snv_forward': 0,
     }
     for (chromosome,), part in table.group_by(['chromosome'], maintain_order=True):
         sequence = reference.fetch(contigs[chromosome]).upper()
@@ -747,23 +763,24 @@ def check_reference(table, fasta: Path, counts: dict, verdict: bool = True):
             .then(flipped_other)
             .otherwise(other),
         )
+        tally['snv_forward'] += snvs.filter(
+            (pl.col('_status') == 'ok') & ~pl.col('_palindromic')
+        ).height
         multibase = part.filter(~snv)
-        status = [
-            'ok'
-            if any(
-                sequence[pos - 1 : pos - 1 + len(allele)] == allele
-                for allele in alleles
-            )
-            else 'mismatch'
-            for pos, *alleles in zip(
-                multibase['base_pair_location'].to_list(),
-                multibase['effect_allele'].to_list(),
-                multibase['other_allele'].to_list(),
-                strict=True,
-            )
-        ]
+        status, reference_alleles = [], []
+        for pos, *alleles in zip(
+            multibase['base_pair_location'].to_list(),
+            multibase['effect_allele'].to_list(),
+            multibase['other_allele'].to_list(),
+            strict=True,
+        ):
+            matching = [a for a in alleles if sequence[pos - 1 : pos - 1 + len(a)] == a]
+            status.append('ok' if matching else 'mismatch')
+            reference_alleles.append(matching[0] if len(matching) == 1 else None)
         multibase = multibase.with_columns(
-            _status=pl.Series(status, dtype=pl.Utf8), _palindromic=pl.lit(False)
+            _status=pl.Series(status, dtype=pl.Utf8),
+            _palindromic=pl.lit(False),
+            _ref=pl.Series(reference_alleles, dtype=pl.Utf8),
         )
         tally['multibase'] += multibase.height
         tally['multibase_mismatch'] += status.count('mismatch')
@@ -779,8 +796,12 @@ def check_reference(table, fasta: Path, counts: dict, verdict: bool = True):
     if verdict:
         check_build(counts)
     if not kept:
-        return table.head(0)
-    return pl.concat(kept).drop('_ref', '_status', '_palindromic')
+        return table.head(0).with_columns(reference_allele=pl.lit(None, pl.Utf8))
+    return (
+        pl.concat(kept)
+        .rename({'_ref': 'reference_allele'})
+        .drop('_status', '_palindromic')
+    )
 
 
 SORT_KEY = ['chromosome', 'base_pair_location', 'effect_allele', 'other_allele']
@@ -832,6 +853,93 @@ def split_by_chromosome(
         for handle in handles.values():
             handle.close()
     return {key: workdir / f'chromosome_{key}.tsv' for key in sorted(handles)}
+
+
+def palindromic_strand(counts: dict) -> str:
+    """
+    The strand to assume for A/T and C/G SNPs, whose strand cannot be read from the
+    alleles: 'forward' if at least STRAND_MODE_THRESHOLD of the file's other SNVs are
+    on the forward strand, 'reverse' if that share is on the reverse strand, else
+    'drop' (the GWAS Catalog harmoniser's rule).
+    """
+    forward = counts.get('reference_snv_forward', 0)
+    reverse = counts.get('reference_strand_flipped', 0)
+    total = forward + reverse
+    if total and forward / total >= STRAND_MODE_THRESHOLD:
+        return 'forward'
+    if total and reverse / total >= STRAND_MODE_THRESHOLD:
+        return 'reverse'
+    return 'drop'
+
+
+def apply_palindromic_strand(table, mode: str, counts: dict):
+    """Complement (reverse) or drop (drop) A/T and C/G SNPs; forward leaves them."""
+    import polars as pl
+
+    effect, other = pl.col('effect_allele'), pl.col('other_allele')
+    palindromic = (
+        (effect.str.len_chars() == 1)
+        & (other.str.len_chars() == 1)
+        & (effect == complement(other))
+    )
+    if mode == 'reverse':
+        counts['palindromic_complemented'] += table.filter(palindromic).height
+        return table.with_columns(
+            effect_allele=pl.when(palindromic)
+            .then(complement(effect))
+            .otherwise(effect),
+            other_allele=pl.when(palindromic).then(complement(other)).otherwise(other),
+        )
+    if mode == 'drop':
+        counts['dropped_palindromic_mixed_strand'] += table.filter(palindromic).height
+        return table.filter(~palindromic)
+    return table
+
+
+def orient_to_alt(table, counts: dict):
+    """
+    Make other_allele the GRCh38 reference allele and effect_allele the alternative.
+    Where the source's effect allele is the reference, swap the alleles and turn the
+    effect around: beta and z change sign, effect_allele_frequency becomes 1 minus it;
+    P, SE and N are unchanged. Counted as effect_allele_swapped_to_alt. Indels whose
+    reference allele the genome cannot tell (reference_allele null) keep the source's
+    orientation, counted as orientation_ambiguous. Adds effect_allele_is_alt: true,
+    or NA for those ambiguous indels. Fails if any other row is then not
+    reference/alternative, which check_reference rules out.
+    """
+    import polars as pl
+
+    swap = (pl.col('effect_allele') == pl.col('reference_allele')).fill_null(False)
+    counts['effect_allele_swapped_to_alt'] += table.filter(swap).height
+    counts['orientation_ambiguous'] += table['reference_allele'].null_count()
+    oriented = table.with_columns(
+        effect_allele=pl.when(swap)
+        .then(pl.col('other_allele'))
+        .otherwise(pl.col('effect_allele')),
+        other_allele=pl.when(swap)
+        .then(pl.col('effect_allele'))
+        .otherwise(pl.col('other_allele')),
+        beta=pl.when(swap).then(-pl.col('beta')).otherwise(pl.col('beta')),
+        z=pl.when(swap).then(-pl.col('z')).otherwise(pl.col('z')),
+        effect_allele_frequency=pl.when(swap)
+        .then(1 - pl.col('effect_allele_frequency'))
+        .otherwise(pl.col('effect_allele_frequency')),
+    )
+    oriented = oriented.with_columns(
+        effect_allele_is_alt=pl.when(pl.col('reference_allele').is_null())
+        .then(None)
+        .otherwise(True)
+    )
+    wrong = oriented.filter(
+        pl.col('reference_allele').is_not_null()
+        & (pl.col('other_allele') != pl.col('reference_allele'))
+    )
+    if wrong.height:
+        raise RuntimeError(
+            f'{wrong.height} rows are not reference/alternative after orienting, '
+            f'e.g. {wrong.head(3).to_dicts()}'
+        )
+    return oriented
 
 
 def drop_duplicates(table, counts: dict):
@@ -915,12 +1023,16 @@ def format_one(
             )
         if bad_p:
             notes['p_value_unparseable_examples'] = sorted(bad_p)[:5]
+        strand = palindromic_strand(counts)
+        notes['palindromic_strand'] = strand
         plain = workdir / 'formatted.tsv'
         filled = Counter()
         with plain.open('wb') as out:
             out.write(('\t'.join(OUTPUT_COLUMNS) + '\n').encode())
             for chromosome in sorted(parts):
                 table = pl.concat([pl.read_parquet(p) for p in parts[chromosome]])
+                table = apply_palindromic_strand(table, strand, counts)
+                table = orient_to_alt(table, counts)
                 table = drop_duplicates(table.sort(SORT_KEY), counts)
                 counts['rows_out'] += table.height
                 filled.update(

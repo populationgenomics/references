@@ -8,6 +8,7 @@ From the repo root:
 """
 
 import argparse
+import collections
 import csv
 import math
 
@@ -657,3 +658,91 @@ def test_d_i_indels_take_sequences_from_the_id_column():
     assert table['effect_allele'].to_list() == ['C', 'GCA', 'A']
     assert table['other_allele'].to_list() == ['CCT', 'G', 'G']
     assert notes['indel_alleles'] == 'D/I sequences from rs_number'
+
+
+def oriented_table(**columns):
+    return pl.DataFrame(columns)
+
+
+def test_orient_to_alt_swaps_and_turns_the_effect_around():
+    table = oriented_table(
+        effect_allele=['A', 'G'],
+        other_allele=['G', 'A'],
+        reference_allele=['A', 'A'],
+        beta=[0.2, 0.3],
+        z=[4.0, 5.0],
+        effect_allele_frequency=[0.1, 0.4],
+        p_value=['1e-5', '1e-6'],
+        standard_error=[0.05, 0.06],
+    )
+    counts = collections.Counter()
+    out = fmt.orient_to_alt(table, counts)
+    # Row 1: effect A was the reference, so it is swapped; row 2 already alt.
+    assert out['effect_allele'].to_list() == ['G', 'G']
+    assert out['other_allele'].to_list() == ['A', 'A']
+    assert out['beta'].to_list() == pytest.approx([-0.2, 0.3])
+    assert out['z'].to_list() == pytest.approx([-4.0, 5.0])
+    assert out['effect_allele_frequency'].to_list() == pytest.approx([0.9, 0.4])
+    assert out['p_value'].to_list() == ['1e-5', '1e-6']
+    assert out['standard_error'].to_list() == pytest.approx([0.05, 0.06])
+    assert counts['effect_allele_swapped_to_alt'] == 1
+
+
+def test_orient_to_alt_stops_if_a_row_is_not_reference_and_alternative():
+    table = oriented_table(
+        effect_allele=['A'],
+        other_allele=['G'],
+        reference_allele=['C'],
+        beta=[0.2],
+        z=pl.Series([None], dtype=pl.Float64),
+        effect_allele_frequency=[0.1],
+    )
+    with pytest.raises(RuntimeError, match='not reference/alternative'):
+        fmt.orient_to_alt(table, collections.Counter())
+
+
+def test_indel_orientation_is_left_alone_when_the_genome_cannot_tell(fasta):
+    # Genome 1:2-3 is CC: C/CC fits as a deletion or an insertion, so it is ambiguous
+    # and keeps the source's orientation. 1:10-11 is CC: CA does not fit, so C is the
+    # reference and the insertion CA the alternative. 1:50 is A (an SNV).
+    table, _, _ = standardise(
+        source_table(
+            chromosome=[1, 1, 1],
+            base_pair_location=[2, 10, 50],
+            effect_allele=['CC', 'C', 'A'],
+            other_allele=['C', 'CA', 'C'],
+            beta=[0.1, 0.2, 0.3],
+            p_value=['0.1', '0.2', '0.3'],
+        )
+    )
+    checked = fmt.check_reference(table, fasta, {}, verdict=False)
+    reference = checked.sort('base_pair_location')['reference_allele'].to_list()
+    assert reference == [None, 'C', 'A']
+    counts = collections.Counter()
+    out = fmt.orient_to_alt(checked, counts).sort('base_pair_location')
+    assert out['effect_allele'].to_list() == ['CC', 'CA', 'C']
+    assert out['beta'].to_list() == pytest.approx([0.1, -0.2, -0.3])
+    assert out['effect_allele_is_alt'].to_list() == [None, True, True]
+    assert counts['orientation_ambiguous'] == 1
+
+
+@pytest.mark.parametrize(
+    'forward, reverse, mode',
+    [(990, 10, 'forward'), (10, 990, 'reverse'), (900, 100, 'drop'), (0, 0, 'drop')],
+)
+def test_palindromic_strand_follows_the_other_snvs(forward, reverse, mode):
+    counts = {'reference_snv_forward': forward, 'reference_strand_flipped': reverse}
+    assert fmt.palindromic_strand(counts) == mode
+
+
+def test_apply_palindromic_strand_complements_or_drops_only_palindromic():
+    table = oriented_table(effect_allele=['A', 'A'], other_allele=['T', 'G'])
+    counts = collections.Counter()
+    reverse = fmt.apply_palindromic_strand(table, 'reverse', counts)
+    assert reverse['effect_allele'].to_list() == ['T', 'A']
+    assert reverse['other_allele'].to_list() == ['A', 'G']
+    dropped = fmt.apply_palindromic_strand(table, 'drop', counts)
+    assert dropped['other_allele'].to_list() == ['G']
+    assert counts['palindromic_complemented'] == 1
+    assert counts['dropped_palindromic_mixed_strand'] == 1
+    assert fmt.apply_palindromic_strand(table, 'forward', counts).equals(table)

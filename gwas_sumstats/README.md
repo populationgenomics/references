@@ -141,7 +141,7 @@ One `<file_id>_GRCh38_formatted.tsv.gz` (bgzipped, tabix-indexed) per source fil
 with these columns:
 
 `chromosome  base_pair_location  effect_allele  other_allele  beta  standard_error
-effect_allele_frequency  p_value  neg_log_10_p_value  rsid  n  z`
+effect_allele_frequency  p_value  neg_log_10_p_value  rsid  n  z  effect_allele_is_alt`
 
 - `chromosome` uses GWAS-SSF codes: 1-22, X=23, Y=24, MT=25.
 - Positions are GRCh38, 1-based. GRCh37 and NCBI36 sources are lifted with the UCSC
@@ -151,11 +151,29 @@ effect_allele_frequency  p_value  neg_log_10_p_value  rsid  n  z`
   build, and formatting stops rather than writing it. A file with too few A/T and
   C/G SNPs (Timsina 2026, whose authors removed them) is judged on its indels
   instead; `reference_build_check` in the manifest says which test ran.
+- **Orientation: `other_allele` is the GRCh38 reference allele and `effect_allele`
+  the alternative**, so files line up with each other and with OurDNA, gnomAD or
+  1000 Genomes. Where the source's effect allele was the reference, the alleles are
+  swapped and the effect turned around: `beta` and `z` change sign,
+  `effect_allele_frequency` becomes 1 minus it; P, SE and N are unchanged
+  (`effect_allele_swapped_to_alt` counts these). `effect_allele_is_alt` is `true`
+  on those rows. It is `NA` on indels whose reference allele the genome cannot tell
+  (A/AG where the genome reads AG: a deletion of G or an insertion of G); those keep
+  the source's orientation (`orientation_ambiguous`), about 5% of rows. Checked
+  against GWAS Catalog harmonised files (dbSNP-based): orientation and beta agree
+  on all 468,669 shared `true` rows of three studies.
+- **A/T and C/G SNPs** cannot show their strand. If at least 99% of a file's other
+  SNVs are on the forward strand they are kept as reported, at least 99% reverse
+  they are complemented, otherwise they are dropped (`palindromic_strand` in the
+  manifest; the GWAS Catalog harmoniser's rule).
 - `beta` is per effect allele; odds ratios become ln(OR), and a source with only z
   and SE gets beta = z x SE. A source with no effect size keeps `beta` as NA (none
   in the current list).
 - Indels coded without sequence (`D`/`I`, `Y`/`Z`) cannot be placed on GRCh38 and
-  are dropped (`dropped_non_acgt_allele` in the manifest).
+  are dropped (`dropped_non_acgt_allele` in the manifest), unless the source's
+  variant IDs carry the sequences: the Chen 2020 trans-ethnic files
+  (`indels_from=rs_number` in `files.csv`; D = the shorter allele, checked against
+  1000 Genomes).
 - `effect_allele_frequency` is the study's own frequency. The Wheeler 2017 HbA1c
   files give only HapMap reference panel frequencies, so theirs is NA.
 - `p_value` keeps the source text, so values below the float range survive. Only
@@ -174,6 +192,28 @@ effect_allele_frequency  p_value  neg_log_10_p_value  rsid  n  z`
 
 `file_id` is `<year>_<first author>_<journal>_<biomarker>_<ancestry>_<accession>`,
 where the accession is the GWAS Catalog study ID or the source's dataset ID.
+
+## How this compares with the GWAS Catalog harmoniser
+
+The GWAS Catalog's own pipeline
+([gwas-catalog/sumstats-harmoniser](https://github.com/gwas-catalog/sumstats-harmoniser))
+does the same job for files submitted to the Catalog; its output is the Catalog's
+"harmonised" copies, which these scripts do not use. **Update this table in the same
+pull request whenever `format.py` changes what it does.**
+
+| Step | GWAS Catalog harmoniser | `format.py` |
+| --- | --- | --- |
+| Input | GWAS-SSF files, validated on submission | Authors' own files in many layouts: column aliases plus explicit `columns` overrides in `files.csv` |
+| Placing variants on GRCh38 | Looks up each rsID in dbSNP; lifts the rest by position | Lifts every variant by position (UCSC chains), with a self-check on known variants that would catch the 0/1-based error in older harmoniser versions ([#52](https://github.com/gwas-catalog/sumstats-harmoniser/pull/52)) |
+| Checking the declared build | Trusts the submitted metadata | Tests it on the data (A/T and C/G SNPs, else indels) and stops on a mismatch |
+| Reference for alleles | dbSNP 151 variant list (2017); variants not in it are dropped | The GRCh38 genome; any variant whose alleles fit it is kept, including rare and novel variants |
+| Strand | Complements reverse-strand variants | Same |
+| A/T and C/G SNPs | Assumed forward or reverse if at least 99% of the file's other SNVs are, else dropped | Same rule |
+| Effect allele | Re-oriented to dbSNP's alternative allele | Re-oriented to the GRCh38 alternative allele; indels the genome cannot orient keep the source's orientation, flagged by `effect_allele_is_alt` = NA |
+| rsIDs | Filled in from dbSNP | Only those the source gives |
+| Duplicates | No step for them in the code | Exact copies kept once, conflicting copies dropped |
+| P values | Rows with a non-numeric P are dropped | Kept as text, including values below the float range; P = 0 and unreadable P become NA and are counted |
+| Indels coded D/I | Dropped (no matching dbSNP record) | Recovered where the variant IDs carry the sequences (Chen 2020) |
 
 ## Not included
 
