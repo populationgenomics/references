@@ -59,10 +59,11 @@ Once every job has finished, the manifest:
         python3 gwas_sumstats/format.py --manifest
 
 Before either, check that every source's columns resolve, from the first 200 kB of
-each file at its source URL (no download, no cloud); writes columns_used.tsv, the
-mapping per file, and exits non-zero if any file fails:
+each file at its source URL (no download); writes columns_used.tsv, the mapping per
+file, next to the outputs (--out) or to the path given, and exits non-zero if any
+file fails:
 
-    python3 gwas_sumstats/format.py --check-columns
+    python3 gwas_sumstats/format.py --check-columns ./columns_used.tsv
 
 Locally (needs polars, pysam, pyliftover, numpy; where to get the fasta and chain
 files: README.md, Running locally):
@@ -94,7 +95,6 @@ DEFAULT_ORIGINALS = 'gs://cpg-common-main-tmp/gwas_sumstats/original'
 DEFAULT_STATS = 'gs://cpg-common-main/references/gwas_sumstats/v1/stats'
 DEFAULT_OUT = 'gs://cpg-common-main/references/gwas_sumstats/v1'
 DEFAULT_WEB = 'gs://cpg-common-main-web/gwas_sumstats'
-COLUMNS_USED_TSV = Path(__file__).with_name('columns_used.tsv')
 # The same pins appear in README.md (Running locally, Tests) and the test_format.py
 # docstring; test_pins_match_everywhere fails if they drift apart.
 PIP_PACKAGES = 'polars==1.34.0 pysam==0.23.3 pyliftover==0.4.1 numpy'
@@ -1268,15 +1268,17 @@ def run_batch(rows: list[dict], args) -> None:
         batch.run(wait=False)
 
 
+# The first PINNED_COLUMNS stay in view in manifest.html when scrolling right.
+PINNED_COLUMNS = 3
 MANIFEST_FIELDS = [
-    'formatted_file',
+    'biomarker',
+    'ancestry',
     'file_id',
+    'formatted_file',
     'first_author',
     'year',
     'journal',
-    'biomarker',
     'trait',
-    'ancestry',
     'gcst',
     'n_study',
     'source_kind',
@@ -1355,18 +1357,31 @@ def write_manifest(rows: list[dict], args) -> None:
     )
     page = (
         '<!doctype html><meta charset="utf-8"><title>GWAS summary statistics</title>'
-        '<style>body{font:13px sans-serif}table{border-collapse:collapse}'
-        'td,th{border:1px solid #ccc;padding:2px 4px;white-space:nowrap}'
-        'th{position:sticky;top:0;background:#eef}</style>'
+        '<style>body{font:13px sans-serif}'
+        '.scroll{overflow:auto;max-height:85vh;border:1px solid #ccc}'
+        'table{border-collapse:separate;border-spacing:0}'
+        'td,th{border:1px solid #ccc;padding:2px 4px;white-space:nowrap;'
+        'background:#fff}'
+        'th{position:sticky;top:0;background:#eef;z-index:2}'
+        '.pinned{position:sticky;z-index:1}th.pinned{z-index:3}'
+        '.pinned.last{box-shadow:2px 0 3px #999}</style>'
         f'<h1>GWAS summary statistics</h1><p>{len(lines)} files in '
         f'{html.escape(args.out)}, written {datetime.now(timezone.utc):%Y-%m-%d}.</p>'
         + (
-            f'<p><b>{len(not_formatted)} files in files.csv are not formatted:</b> '
-            f'{html.escape(", ".join(not_formatted))}</p>'
+            f'<details><summary><b>{len(not_formatted)} files in files.csv are not '
+            f'formatted</b> (click to list)</summary><p>'
+            f'{html.escape(", ".join(not_formatted))}</p></details>'
             if not_formatted
             else ''
         )
-        + f'<table><tr>{cells}</tr>{body}</table>'
+        + f'<div class="scroll"><table><tr>{cells}</tr>{body}</table></div>'
+        # Pin the key columns: each one's left offset is the width of those before.
+        + '<script>let left=0;const n='
+        + str(PINNED_COLUMNS)
+        + ';for(let i=1;i<=n;i++){const cells=document.querySelectorAll('
+        '`tr > :nth-child(${i})`);cells.forEach(c=>{c.classList.add("pinned");'
+        'if(i===n)c.classList.add("last");c.style.left=left+"px"});'
+        'left+=cells[0].getBoundingClientRect().width}</script>'
     )
     web = as_path(args.web)
     if isinstance(web, Path):
@@ -1400,10 +1415,10 @@ def main():
     )
     parser.add_argument(
         '--check-columns',
-        type=Path,
         nargs='?',
-        const=COLUMNS_USED_TSV,
-        help='resolve every source header from its URL; writes columns_used.tsv',
+        const='',
+        help='resolve every source header from its URL; writes columns_used.tsv to '
+        '--out, or to the path given',
     )
     parser.add_argument('--one', help='a single files.csv row as JSON (job mode)')
     parser.add_argument('--original', type=Path, help='job mode: input file')
@@ -1415,7 +1430,7 @@ def main():
         parser.error('--force needs --only, so every file is not redone by mistake')
     if args.allow_missing and not args.manifest:
         parser.error('--allow-missing only applies to --manifest')
-    if args.check_columns == COLUMNS_USED_TSV and args.only:
+    if args.check_columns == '' and args.only:
         parser.error(
             '--check-columns with --only would replace columns_used.tsv with a '
             'subset; give an output path: --check-columns subset.tsv'
@@ -1440,8 +1455,9 @@ def main():
         )
         return
     rows = read_files_csv(args.files, args.only)
-    if args.check_columns:
-        if not check_columns(rows, args.check_columns):
+    if args.check_columns is not None:
+        out = args.check_columns or f'{args.out}/columns_used.tsv'
+        if not check_columns(rows, as_path(out)):
             raise SystemExit(1)
     elif args.manifest:
         write_manifest(rows, args)

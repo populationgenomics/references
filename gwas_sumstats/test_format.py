@@ -303,7 +303,16 @@ def test_manifest_fails_on_unformatted_files_unless_allowed(tmp_path):
     with (tmp_path / 'manifest.csv').open() as handle:
         assert [line['file_id'] for line in csv.DictReader(handle)] == ['done']
     page = (tmp_path / 'web' / 'manifest.html').read_text()
-    assert 'not formatted:</b> missing' in page
+    assert '1 files in files.csv are not formatted</b>' in page
+    assert '<p>missing</p>' in page
+    # Key columns first, pinned on the left by the page's script.
+    assert fmt.MANIFEST_FIELDS[: fmt.PINNED_COLUMNS] == [
+        'biomarker',
+        'ancestry',
+        'file_id',
+    ]
+    assert page.index('<th>biomarker</th>') < page.index('<th>rows_out</th>')
+    assert 'classList.add("pinned")' in page
 
 
 def test_scripts_have_no_assert_statements():
