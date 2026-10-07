@@ -308,6 +308,7 @@ def test_manifest_fails_on_unformatted_files_unless_allowed(tmp_path):
     # Key columns first, pinned on the left by the page's script.
     assert fmt.MANIFEST_FIELDS[: fmt.PINNED_COLUMNS] == [
         'biomarker',
+        'trait',
         'ancestry',
         'file_id',
     ]

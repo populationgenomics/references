@@ -1269,16 +1269,16 @@ def run_batch(rows: list[dict], args) -> None:
 
 
 # The first PINNED_COLUMNS stay in view in manifest.html when scrolling right.
-PINNED_COLUMNS = 3
+PINNED_COLUMNS = 4
 MANIFEST_FIELDS = [
     'biomarker',
+    'trait',
     'ancestry',
     'file_id',
     'formatted_file',
     'first_author',
     'year',
     'journal',
-    'trait',
     'gcst',
     'n_study',
     'source_kind',
