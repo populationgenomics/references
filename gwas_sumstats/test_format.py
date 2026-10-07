@@ -10,6 +10,7 @@ From the repo root:
 import argparse
 import collections
 import csv
+import json
 import math
 
 import polars as pl
@@ -756,3 +757,118 @@ def test_apply_palindromic_strand_complements_or_drops_only_palindromic():
     assert counts['palindromic_complemented'] == 1
     assert counts['dropped_palindromic_mixed_strand'] == 1
     assert fmt.apply_palindromic_strand(table, 'forward', counts).equals(table)
+
+
+def test_every_row_dropped_after_the_build_check_writes_nothing(fasta, tmp_path):
+    # Only A/T SNPs: they pass the reference check, then the strand rule drops them
+    # all, as no other SNV shows the file's strand.
+    source = tmp_path / 'source.tsv'
+    source.write_text(
+        'chromosome\tbase_pair_location\teffect_allele\tother_allele\tbeta\tp_value\n'
+        '1\t50\tA\tT\t0.1\t0.01\n'
+        '1\t251\tT\tA\t0.2\t0.02\n'
+    )
+    row = {'file_id': 'x', 'columns': '', 'n_study': '100', 'source_build': 'GRCh38'}
+    record = {'md5': 'x', 'md5_checked': False, 'downloaded_at': 'x'}
+    stats = tmp_path / 'stats.json'
+    with pytest.raises(ValueError, match='every row was dropped'):
+        fmt.format_one(row, source, tmp_path / 'out', stats, fasta, {}, record)
+    assert not list(tmp_path.glob('out*'))
+    assert not stats.exists()
+
+
+@pytest.mark.parametrize(
+    'override, message',
+    [
+        ('indel_from=rs_number', 'unknown field indel_from'),
+        ('effect_alelle=rs_number', 'unknown field effect_alelle'),
+        ('rs_number', 'expected field=SourceColumn'),
+        ('indels_from=nope', 'no column nope'),
+    ],
+)
+def test_bad_override_fails_loudly(override, message):
+    df = source_table(
+        rs_number=['10:100_C_CCT'],
+        chromosome=[10],
+        base_pair_location=[100],
+        effect_allele=['D'],
+        other_allele=['I'],
+        beta=[0.1],
+        p_value=['0.1'],
+    )
+    with pytest.raises(ValueError, match=message):
+        fmt.resolve_columns(df, override)
+
+
+def test_only_rsids_are_published_as_rsid():
+    n = 20
+    df = source_table(
+        variant_id=['rs1'] * (n - 2) + ['1:100_A_AG', 'NA'],
+        chromosome=[1] * n,
+        base_pair_location=list(range(1, n + 1)),
+        effect_allele=['A'] * n,
+        other_allele=['G'] * n,
+        beta=[0.1] * n,
+        p_value=['0.1'] * n,
+    )
+    table, _, counts = standardise(df)
+    assert table['rsid'].to_list()[-3:] == ['rs1', None, None]
+    assert counts['rsid_not_rs'] == 1
+
+
+@pytest.mark.parametrize(
+    'header, line',
+    [
+        # A UTF-8 byte order mark before the first name.
+        (
+            '﻿chromosome\tbase_pair_location\teffect_allele\tother_allele\tbeta'
+            '\tp_value',
+            '1\t50\tA\tC\t0.1\t0.01',
+        ),
+        # Comma separated with a space after each comma.
+        ('CHR, POS, effect_allele, other_allele, BETA, P', '1, 50, A, C, 0.1, 0.01'),
+    ],
+)
+def test_bom_and_padded_header_names_format(fasta, tmp_path, header, line):
+    source = tmp_path / 'source.txt'
+    source.write_text(f'{header}\n{line}\n', encoding='utf-8')
+    row = {'file_id': 'x', 'columns': '', 'n_study': '100', 'source_build': 'GRCh38'}
+    record = {'md5': 'x', 'md5_checked': False, 'downloaded_at': 'x'}
+    stats = tmp_path / 's.json'
+    fmt.format_one(row, source, tmp_path / 'out', stats, fasta, {}, record)
+    assert json.loads(stats.read_text())['rows_out'] == 1
+
+
+def test_split_by_chromosome_names_the_file_when_a_column_is_missing(tmp_path):
+    source = tmp_path / 'study.tsv'
+    source.write_text('chr\tpos\tA1\tA2\n1\t50\tA\tC\n')
+    columns = {'chromosome': 'CHROM', 'base_pair_location': 'pos'}
+    with pytest.raises(ValueError, match=r"study.tsv: column 'CHROM' is not in"):
+        fmt.split_by_chromosome(source, tmp_path, columns)
+    with pytest.raises(ValueError, match='study.tsv: no chromosome/position'):
+        fmt.split_by_chromosome(source, tmp_path, {'effect_allele': 'A1'})
+
+
+def test_check_columns_records_a_failing_file_and_writes_the_rest(
+    monkeypatch, tmp_path
+):
+    heads = {
+        'good': 'chromosome\tbase_pair_location\teffect_allele\tother_allele\tbeta'
+        '\tp_value\n1\t50\tA\tC\t0.1\t0.01\n',
+        # A row with more fields than the header: polars raises ComputeError, which
+        # is neither OSError nor ValueError.
+        'bad': 'chromosome\tbase_pair_location\teffect_allele\tother_allele\tbeta'
+        '\tp_value\n1\t50\tA\tC\t0.1\t0.01\t9\t9\n',
+    }
+    monkeypatch.setattr(fmt, 'fetch_head', lambda url: heads[url])
+    rows = [
+        {'file_id': name, 'source_url': name, 'columns': '', 'n_study': '100'}
+        for name in heads
+    ]
+    out = tmp_path / 'columns_used.tsv'
+    assert fmt.check_columns(rows, out) is False
+    with out.open() as handle:
+        lines = list(csv.DictReader(handle, delimiter='\t'))
+    status = {line['file_id']: line['status'] for line in lines}
+    assert status['good'] == 'ok'
+    assert status['bad'].startswith('error: ComputeError')

@@ -28,7 +28,8 @@ whenever what this script does changes.
 chromosome is GWAS-SSF numeric (1-22, X=23, Y=24, MT=25). base_pair_location is
 1-based. beta is per effect allele: odds ratios become ln(OR), with the standard error
 taken from the 95% CI if no SE is given; with only z and SE, beta = z x SE. A source
-with no effect size (P value only) keeps beta as NA. z is filled only where the source has it.
+with no effect size (P value only) keeps beta as NA. z is filled only where the source
+has it.
 p_value keeps the source's text, so values below the float range (e.g. 8.51e-3553)
 survive; neg_log_10_p_value is computed from that text.
 
@@ -59,11 +60,12 @@ Once every job has finished, the manifest:
         python3 gwas_sumstats/format.py --manifest
 
 Before either, check that every source's columns resolve, from the first 200 kB of
-each file at its source URL (no download); writes columns_used.tsv, the mapping per
-file, next to the outputs (--out) or to the path given, and exits non-zero if any
-file fails:
+each file at its source URL (no download; needs polars). Writes columns_used.tsv,
+the mapping per file, to the path given (without one, to --out, which defaults to a
+gs:// folder) and exits non-zero if any file fails:
 
-    python3 gwas_sumstats/format.py --check-columns ./columns_used.tsv
+    python3 gwas_sumstats/format.py \
+        --check-columns ~/gwas_sumstats_local/columns_used.tsv
 
 Locally (needs polars, pysam, pyliftover, numpy; where to get the fasta and chain
 files: README.md, Running locally):
@@ -144,6 +146,9 @@ ALIASES = {
     'z': ['z', 'zscore', 'z_score'],
     'n': ['n', 'sample_size', 'n_total_sum', 'n_total'],
 }
+# Fields a files.csv `columns` override may set: the ALIASES fields, plus rsid,
+# marker (a chr:pos column for positions) and indels_from (D/I indel sequences).
+OVERRIDE_FIELDS = set(ALIASES) | {'rsid', 'marker', 'indels_from'}
 RSID_CANDIDATES = ['rsid', 'rs_id', 'rs_number', 'variant_id', 'snp', 'markername']
 MARKER_CANDIDATES = ['markername', 'variant_id', 'variant', 'snp', 'id']
 # (?i) in the pattern itself: looks_like (re) and the polars extract must agree.
@@ -224,10 +229,13 @@ def is_compressed(path: Path) -> bool:
 
 
 def open_text(path: Path):
-    """Open a text file that may or may not be gzip/bgzip compressed."""
+    """
+    Open a text file that may or may not be gzip/bgzip compressed. utf-8-sig drops a
+    leading byte order mark, as polars does, so every reader sees the same header.
+    """
     if is_compressed(path):
-        return gzip.open(path, 'rt', newline='')
-    return path.open(newline='')
+        return gzip.open(path, 'rt', encoding='utf-8-sig', newline='')
+    return path.open(encoding='utf-8-sig', newline='')
 
 
 def detect_separator(path: Path) -> str | None:
@@ -284,7 +292,7 @@ def read_table(
                     break
                 out.write(line if separator else '\t'.join(line.split()) + '\n')
         path, separator = plain, separator or '\t'
-    return pl.read_csv(
+    table = pl.read_csv(
         path,
         separator=separator,
         infer_schema=False,
@@ -293,6 +301,9 @@ def read_table(
         columns=columns,
         n_rows=n_rows,
     )
+    # Names padded with spaces ('CHR, POS') are stripped, as split_by_chromosome
+    # strips them, so both see the same names and aliases still match.
+    return table.rename({name: name.strip() for name in table.columns})
 
 
 def looks_like(column, pattern: str) -> bool:
@@ -350,7 +361,14 @@ def resolve_columns(df, override: str) -> dict[str, str]:
                 found['marker'] = name
                 break
     for item in filter(None, override.split(';')):
-        field, name = item.split('=', 1)
+        field, separator, name = item.partition('=')
+        if not separator:
+            raise ValueError(f'override {item}: expected field=SourceColumn')
+        if field not in OVERRIDE_FIELDS:
+            raise ValueError(
+                f'override {item}: unknown field {field}; '
+                f'known: {", ".join(sorted(OVERRIDE_FIELDS))}'
+            )
         if name not in df.columns:
             raise ValueError(f'override {item}: no column {name}')
         found[field] = name
@@ -517,7 +535,15 @@ def standardise(df, columns: dict[str, str], n_study: int, counts: dict):
         out['neg_log_10_p_value'] = minus_log
         notes['p_value_source'] = 'from neg_log_10_p_value'
 
-    out['rsid'] = text('rsid') if has('rsid') else pl.lit(None, pl.Utf8)
+    if has('rsid'):
+        # The column was chosen because most values are rsIDs; any other value in it
+        # (chr:pos IDs for indels, say) is not published as one.
+        rsid = text('rsid')
+        is_rsid = rsid.str.contains(r'^rs\d+$').fill_null(False)
+        out['rsid'] = pl.when(is_rsid).then(rsid).otherwise(None)
+        counts['rsid_not_rs'] = df.filter(rsid.is_not_null() & ~is_rsid).height
+    else:
+        out['rsid'] = pl.lit(None, pl.Utf8)
     if has('n'):
         out['n'] = number('n').round(0).cast(pl.Int64)
         notes['n_source'] = 'per variant'
@@ -830,6 +856,10 @@ def split_by_chromosome(
         chromosome code -> file, in chromosome order
     """
     from_marker = not ('chromosome' in columns and 'base_pair_location' in columns)
+    if from_marker and 'marker' not in columns:
+        raise ValueError(
+            f'{path.name}: no chromosome/position or chr:pos column; resolved {columns}'
+        )
     field = columns['marker'] if from_marker else columns['chromosome']
     handles: dict = {}
     try:
@@ -838,6 +868,10 @@ def split_by_chromosome(
             header = next(lines)
             separator = detect_separator(path)
             names = [name.strip() for name in header.rstrip('\r\n').split(separator)]
+            if field not in names:
+                raise ValueError(
+                    f'{path.name}: column {field!r} is not in its header {names}'
+                )
             index = names.index(field)
             for line in lines:
                 fields = line.rstrip('\r\n').split(separator)
@@ -1041,6 +1075,12 @@ def format_one(
                 table.select(OUTPUT_COLUMNS).write_csv(
                     out, separator='\t', null_value='NA', include_header=False
                 )
+        if not counts['rows_out']:
+            # check_build cannot see the drops after it (A/T and C/G SNPs on a file
+            # of unknown strand, duplicates), so they are checked here.
+            raise ValueError(
+                f'every row was dropped, nothing is written; counts: {dict(counts)}'
+            )
         empty = [c for c in OUTPUT_COLUMNS if not filled[c]]
         compressed = pysam.tabix_index(
             str(plain), seq_col=0, start_col=1, end_col=1, line_skip=1, force=True
@@ -1111,8 +1151,10 @@ def check_one_source(row: dict) -> dict:
             'sample_rows_in': counts['rows_in'],
             'sample_rows_kept': table.height,
         }
-    except (OSError, ValueError) as error:
-        line |= {'status': f'error: {error}'}
+    except Exception as error:  # noqa: BLE001
+        # One line per file is the point of this report, so any failure, polars'
+        # included, is recorded for that file rather than ending the run.
+        line |= {'status': f'error: {type(error).__name__}: {error}'}
     return line
 
 

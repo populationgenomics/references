@@ -93,3 +93,19 @@ def test_original_name_survives_a_build_correction():
     before = download.original_name(row)
     assert before == '2017_Wheeler_PLoSMed_HbA1c_SAS_GCST007951_original.txt.gz'
     assert download.original_name(row | {'source_build': 'NCBI36'}) == before
+
+
+@pytest.mark.parametrize(
+    'body, expected',
+    [
+        (b'h\n1\n2\n', 'h\n1\n2\n'),  # complete file: every line kept
+        (b'h\n1\n2', 'h\n1\n'),  # cut mid-line: only the partial line dropped
+    ],
+)
+def test_fetch_head_drops_only_a_partial_last_line(monkeypatch, body, expected):
+    import io
+
+    monkeypatch.setattr(
+        download, 'open_url', lambda url, headers=None: io.BytesIO(body)
+    )
+    assert download.fetch_head('u') == expected

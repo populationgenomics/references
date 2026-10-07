@@ -92,7 +92,9 @@ def fetch_head(url: str, n_bytes: int = 200_000) -> str:
         text += member.decompress(data)
         data = member.unused_data
     lines = (text or data).decode('utf-8', 'replace').splitlines(keepends=True)
-    return ''.join(lines[:-1])
+    if lines and not lines[-1].endswith('\n'):
+        lines.pop()  # cut off mid-line by the byte limit
+    return ''.join(lines)
 
 
 def published_md5(row: dict) -> str | None:

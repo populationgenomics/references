@@ -48,6 +48,9 @@ refuses the job.
    pip install analysis-runner
    ```
 
+   Optionally, first check that every source's columns resolve: see the
+   `--check-columns` note under Running locally.
+
 3. Download:
 
    ```bash
@@ -123,9 +126,16 @@ python3 gwas_sumstats/format.py --local --originals ~/gwas_sumstats_local/origin
 - The chain files are the same UCSC files the references config points at
   (`liftover_37_to_38`, `liftover_36_to_38`). Each is needed only if a selected
   file is on that build; `format.py --local` says which flag is missing.
-- `python3 gwas_sumstats/format.py --check-columns ./columns_used.tsv` needs none of
-  these: it reads the start of each source straight from its URL and writes the
-  column mapping per file to that path (without a path, next to the outputs).
+- To check that every source's columns resolve before a run, use the same venv
+  (it needs polars, not the fasta or chain files) and give a local path:
+
+  ```bash
+  python3 gwas_sumstats/format.py --check-columns ~/gwas_sumstats_local/columns_used.tsv
+  ```
+
+  It reads the first 200 kB of each source from its URL, writes the column mapping
+  per file to that path, and exits non-zero if any file fails. Without a path it
+  writes to the `gs://` output folder, which needs cloud access.
 
 ## Tests
 
