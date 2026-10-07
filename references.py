@@ -217,6 +217,14 @@ SOURCES = [
         transfer_cmd=curl,
     ),
     Source(
+        'liftover_36_to_38',
+        # Liftover chain file to translate from NCBI36/hg18 to GRCh38 coordinates,
+        # for older GWAS summary statistics (gwas_sumstats/format.py).
+        src='https://hgdownload.soe.ucsc.edu/goldenPath/hg18/liftOver/hg18ToHg38.over.chain.gz',
+        dst='liftover/ncbi36_to_grch38.over.chain.gz',
+        transfer_cmd=curl,
+    ),
+    Source(
         'somalier_sites',
         # Site list for somalier fingerprinting
         src='https://github.com/brentp/somalier/files/3412456/sites.hg38.vcf.gz',
