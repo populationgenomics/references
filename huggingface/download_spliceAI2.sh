@@ -17,13 +17,10 @@ export HF_TOKEN
 REPO='illumina-ai/SpliceAI2-data'
 REVISION=${3:-"cd1b8b82bcef9c97ac3b3b9a24f0de3a5bbf77f9"}
 
-WORKDIR="$(mktemp -d)"
-trap 'rm -rf "$WORKDIR"' EXIT
-
 hf download "$REPO" \
   --revision "$REVISION" \
   --repo-type dataset \
   --include "precomputed_scores_v2.0/*" \
-  --local-dir "$WORKDIR/SpliceAI2"
+  --local-dir "${BATCH_TMPDIR}/SpliceAI2"
 
-gcloud storage rsync -r --exclude='^\.cache/' "$WORKDIR/SpliceAI2" "${DEST%/}"
+gcloud storage rsync -r --exclude='^\.cache/' "${BATCH_TMPDIR}/SpliceAI2" "${DEST%/}"
