@@ -1206,4 +1206,49 @@ SOURCES = [
             ped_population='20130606_g1k_3202_samples_ped_population.txt',
         ),
     ),
+    Source(
+        # HPRC Release 2 haplotype-resolved assemblies for 5 unrelated Kinh Vietnamese
+        # (KHV) samples: bgzipped FASTA with .fai and .gzi. All trio-phased hifiasm
+        # 0.19.7 assemblies, so hap1 is paternal (`_pat_`) and hap2 maternal (`_mat_`).
+        # Contigs carry PanSN names (HG02015#1#CM...). Paths are from HPRC's
+        # assemblies_release2_v1.0.index.csv; HG02080 sits under HPRC_PLUS/.
+        # popgen-pangenome uses them as test inputs in place of our own long-read
+        # assemblies; KHV is the closest HPRC population to its Filipino pilot.
+        'hprc_r2_khv_assemblies',
+        src='https://human-pangenomics.s3.amazonaws.com/working/',
+        dst='hprc/release2/assemblies',
+        transfer_cmd=curl,
+        files=dict(
+            hg02015_hap1='HPRC/HG02015/assemblies/release2/HG02015_pat_hprc_r2_v1.0.1.fa.gz',
+            hg02015_hap1_fai='HPRC/HG02015/assemblies/release2/HG02015_pat_hprc_r2_v1.0.1.fa.gz.fai',
+            hg02015_hap1_gzi='HPRC/HG02015/assemblies/release2/HG02015_pat_hprc_r2_v1.0.1.fa.gz.gzi',
+            hg02015_hap2='HPRC/HG02015/assemblies/release2/HG02015_mat_hprc_r2_v1.0.1.fa.gz',
+            hg02015_hap2_fai='HPRC/HG02015/assemblies/release2/HG02015_mat_hprc_r2_v1.0.1.fa.gz.fai',
+            hg02015_hap2_gzi='HPRC/HG02015/assemblies/release2/HG02015_mat_hprc_r2_v1.0.1.fa.gz.gzi',
+            hg02056_hap1='HPRC/HG02056/assemblies/release2/HG02056_pat_hprc_r2_v1.0.1.fa.gz',
+            hg02056_hap1_fai='HPRC/HG02056/assemblies/release2/HG02056_pat_hprc_r2_v1.0.1.fa.gz.fai',
+            hg02056_hap1_gzi='HPRC/HG02056/assemblies/release2/HG02056_pat_hprc_r2_v1.0.1.fa.gz.gzi',
+            hg02056_hap2='HPRC/HG02056/assemblies/release2/HG02056_mat_hprc_r2_v1.0.1.fa.gz',
+            hg02056_hap2_fai='HPRC/HG02056/assemblies/release2/HG02056_mat_hprc_r2_v1.0.1.fa.gz.fai',
+            hg02056_hap2_gzi='HPRC/HG02056/assemblies/release2/HG02056_mat_hprc_r2_v1.0.1.fa.gz.gzi',
+            hg02080_hap1='HPRC_PLUS/HG02080/assemblies/release2/HG02080_pat_hprc_r2_v1.0.1.fa.gz',
+            hg02080_hap1_fai='HPRC_PLUS/HG02080/assemblies/release2/HG02080_pat_hprc_r2_v1.0.1.fa.gz.fai',
+            hg02080_hap1_gzi='HPRC_PLUS/HG02080/assemblies/release2/HG02080_pat_hprc_r2_v1.0.1.fa.gz.gzi',
+            hg02080_hap2='HPRC_PLUS/HG02080/assemblies/release2/HG02080_mat_hprc_r2_v1.0.1.fa.gz',
+            hg02080_hap2_fai='HPRC_PLUS/HG02080/assemblies/release2/HG02080_mat_hprc_r2_v1.0.1.fa.gz.fai',
+            hg02080_hap2_gzi='HPRC_PLUS/HG02080/assemblies/release2/HG02080_mat_hprc_r2_v1.0.1.fa.gz.gzi',
+            hg02129_hap1='HPRC/HG02129/assemblies/release2/HG02129_pat_hprc_r2_v1.0.1.fa.gz',
+            hg02129_hap1_fai='HPRC/HG02129/assemblies/release2/HG02129_pat_hprc_r2_v1.0.1.fa.gz.fai',
+            hg02129_hap1_gzi='HPRC/HG02129/assemblies/release2/HG02129_pat_hprc_r2_v1.0.1.fa.gz.gzi',
+            hg02129_hap2='HPRC/HG02129/assemblies/release2/HG02129_mat_hprc_r2_v1.0.1.fa.gz',
+            hg02129_hap2_fai='HPRC/HG02129/assemblies/release2/HG02129_mat_hprc_r2_v1.0.1.fa.gz.fai',
+            hg02129_hap2_gzi='HPRC/HG02129/assemblies/release2/HG02129_mat_hprc_r2_v1.0.1.fa.gz.gzi',
+            hg02523_hap1='HPRC/HG02523/assemblies/release2/HG02523_pat_hprc_r2_v1.0.1.fa.gz',
+            hg02523_hap1_fai='HPRC/HG02523/assemblies/release2/HG02523_pat_hprc_r2_v1.0.1.fa.gz.fai',
+            hg02523_hap1_gzi='HPRC/HG02523/assemblies/release2/HG02523_pat_hprc_r2_v1.0.1.fa.gz.gzi',
+            hg02523_hap2='HPRC/HG02523/assemblies/release2/HG02523_mat_hprc_r2_v1.0.1.fa.gz',
+            hg02523_hap2_fai='HPRC/HG02523/assemblies/release2/HG02523_mat_hprc_r2_v1.0.1.fa.gz.fai',
+            hg02523_hap2_gzi='HPRC/HG02523/assemblies/release2/HG02523_mat_hprc_r2_v1.0.1.fa.gz.gzi',
+        ),
+    ),
 ]
