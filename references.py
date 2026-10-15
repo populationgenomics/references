@@ -1213,7 +1213,7 @@ SOURCES = [
         # Contigs carry PanSN names (HG02015#1#CM...). Paths are from HPRC's
         # assemblies_release2_v1.0.index.csv; HG02080 sits under HPRC_PLUS/.
         # popgen-pangenome uses them as test inputs in place of our own long-read
-        # assemblies; KHV is the closest HPRC population to its Filipino pilot.
+        # assemblies.
         'hprc_r2_khv_assemblies',
         src='https://human-pangenomics.s3.amazonaws.com/working/',
         dst='hprc/release2/assemblies',
