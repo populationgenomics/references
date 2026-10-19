@@ -9,6 +9,7 @@ OurDNA, colocalisation with TenK10K, ...).
 | `files.csv` | The 336 source files: URL, published MD5 (or where to find it), genome build and the evidence for it, study, biomarker, ancestry, N |
 | `download.py` | Downloads each file unchanged into `gs://cpg-common-main-tmp/gwas_sumstats/original/` and checks its MD5 |
 | `format.py` | Converts each download to GRCh38 and the standard columns, writing to `gs://cpg-common-main/references/gwas_sumstats/v1/`; then writes `manifest.csv` there and `manifest.html` to `gs://cpg-common-main-web/gwas_sumstats/` |
+| `extract.py` | Keeps the associations with P <= 1e-5 from each formatted file, writing `v1/hits/<file_id>.parquet`; with `--coverage`, writes `v1/chromosome_coverage.csv`, which chromosomes each file contains |
 
 Every source is the authors' own file, never the GWAS Catalog's harmonised copy, so
 every change to the data is made, and counted, by `format.py`. Older versions of the
@@ -27,7 +28,7 @@ rerun of either script skips files already written.
 
 ## Running
 
-Both scripts need `--access-level full` (writes to main), so they run from `main`
+All three scripts need `--access-level full` (writes to main), so they run from `main`
 after merge.
 
 Prerequisites: the Google Cloud CLI (`gcloud`, https://cloud.google.com/sdk/docs/install)
@@ -78,6 +79,16 @@ refuses the job.
 
    ```bash
    analysis-runner --dataset common --access-level full --output-dir gwas_sumstats --description "Biomarker GWAS summary statistics manifest" python3 gwas_sumstats/format.py --manifest
+   ```
+
+6. Extract, once every format job has finished, then the coverage table. The
+   extract command submits one job per formatted file, checked on the batch page as
+   in step 3; the coverage command runs in the analysis-runner job itself, reading
+   only each file's tabix index, and finishes in minutes.
+
+   ```bash
+   analysis-runner --dataset common --access-level full --output-dir gwas_sumstats --description "Extract significant GWAS associations" python3 gwas_sumstats/extract.py
+   analysis-runner --dataset common --access-level full --output-dir gwas_sumstats --description "GWAS chromosome coverage" python3 gwas_sumstats/extract.py --coverage
    ```
 
 `--output-dir` is required by analysis-runner but unused: outputs go to the buckets
@@ -137,13 +148,21 @@ python3 gwas_sumstats/format.py --local --originals ~/gwas_sumstats_local/origin
   per file to that path, and exits non-zero if any file fails. Without a path it
   writes to the `gs://` output folder, which needs cloud access.
 
+To extract from files formatted locally, in the same venv:
+
+```bash
+pip install pandas==2.2.3 pyarrow==18.1.0 cpg-utils
+python3 gwas_sumstats/extract.py --local --formatted ~/gwas_sumstats_local/v1 --out ~/gwas_sumstats_local/hits --only 2017_Wheeler_PLoSMed_HbA1c_SAS_GCST007951
+```
+
 ## Tests
 
 `test_format.py` checks the transforms (OR to beta, P values, strand flips, liftover)
-on small made-up inputs. From the repo root:
+on small made-up inputs; `test_extract.py` checks the P value filter, the hits files
+and the tabix index reader. From the repo root:
 
 ```bash
-uv run --no-project --with pytest --with polars==1.34.0 --with pysam==0.23.3 --with pyliftover==0.4.1 --with numpy pytest gwas_sumstats
+uv run --no-project --with pytest --with polars==1.34.0 --with pysam==0.23.3 --with pyliftover==0.4.1 --with numpy --with pandas==2.2.3 --with pyarrow==18.1.0 pytest gwas_sumstats
 ```
 
 ## Output
@@ -203,6 +222,36 @@ effect_allele_frequency  p_value  neg_log_10_p_value  rsid  n  z  effect_allele_
 
 `file_id` is `<year>_<first author>_<journal>_<biomarker>_<ancestry>_<accession>`,
 where the accession is the GWAS Catalog study ID or the source's dataset ID.
+
+### Extracted hits
+
+`extract.py` writes, under `v1/`:
+
+- `hits/<file_id>.parquet`: the rows of one formatted file with P <= 1e-5, every
+  column kept plus `file_id`. Loose on purpose, so users apply their own threshold
+  without going back to the full files. Every column is text, with `NA` stored as
+  null, so cast on reading; files with no hits have the same columns and no rows,
+  and the folder reads back as one table. Filtering uses `neg_log_10_p_value`, so
+  P values below the float range are kept. A published P of exactly 0, or an
+  infinite published -log10 P, is NA in the formatted files (see `p_value` above
+  and `p_value_zero` in the manifest); those are the strongest hits, so a row with
+  no P value is kept when `|z|`, or `|beta / standard_error|`, reaches the same
+  threshold (4.42 for 1e-5). Its P columns stay NA, so filter on `z` or
+  `beta / standard_error` too, or such rows drop out of your own cutoff. Each file's
+  threshold and row counts are in its parquet metadata under `gwas_sumstats`. A
+  rerun redoes any file whose formatted source is newer than its hits.
+- `chromosome_coverage.csv`: one row per file with `source_build`, `formatted`,
+  `has_x`, `x_rows`, `x_windows`, `x_windows_from_source_x` and `chromosomes`
+  (GWAS-SSF codes), read from each tabix index. Liftover from GRCh37 or NCBI36
+  moves a few autosome and Y positions onto GRCh38 X, so X rows alone do not mean
+  the source had X. Those strays can only land where the chain file maps another
+  chromosome onto X (20 of X's ~9,500 16-kb windows for GRCh37, 18 for NCBI36).
+  `has_x` is true only when the file has X data in a window outside those, which
+  `x_windows_from_source_x` counts; for GRCh38 sources, which are not lifted, any
+  X row counts. The chain files are the ones `format.py` used. 95 of the 336
+  files have no chromosome X, including every Million Veteran Program file, because
+  the authors did not publish it. A biomarker sourced only from those was never
+  tested for X-linked variants such as G6PD, which this table makes visible.
 
 ## How this compares with the GWAS Catalog harmoniser
 
