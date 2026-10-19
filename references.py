@@ -1206,4 +1206,32 @@ SOURCES = [
             ped_population='20130606_g1k_3202_samples_ped_population.txt',
         ),
     ),
+    Source(
+        # Unaligned PacBio HiFi BAMs (with .pbi indexes) for two complete 1kGP trios from the
+        # 1000G long-read project bucket, the two smallest of its three complete trios (~130 GB
+        # each):
+        #   - MXL family m039
+        #   - PEL family PEL005
+        # Folders are <sample>-<batch>-<n>, Coriell GM IDs standing for 1kGP NA IDs.
+        'pacbio_hifi_1kgp_trios',
+        src='https://s3.amazonaws.com/1000g-ont/1KGP_PacBio_WGS/Raw_Data/',
+        dst='1kgp/pacbio_hifi_trios',
+        transfer_cmd=curl_with_user_agent,
+        files=dict(
+            # m039 (MXL): child NA19796, father NA19795, mother NA19794
+            NA19796_bam='GM19796-W-0/GM19796-W-0.hifi_reads.bam',
+            NA19796_pbi='GM19796-W-0/GM19796-W-0.hifi_reads.bam.pbi',
+            NA19795_bam='GM19795-W-0/GM19795-W-0.hifi_reads.bam',
+            NA19795_pbi='GM19795-W-0/GM19795-W-0.hifi_reads.bam.pbi',
+            NA19794_bam='GM19794-W-0/GM19794-W-0.hifi_reads.bam',
+            NA19794_pbi='GM19794-W-0/GM19794-W-0.hifi_reads.bam.pbi',
+            # PEL005 (PEL): child HG01579, father HG01577, mother HG01578
+            HG01579_bam='HG01579-W-0/HG01579-W-0.hifi_reads.bam',
+            HG01579_pbi='HG01579-W-0/HG01579-W-0.hifi_reads.bam.pbi',
+            HG01577_bam='HG01577-W-0/HG01577-W-0.hifi_reads.bam',
+            HG01577_pbi='HG01577-W-0/HG01577-W-0.hifi_reads.bam.pbi',
+            HG01578_bam='HG01578-C-0/HG01578-C-0.hifi_reads.bam',
+            HG01578_pbi='HG01578-C-0/HG01578-C-0.hifi_reads.bam.pbi',
+        ),
+    ),
 ]
