@@ -109,3 +109,13 @@ def test_fetch_head_drops_only_a_partial_last_line(monkeypatch, body, expected):
         download, 'open_url', lambda url, headers=None: io.BytesIO(body)
     )
     assert download.fetch_head('u') == expected
+
+
+def test_read_files_csv_rejects_an_unknown_id(tmp_path):
+    files_csv = tmp_path / 'files.csv'
+    files_csv.write_text('file_id,biomarker\nA,HbA1c\nB,Urate\n')
+
+    assert len(download.read_files_csv(files_csv)) == 2
+    assert [r['file_id'] for r in download.read_files_csv(files_csv, ['B'])] == ['B']
+    with pytest.raises(ValueError, match='not in files.csv'):
+        download.read_files_csv(files_csv, ['C'])

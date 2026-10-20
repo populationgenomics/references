@@ -9,7 +9,7 @@ OurDNA, colocalisation with TenK10K, ...).
 | `files.csv` | The 336 source files: URL, published MD5 (or where to find it), genome build and the evidence for it, study, biomarker, ancestry, N |
 | `download.py` | Downloads each file unchanged into `gs://cpg-common-main-tmp/gwas_sumstats/original/` and checks its MD5 |
 | `format.py` | Converts each download to GRCh38 and the standard columns, writing to `gs://cpg-common-main/references/gwas_sumstats/v1/`; then writes `manifest.csv` there and `manifest.html` to `gs://cpg-common-main-web/gwas_sumstats/` |
-| `extract.py` | Keeps the associations with P <= 1e-5 from each formatted file, writing `v1/hits/<file_id>.parquet`; with `--coverage`, writes `v1/chromosome_coverage.csv`, which chromosomes each file contains |
+| `extract.py` | Keeps the associations with P <= 1e-5 from each formatted file, writing `v1/hits/p_1e-05/<file_id>.parquet`; then, with `--chromosomes`, writes `v1/chromosomes_reported.csv`, which chromosomes each file reports and whether the source published X |
 
 Every source is the authors' own file, never the GWAS Catalog's harmonised copy, so
 every change to the data is made, and counted, by `format.py`. Older versions of the
@@ -81,14 +81,15 @@ refuses the job.
    analysis-runner --dataset common --access-level full --output-dir gwas_sumstats --description "Biomarker GWAS summary statistics manifest" python3 gwas_sumstats/format.py --manifest
    ```
 
-6. Extract, once every format job has finished, then the coverage table. The
-   extract command submits one job per formatted file, checked on the batch page as
-   in step 3; the coverage command runs in the analysis-runner job itself, reading
-   only each file's tabix index, and finishes in minutes.
+6. Extract, once every format job has finished, then, once every extract job has
+   finished, the chromosome table. The extract command submits one job per
+   formatted file, checked on the batch page as in step 3; the chromosome command
+   runs in the analysis-runner job itself, reading only each hits file's metadata
+   and `format.py`'s stats, and finishes in minutes.
 
    ```bash
    analysis-runner --dataset common --access-level full --output-dir gwas_sumstats --description "Extract significant GWAS associations" python3 gwas_sumstats/extract.py
-   analysis-runner --dataset common --access-level full --output-dir gwas_sumstats --description "GWAS chromosome coverage" python3 gwas_sumstats/extract.py --coverage
+   analysis-runner --dataset common --access-level full --output-dir gwas_sumstats --description "GWAS chromosomes reported" python3 gwas_sumstats/extract.py --chromosomes
    ```
 
 `--output-dir` is required by analysis-runner but unused: outputs go to the buckets
@@ -148,18 +149,22 @@ python3 gwas_sumstats/format.py --local --originals ~/gwas_sumstats_local/origin
   per file to that path, and exits non-zero if any file fails. Without a path it
   writes to the `gs://` output folder, which needs cloud access.
 
-To extract from files formatted locally, in the same venv:
+To extract from that file, run the single-file command each Batch job runs. It
+needs the venv activated above and the formatted file the `format.py --local` step
+wrote to `~/gwas_sumstats_local/v1/`, but no cloud access or `cpg-utils`:
 
 ```bash
-pip install pandas==2.2.3 pyarrow==18.1.0 cpg-utils
-python3 gwas_sumstats/extract.py --local --formatted ~/gwas_sumstats_local/v1 --out ~/gwas_sumstats_local/hits --only 2017_Wheeler_PLoSMed_HbA1c_SAS_GCST007951
+pip install pandas==2.2.3 pyarrow==18.1.0
+mkdir -p ~/gwas_sumstats_local/hits/p_1e-05
+python3 gwas_sumstats/extract.py --file-id 2017_Wheeler_PLoSMed_HbA1c_SAS_GCST007951 --source ~/gwas_sumstats_local/v1/2017_Wheeler_PLoSMed_HbA1c_SAS_GCST007951_GRCh38_formatted.tsv.gz --dest ~/gwas_sumstats_local/hits/p_1e-05/2017_Wheeler_PLoSMed_HbA1c_SAS_GCST007951.parquet
 ```
 
 ## Tests
 
 `test_format.py` checks the transforms (OR to beta, P values, strand flips, liftover)
 on small made-up inputs; `test_extract.py` checks the P value filter, the hits files
-and the tabix index reader. From the repo root:
+and the chromosome table. CI does not run these tests: run them yourself before
+opening or merging a PR that touches `gwas_sumstats/`. From the repo root:
 
 ```bash
 uv run --no-project --with pytest --with polars==1.34.0 --with pysam==0.23.3 --with pyliftover==0.4.1 --with numpy --with pandas==2.2.3 --with pyarrow==18.1.0 pytest gwas_sumstats
@@ -225,33 +230,47 @@ where the accession is the GWAS Catalog study ID or the source's dataset ID.
 
 ### Extracted hits
 
-`extract.py` writes, under `v1/`:
+An analysis that ranks variants by effect needs only the significant rows, but
+finding them means reading all 336 formatted files (264 GB), about a day in one
+process. `extract.py` does that once, one Batch job per file, so downstream work
+reads a few hundred megabytes instead. It writes, under `v1/`:
 
-- `hits/<file_id>.parquet`: the rows of one formatted file with P <= 1e-5, every
-  column kept plus `file_id`. Loose on purpose, so users apply their own threshold
-  without going back to the full files. Every column is text, with `NA` stored as
-  null, so cast on reading; files with no hits have the same columns and no rows,
-  and the folder reads back as one table. Filtering uses `neg_log_10_p_value`, so
+- `hits/p_1e-05/<file_id>.parquet`: the rows of one formatted file with P <= 1e-5,
+  every column kept plus `file_id`. Each threshold gets its own subfolder, named
+  from P (`--threshold 5e-8` writes to `hits/p_5e-08/`), so two thresholds never
+  share a folder. Loose on purpose, so users apply their own threshold
+  without going back to the full files. Columns are typed: whole
+  numbers for `chromosome`, `base_pair_location` and `n`; decimals for `beta`,
+  `standard_error`, `effect_allele_frequency`, `neg_log_10_p_value` and `z`;
+  true/false for `effect_allele_is_alt`; text for the rest, including `p_value`,
+  whose smallest values do not fit in a number. Missing values are null. Files
+  with no hits have the same columns and no rows, and the folder reads back as one
+  table. Filtering uses `neg_log_10_p_value`, so
   P values below the float range are kept. A published P of exactly 0, or an
   infinite published -log10 P, is NA in the formatted files (see `p_value` above
   and `p_value_zero` in the manifest); those are the strongest hits, so a row with
   no P value is kept when `|z|`, or `|beta / standard_error|`, reaches the same
   threshold (4.42 for 1e-5). Its P columns stay NA, so filter on `z` or
-  `beta / standard_error` too, or such rows drop out of your own cutoff. Each file's
-  threshold and row counts are in its parquet metadata under `gwas_sumstats`. A
+  `beta / standard_error` too, or such rows drop out of your own cutoff. A row with
+  no P value or z and a standard error of 0 is a source error, not a hit: it is
+  dropped and counted as `rows_dropped_se_zero`. Each file's
+  threshold and row counts are in its parquet file metadata under `gwas_sumstats`
+  (`pyarrow.parquet.read_metadata(path).metadata[b'gwas_sumstats']`). A
   rerun redoes any file whose formatted source is newer than its hits.
-- `chromosome_coverage.csv`: one row per file with `source_build`, `formatted`,
-  `has_x`, `x_rows`, `x_windows`, `x_windows_from_source_x` and `chromosomes`
-  (GWAS-SSF codes), read from each tabix index. Liftover from GRCh37 or NCBI36
-  moves a few autosome and Y positions onto GRCh38 X, so X rows alone do not mean
-  the source had X. Those strays can only land where the chain file maps another
-  chromosome onto X (20 of X's ~9,500 16-kb windows for GRCh37, 18 for NCBI36).
-  `has_x` is true only when the file has X data in a window outside those, which
-  `x_windows_from_source_x` counts; for GRCh38 sources, which are not lifted, any
-  X row counts. The chain files are the ones `format.py` used. 95 of the 336
-  files have no chromosome X, including every Million Veteran Program file, because
-  the authors did not publish it. A biomarker sourced only from those was never
-  tested for X-linked variants such as G6PD, which this table makes visible.
+- `chromosomes_reported.csv`: one row per file with `source_build`, `extracted`,
+  `has_x`, `x_rows`, `liftover_chromosome_changed` and `chromosomes` (GWAS-SSF
+  codes). Rows per chromosome are counted during extraction, over every row of the
+  formatted file, and stored in each hits file's metadata as `rows_per_chromosome`,
+  so this table is built after extraction. Liftover from GRCh37 or NCBI36 moves a
+  few rows from other chromosomes onto GRCh38 X, so X rows alone do not mean the
+  source had X. `format.py` counts every row liftover moved to another chromosome
+  (`liftover_chromosome_changed` in its stats), the most that could have landed on
+  X, so `has_x` is true only when `x_rows` is larger; for GRCh38 sources, which are
+  not lifted, that count is 0 and any X row counts. Files not yet extracted are
+  listed with `extracted` False. 95 of the 336 files have no chromosome X,
+  including every Million Veteran Program file, because the authors did not
+  publish it. A biomarker sourced only from those was never tested for X-linked
+  variants such as G6PD, which this table makes visible.
 
 ## How this compares with the GWAS Catalog harmoniser
 

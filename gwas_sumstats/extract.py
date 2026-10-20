@@ -1,76 +1,46 @@
 #!/usr/bin/env python3
 
 """
-Pull the associations worth analysing out of the formatted GWAS summary statistics.
+Extract the significant associations from the formatted GWAS summary statistics.
 
-`format.py` writes every row a study published, up to ~200 million per file and 264 GB
-in total. Almost all of it is noise: an analysis that ranks variants by effect only
-needs the ones that reached significance. Reading all 336 files to find them takes
-about a day in one process, which is why that step does not belong in a notebook.
+Writes, under `v1/`:
 
-This script does it once, one Batch job per file, and writes the result next to the
-formatted files. Downstream work then reads a few hundred megabytes in seconds.
-
-Two outputs, both under `v1/`:
-
-    hits/<file_id>.parquet      associations with p <= THRESHOLD, all columns kept
-    chromosome_coverage.csv     which chromosomes each file contains, and whether the
+    hits/p_<threshold>/<file_id>.parquet
+                                associations with P <= the threshold (default 1e-5),
+                                every column kept, typed
+    chromosomes_reported.csv    which chromosomes each file reports, and whether the
                                 source published chromosome X
 
-The coverage table matters as much as the hits. 95 of the 336 files have no
-chromosome X, including every Million Veteran Program file, because the authors
-never published it. Without the table a biomarker sourced only from those files
-looks cleanly negative for X-linked causes such as G6PD, when in truth it was never
-tested. Coverage is read from each file's tabix index, so it needs no data pass.
+Why this exists, how P values and X are handled, and the column types are in
+README.md, under Extracted hits.
 
-X rows alone do not prove the source had X. Liftover from GRCh37 or NCBI36 moves a
-few autosome and Y positions onto GRCh38 X (e.g. chr7:100614152), and format.py
-keeps them. Those can only land in the stretches of X that the chain file maps from
-other chromosomes: about 9.6 kb, in 20 of X's ~9,500 16-kb windows, for GRCh37. So
-a file counts as having X only if it has X data in a window outside those. The index
-records which windows hold data, so this too needs no data pass.
-
-Filtering uses neg_log_10_p_value where the file has it, falling back to parsing
-p_value. The published P value is kept as text by format.py precisely because the
-smallest ones (e.g. 8.51e-3553) are below the float range, and those are the
-strongest associations: reading them as numbers would silently turn them into zero.
-A published P of exactly 0, or an infinite published -log10 P, is NA in both columns
-of the formatted file (format.py counts it as p_value_zero), yet those are the
-strongest hits of all, e.g. APOE in Timsina 2026. So a row with no readable P value
-is kept when its z (or beta / standard_error) reaches the same threshold; its P
-columns stay NA. A row with no P value and no effect size cannot be recovered.
-
-The threshold and row counts are stored in each parquet's metadata. A file is
-redone when its formatted source is newer than its hits, so re-formatting a file
-and running this again refreshes it.
-
-Every column is written as text, as format.py wrote it, with NA as null rather than
-the string 'NA', so files with and without hits share one schema and the folder
-reads back as a single table. Cast on reading.
-
-Both commands write to main, so run them from `main` after merge, once every
-format.py job has finished. On Hail Batch, one job per file; the analysis-runner job
-only submits them, and prints the batch link to follow:
+Both commands write to main, so run them from `main` after merge. Once every
+format.py job has finished, the hits, one Hail Batch job per file; the
+analysis-runner job only submits them and prints the batch link to follow:
 
     analysis-runner --dataset common --access-level full \
         --output-dir gwas_sumstats \
         --description "Extract significant GWAS associations" \
         python3 gwas_sumstats/extract.py
 
-The coverage table needs only the formatted files, not the hits, and is quick
-enough to run in the analysis-runner job itself:
+Then, once every extract job has finished, the chromosome table, which runs in the
+analysis-runner job itself:
 
     analysis-runner --dataset common --access-level full \
         --output-dir gwas_sumstats \
-        --description "GWAS chromosome coverage" \
-        python3 gwas_sumstats/extract.py --coverage
+        --description "GWAS chromosomes reported" \
+        python3 gwas_sumstats/extract.py --chromosomes
 
-Locally, on a file formatted locally (for testing; see the README for setup):
+On a laptop, one file at a time, with no Batch, gs:// or cpg_utils (see the README
+for setup); this is the command each Batch job runs:
 
-    python3 gwas_sumstats/extract.py --local --formatted ~/gwas_sumstats_local/v1 \
-        --out ~/gwas_sumstats_local/hits \
-        --only 2017_Wheeler_PLoSMed_HbA1c_SAS_GCST007951
+    python3 gwas_sumstats/extract.py \
+        --file-id 2017_Wheeler_PLoSMed_HbA1c_SAS_GCST007951 \
+        --source ~/gwas_sumstats_local/v1/2017_Wheeler_PLoSMed_HbA1c_SAS_GCST007951_GRCh38_formatted.tsv.gz \
+        --dest ~/gwas_sumstats_local/hits/p_1e-05/2017_Wheeler_PLoSMed_HbA1c_SAS_GCST007951.parquet
 """
+
+from __future__ import annotations
 
 import argparse
 import csv
@@ -79,14 +49,21 @@ import io
 import json
 import math
 import shlex
-import struct
+from collections import Counter
 from pathlib import Path
 from statistics import NormalDist
+from typing import TYPE_CHECKING
+
+# pandas and pyarrow are imported inside the functions that use them, and cpg_utils
+# inside the ones that reach gs://: each Batch job installs only PIP_PACKAGES, and
+# the tests and the single-file command run without cpg_utils.
+if TYPE_CHECKING:
+    import pandas as pd
+    import pyarrow as pa
 
 FILES_CSV = Path(__file__).with_name('files.csv')
 FORMATTED = 'gs://cpg-common-main/references/gwas_sumstats/v1'
-DEFAULT_OUT = f'{FORMATTED}/hits'
-DEFAULT_COVERAGE = f'{FORMATTED}/chromosome_coverage.csv'
+CHROMOSOMES_NAME = 'chromosomes_reported.csv'
 
 THRESHOLD = 1e-5
 """
@@ -97,55 +74,96 @@ enough that they never need to come back and re-read the originals. Under the nu
 keeps 200 times more rows than 5e-8 while still discarding over 99% of each file.
 """
 
-TABIX_PSEUDO_BIN = 37450
-"""Bin in which htslib records each contig's row count in a tabix index."""
+HIT_TYPES = {
+    'file_id': 'string',
+    'chromosome': 'int64',
+    'base_pair_location': 'int64',
+    'effect_allele': 'string',
+    'other_allele': 'string',
+    'beta': 'float64',
+    'standard_error': 'float64',
+    'effect_allele_frequency': 'float64',
+    'p_value': 'string',
+    'neg_log_10_p_value': 'float64',
+    'rsid': 'string',
+    'n': 'int64',
+    'z': 'float64',
+    'effect_allele_is_alt': 'bool',
+}
+"""
+Arrow type of each hits column: file_id, then format.py's OUTPUT_COLUMNS in order.
 
-WINDOW_SHIFT = 14
-"""Tabix's linear index has one entry per 2**14 = 16,384 bp window."""
-
-LIFTED_BUILDS = {'GRCh37': 'liftover_37_to_38', 'NCBI36': 'liftover_36_to_38'}
-"""Source builds format.py lifts, and the references key of each chain file."""
-
-CHAIN_SOURCES_OFF_X = {f'chr{i}' for i in range(1, 23)} | {'chrY'}
-"""Source contigs format.py lifts (its CHAIN_CONTIGS) other than X."""
+Kept here rather than imported from format.py because each Batch job runs this
+script on its own; a test checks the two agree.
+"""
 
 CHUNK_ROWS = 2_000_000
 PIP_PACKAGES = 'pandas==2.2.3 pyarrow==18.1.0'
 
 
+def hits_folder(out: str, threshold: float) -> str:
+    """
+    Return the folder for hits at this threshold: <out>/p_<threshold>.
+
+    Every threshold gets its own subfolder, so hits made at two thresholds can never
+    share a folder and be read back as one table. Named from P rather than -log10 P,
+    which gives names such as 7.30103 for non-round cutoffs.
+
+    Args:
+        out: the parent folder, local or gs://
+        threshold: the P value threshold
+
+    Returns:
+        e.g. gs://.../v1/hits/p_1e-05 for 1e-5
+    """
+    return f'{out.rstrip("/")}/p_{threshold:g}'
+
+
 def formatted_name(file_id: str) -> str:
-    """Name format.py gave this file: <file_id>_GRCh38_formatted.tsv.gz.
+    """
+    Return the name format.py gave this file.
 
     The manifest's own `formatted_file` column cannot be used: every row of it reads
     'out.tsv.gz', the name each Batch job used before its output was copied out.
+
+    Args:
+        file_id: the files.csv file_id
+
+    Returns:
+        <file_id>_GRCh38_formatted.tsv.gz
     """
     return f'{file_id}_GRCh38_formatted.tsv.gz'
 
 
-def passing(p_text, neg_log_10, cutoff: float, z=None, beta=None, se=None):
+def passing(
+    p_text: pd.Series,
+    neg_log_10: pd.Series | None,
+    cutoff: float,
+    z: pd.Series | None = None,
+    beta: pd.Series | None = None,
+    se: pd.Series | None = None,
+) -> pd.Series:
     """
-    Which associations are at or below the cutoff, one boolean per row.
+    Flag the associations at or below the cutoff.
 
-    Prefers neg_log_10_p_value, which format.py computed from the published text and
-    which therefore survives P values below the float range; inf, where a study
-    published -log10 P as inf, passes. Rows without a readable
-    neg_log_10_p_value fall back to parsing p_value, where text such as 8.51e-3553
-    reads as 0 and so also passes.
-
-    A row with neither is what format.py writes for a published P of exactly 0, the
-    strongest hits of all. It is kept when |z|, or |beta / standard_error| where z
-    is NA, reaches the two-sided z for the cutoff (4.42 for 1e-5). A row with no P
-    value and no effect size is dropped: it cannot be ranked.
+    Uses neg_log_10_p_value where readable, then p_value, then, for rows with
+    neither (a published P of 0), |z| or |beta / standard_error| against the
+    two-sided z for the cutoff. A standard error of 0 or less is not used.
 
     Args:
-        p_text: the p_value column as written, a pandas Series of text
-        neg_log_10: the neg_log_10_p_value column, text, possibly empty or NA
+        p_text: the p_value column, text
+        neg_log_10: the neg_log_10_p_value column, text; None if absent
         cutoff: the P value threshold
-        z, beta, se: the z, beta and standard_error columns, text; None if absent
+        z: the z column, text; None if absent
+        beta: the beta column, text; None if absent
+        se: the standard_error column, text; None if absent
+
+    Returns:
+        one boolean per row, True to keep
     """
     import pandas as pd
 
-    def number(column):
+    def number(column: pd.Series | None) -> pd.Series:
         if column is None:
             return pd.Series(float('nan'), index=p_text.index)
         return pd.to_numeric(column, errors='coerce')
@@ -153,20 +171,141 @@ def passing(p_text, neg_log_10, cutoff: float, z=None, beta=None, se=None):
     neg_log = number(neg_log_10)
     p_value = number(p_text)
     z_score = number(z)
-    z_score = z_score.where(z_score.notna(), number(beta) / number(se))
-    by_z = z_score.abs() >= NormalDist().inv_cdf(1 - cutoff / 2)
+    standard_error = number(se)
+    z_score = z_score.where(
+        z_score.notna(), number(beta) / standard_error.where(standard_error > 0)
+    )
+    # From the lower tail, which stays exact for cutoffs far below 1e-16, where
+    # 1 - cutoff / 2 rounds to 1.
+    by_z = z_score.abs() >= -NormalDist().inv_cdf(cutoff / 2)
     by_p_value = (p_value <= cutoff).where(p_value.notna(), by_z)
-    by_neg_log = neg_log >= -math.log10(cutoff)
+    # format.py rounds neg_log_10_p_value to 6 decimals, so the cutoff is rounded
+    # the same way, or a P exactly at a cutoff such as 2e-5 would be dropped.
+    by_neg_log = neg_log >= round(-math.log10(cutoff), 6)
     return by_neg_log.where(neg_log.notna(), by_p_value).fillna(False).astype(bool)
+
+
+def fell_back_on_zero_se(chunk: pd.DataFrame) -> pd.Series:
+    """
+    Flag rows with no P value and no z whose standard error is 0 or less.
+
+    passing() would have ranked these on beta / standard_error, so they are dropped
+    for a source error rather than for being weak, and are counted apart.
+
+    Args:
+        chunk: formatted rows, every column text
+
+    Returns:
+        one boolean per row
+    """
+    import pandas as pd
+
+    def missing(column: str) -> pd.Series:
+        if column not in chunk:
+            return pd.Series(True, index=chunk.index)
+        return pd.to_numeric(chunk[column], errors='coerce').isna()
+
+    if 'standard_error' not in chunk:
+        return pd.Series(False, index=chunk.index)
+    standard_error = pd.to_numeric(chunk['standard_error'], errors='coerce')
+    return (
+        missing('neg_log_10_p_value')
+        & missing('p_value')
+        & missing('z')
+        & (standard_error <= 0)
+    )
+
+
+def typed(hits: pd.DataFrame) -> pd.DataFrame:
+    """
+    Convert hits read as text to the types in HIT_TYPES.
+
+    Strict: a value that does not convert raises rather than becoming null, since
+    format.py writes only numbers, true/false or NA in these columns.
+
+    Args:
+        hits: formatted rows, every column text, NA as missing
+
+    Returns:
+        the same rows with typed columns
+
+    Raises:
+        ValueError: if a value does not convert to its column's type
+    """
+    import pandas as pd
+
+    hits = hits.copy()
+    for column, kind in HIT_TYPES.items():
+        if column not in hits or kind == 'string':
+            continue
+        if kind == 'bool':
+            values = hits[column].map({'true': True, 'false': False})
+            unknown = hits[column].notna() & values.isna()
+            if unknown.any():
+                raise ValueError(
+                    f'{column}: not true/false: {hits.loc[unknown, column].iloc[0]!r}'
+                )
+            hits[column] = values.astype('boolean')
+        else:
+            numbers = pd.to_numeric(hits[column])
+            hits[column] = numbers.astype('Int64' if kind == 'int64' else 'float64')
+    return hits
+
+
+def hits_schema(columns: list[str]) -> pa.Schema:
+    """
+    Return the schema every hits parquet is written with.
+
+    One explicit schema, rather than types inferred per file, means files with and
+    without hits read back as one table.
+
+    Args:
+        columns: the formatted file's header
+
+    Returns:
+        file_id, then each column, typed as in HIT_TYPES (text if not listed)
+    """
+    import pyarrow as pa
+
+    return pa.schema(
+        [
+            (column, pa.type_for_alias(HIT_TYPES.get(column, 'string')))
+            for column in ['file_id', *columns]
+        ]
+    )
+
+
+def hits_in(chunk: pd.DataFrame, cutoff: float) -> pd.DataFrame:
+    """
+    Return the rows of a chunk at or below the cutoff.
+
+    Args:
+        chunk: formatted rows, every column text
+        cutoff: the P value threshold
+
+    Returns:
+        the passing rows, still text
+    """
+    return chunk[
+        passing(
+            chunk['p_value'],
+            chunk.get('neg_log_10_p_value'),
+            cutoff,
+            z=chunk.get('z'),
+            beta=chunk.get('beta'),
+            se=chunk.get('standard_error'),
+        )
+    ]
 
 
 def extract_one(source: Path, dest: Path, file_id: str, cutoff: float) -> dict:
     """
     Write the associations at or below `cutoff` from one formatted file.
 
-    Read in chunks so memory follows the chunk, not the file: the largest of these
-    holds ~200 million rows. The threshold and counts go into the parquet's metadata
-    under b'gwas_sumstats', so each file records how it was made.
+    Reads in chunks so memory follows the chunk, not the file: the largest holds
+    ~200 million rows. Every row is counted per chromosome for the chromosome table.
+    The threshold and counts go into the parquet's file metadata under
+    b'gwas_sumstats', so each file records how it was made.
 
     Args:
         source: a formatted .tsv.gz
@@ -175,291 +314,206 @@ def extract_one(source: Path, dest: Path, file_id: str, cutoff: float) -> dict:
         cutoff: the P value threshold
 
     Returns:
-        counts for the run record
+        file_id, rows_in, rows_kept, rows_kept_without_p, rows_dropped_se_zero and
+        rows_per_chromosome
+
+    Raises:
+        ValueError: if a hit's value does not fit its column's type
     """
     import pandas as pd
     import pyarrow as pa
     import pyarrow.parquet as pq
 
-    kept: list[pd.DataFrame] = []
-    columns: list[str] = []
-    rows_in = 0
+    # Each filtered chunk is written as it comes, so memory follows the chunk rather
+    # than the number of hits. The header is read first so the schema is known even
+    # for a file with no rows.
+    rows_in = rows_kept = rows_kept_without_p = rows_dropped_se_zero = 0
+    rows_per_chromosome: Counter[str] = Counter()
     with gzip.open(source, 'rt') as handle:
-        for chunk in pd.read_csv(handle, sep='\t', dtype=str, chunksize=CHUNK_ROWS):
-            rows_in += len(chunk)
-            columns = list(chunk.columns)
-            keep = passing(
-                chunk['p_value'],
-                chunk.get('neg_log_10_p_value'),
-                cutoff,
-                z=chunk.get('z'),
-                beta=chunk.get('beta'),
-                se=chunk.get('standard_error'),
-            )
-            if keep.any():
-                kept.append(chunk[keep])
-
-    # A file with no hits still gets a parquet, with the right columns and no rows,
-    # so that reading the whole folder back never has to special-case it. The explicit
-    # schema keeps those columns text: left to infer, pyarrow types an empty column as
-    # null, and a folder mixing null and text columns fails to read.
-    hits = pd.concat(kept, ignore_index=True) if kept else pd.DataFrame(columns=columns)
-    hits.insert(0, 'file_id', file_id)
-    schema = pa.schema([(column, pa.string()) for column in hits.columns])
-    counts = {
-        'file_id': file_id,
-        'rows_in': rows_in,
-        'rows_kept': len(hits),
-        'rows_kept_without_p': int(hits['p_value'].isna().sum()),
-    }
-    table = pa.Table.from_pandas(hits, schema=schema, preserve_index=False)
-    record = json.dumps({**counts, 'threshold': cutoff}).encode()
-    table = table.replace_schema_metadata(
-        {**(table.schema.metadata or {}), b'gwas_sumstats': record}
-    )
-    pq.write_table(table, dest)
+        columns = handle.readline().rstrip('\n').split('\t')
+        schema = hits_schema(columns)
+        with pq.ParquetWriter(dest, schema) as writer:
+            for chunk in pd.read_csv(
+                handle,
+                sep='\t',
+                dtype=str,
+                header=None,
+                names=columns,
+                chunksize=CHUNK_ROWS,
+            ):
+                rows_in += len(chunk)
+                rows_per_chromosome.update(chunk['chromosome'].value_counts().to_dict())
+                rows_dropped_se_zero += int(fell_back_on_zero_se(chunk).sum())
+                hits = hits_in(chunk, cutoff)
+                if hits.empty:
+                    continue
+                hits.insert(0, 'file_id', file_id)
+                rows_kept += len(hits)
+                rows_kept_without_p += int(hits['p_value'].isna().sum())
+                writer.write_table(
+                    pa.Table.from_pandas(
+                        typed(hits), schema=schema, preserve_index=False
+                    )
+                )
+            counts = {
+                'file_id': file_id,
+                'rows_in': rows_in,
+                'rows_kept': rows_kept,
+                'rows_kept_without_p': rows_kept_without_p,
+                'rows_dropped_se_zero': rows_dropped_se_zero,
+                'rows_per_chromosome': dict(
+                    sorted(rows_per_chromosome.items(), key=lambda item: int(item[0]))
+                ),
+            }
+            record = json.dumps({**counts, 'threshold': cutoff})
+            writer.add_key_value_metadata({'gwas_sumstats': record})
     return counts
 
 
-def read_tabix_index(handle) -> dict[str, dict]:
+def chromosomes_record(row: dict, record: dict | None, stats: dict | None) -> dict:
     """
-    Rows and occupied 16-kb windows on each contig, read from a tabix (.tbi) index.
+    Return one row of the chromosome table.
 
-    The index is BGZF, which gzip reads. Its header names every contig with data.
-    For each contig htslib records the row count in a pseudo-bin, and a linear index
-    holding, per window, the file offset of its first row; an empty window repeats
-    the offset of the next one, so the windows with data are those whose offset
-    differs from the next, plus the last. Parsed here rather than with pysam so the
-    coverage run needs no extra package, and no access token for htslib to open
-    gs:// paths.
-
-    Args:
-        handle: the .tbi opened in binary mode
-
-    Returns:
-        contig -> {'rows': row count, 'windows': set of window indices with data}
-    """
-    with gzip.GzipFile(fileobj=handle) as index:
-        data = index.read()
-    if data[:4] != b'TBI\x01':
-        raise ValueError(f'not a tabix index: starts {data[:4]!r}')
-    # n_ref, format, col_seq, col_beg, col_end, meta, skip, l_nm
-    header = struct.unpack_from('<8i', data, 4)
-    names = [name.decode() for name in data[36 : 36 + header[7]].split(b'\0') if name]
-    offset = 36 + header[7]
-    contigs = {}
-    for name in names:
-        rows = None
-        (n_bin,) = struct.unpack_from('<i', data, offset)
-        offset += 4
-        for _ in range(n_bin):
-            bin_number, n_chunk = struct.unpack_from('<Ii', data, offset)
-            offset += 8
-            if bin_number == TABIX_PSEUDO_BIN:
-                # (file start, file end), then (rows mapped, rows unmapped)
-                rows = struct.unpack_from('<4Q', data, offset)[2]
-            offset += 16 * n_chunk
-        (n_intv,) = struct.unpack_from('<i', data, offset)
-        starts = struct.unpack_from(f'<{n_intv}Q', data, offset + 4)
-        offset += 4 + 8 * n_intv
-        if rows is None:
-            raise ValueError(f'tabix index has no row count for {name}')
-        windows = {
-            i for i in range(n_intv) if i == n_intv - 1 or starts[i] != starts[i + 1]
-        }
-        contigs[name] = {'rows': rows, 'windows': windows}
-    return contigs
-
-
-def chromosomes_in(path: str) -> dict[str, dict]:
-    """
-    Rows and occupied windows per chromosome in a formatted file, from its index.
-
-    Chromosomes are GWAS-SSF numeric, so X is '23'.
-
-    Args:
-        path: a formatted .tsv.gz (its .tbi must sit beside it)
-    """
-    from cpg_utils import to_path
-
-    with to_path(f'{path}.tbi').open('rb') as handle:
-        return read_tabix_index(handle)
-
-
-def liftover_windows_on_x(chain_text) -> set[int]:
-    """
-    GRCh38 X windows that liftover can fill from source chromosomes other than X.
-
-    A UCSC chain maps source (t) blocks to GRCh38 (q) blocks. Every block from a
-    lifted source contig other than X that lands on chrX marks where a stray row can
-    appear; rows anywhere else on X came from the source's own X.
-
-    Args:
-        chain_text: lines of a .over.chain file, decompressed
-    """
-    windows: set[int] = set()
-    source = target = strand = None
-    target_size = position = 0
-    for line in chain_text:
-        fields = line.split()
-        if not fields:
-            continue
-        if fields[0] == 'chain':
-            # score tName tSize tStrand tStart tEnd qName qSize qStrand qStart qEnd id
-            source, target, strand = fields[2], fields[7], fields[9]
-            target_size, position = int(fields[8]), int(fields[10])
-            continue
-        size = int(fields[0])
-        if target == 'chrX' and source in CHAIN_SOURCES_OFF_X:
-            start, end = position, position + size
-            if strand == '-':
-                start, end = target_size - end, target_size - start
-            windows.update(
-                range(start >> WINDOW_SHIFT, ((end - 1) >> WINDOW_SHIFT) + 1)
-            )
-        if len(fields) == 3:
-            position += size + int(fields[2])
-    return windows
-
-
-def coverage_record(
-    row: dict, contigs: dict[str, dict] | None, liftover_windows: set[int]
-) -> dict:
-    """
-    One row of the coverage table.
+    has_x needs more rows on X than liftover moved between chromosomes in total,
+    the most that could have landed on X from elsewhere. A GRCh38 source is not
+    lifted, so its count is 0 and any X row is its own.
 
     Args:
         row: the files.csv row
-        contigs: read_tabix_index of the formatted file; None if not formatted yet
-        liftover_windows: X windows liftover can fill from other chromosomes, for
-            this file's source build; empty for GRCh38 sources, which are not lifted
+        record: the hits parquet's gwas_sumstats metadata; None if not extracted
+        stats: format.py's stats for the file; None if not extracted
+
+    Returns:
+        file details, extracted, has_x, x_rows, liftover_chromosome_changed and
+        chromosomes; the last four empty when not extracted
     """
-    record = {
+    details = {
         'file_id': row['file_id'],
         'biomarker': row['biomarker'],
         'ancestry': row['ancestry'],
         'source_build': row['source_build'],
-        'formatted': contigs is not None,
+        'extracted': record is not None,
     }
-    if contigs is None:
-        empty = ['has_x', 'x_rows', 'x_windows', 'x_windows_from_source_x']
-        return {**record, **dict.fromkeys(empty, ''), 'chromosomes': ''}
-    x = contigs.get('23', {'rows': 0, 'windows': set()})
-    from_source_x = len(x['windows'] - liftover_windows)
+    if record is None:
+        empty = ['has_x', 'x_rows', 'liftover_chromosome_changed', 'chromosomes']
+        return {**details, **dict.fromkeys(empty, '')}
+    per_chromosome = record['rows_per_chromosome']
+    x_rows = per_chromosome.get('23', 0)
+    changed = stats.get('liftover_chromosome_changed', 0)
     return {
-        **record,
-        'has_x': from_source_x > 0,
-        'x_rows': x['rows'],
-        'x_windows': len(x['windows']),
-        'x_windows_from_source_x': from_source_x,
-        'chromosomes': ' '.join(contigs),
+        **details,
+        'has_x': x_rows > changed,
+        'x_rows': x_rows,
+        'liftover_chromosome_changed': changed,
+        'chromosomes': ' '.join(per_chromosome),
     }
 
 
-def run_coverage(
-    rows: list[dict], out: str, formatted: str, chains: dict[str, str]
-) -> None:
+def run_chromosomes(rows: list[dict], out: str, hits: str, stats: str) -> None:
     """
-    Write one row per file saying which chromosomes it has, and whether the source
-    published X.
+    Write one row per file saying which chromosomes it reports, and whether the
+    source published X.
 
-    Files not formatted yet are listed with formatted=False, so a partial run is
+    Files not extracted yet are listed with extracted=False, so a partial run is
     visible in the table itself.
 
     Args:
         rows: files.csv rows
         out: destination CSV
-        formatted: folder holding the formatted files
-        chains: source build -> chain file format.py lifted it with
-    """
-    from cpg_utils import to_path
+        hits: folder of hits parquets, any threshold: every row was counted
+        stats: format.py's per-file stats folder
 
-    liftover_windows = {'GRCh38': set()}
-    for build, chain in chains.items():
-        with gzip.open(to_path(chain).open('rb'), 'rt') as handle:
-            liftover_windows[build] = liftover_windows_on_x(handle)
+    Raises:
+        ValueError: if none of the files has been extracted, or one has no stats
+    """
+    import pyarrow.parquet as pq
+    from format import as_path
 
     records = []
     for row in rows:
-        path = f'{formatted}/{formatted_name(row["file_id"])}'
-        contigs = chromosomes_in(path) if to_path(path).exists() else None
-        if contigs is None:
-            print(f'{row["file_id"]}: not formatted')
-        windows = liftover_windows[row['source_build']]
-        records.append(coverage_record(row, contigs, windows))
-    done = [record for record in records if record['formatted']]
+        parquet = as_path(f'{hits}/{row["file_id"]}.parquet')
+        record = file_stats = None
+        if parquet.exists():
+            with parquet.open('rb') as handle:
+                record = json.loads(pq.read_metadata(handle).metadata[b'gwas_sumstats'])
+            stats_file = as_path(f'{stats}/{row["file_id"]}.json')
+            if not stats_file.exists():
+                raise ValueError(f'{row["file_id"]}: no format.py stats at {stats_file}')
+            file_stats = json.loads(stats_file.read_text())
+        else:
+            print(f'{row["file_id"]}: not extracted')
+        records.append(chromosomes_record(row, record, file_stats))
+    done = [record for record in records if record['extracted']]
     if not done:
-        raise SystemExit(
-            f'none of the {len(rows)} selected files is formatted in {formatted}'
-        )
+        raise ValueError(f'none of the {len(rows)} selected files is extracted in {hits}')
 
     text = io.StringIO()
     writer = csv.DictWriter(text, fieldnames=list(records[0]))
     writer.writeheader()
     writer.writerows(records)
-    with to_path(out).open('w') as handle:
+    with as_path(out).open('w') as handle:
         handle.write(text.getvalue())
 
     with_x = sum(record['has_x'] for record in done)
     print(
         f'{len(done)} files: {with_x} with chromosome X, {len(done) - with_x} without; '
-        f'{len(records) - len(done)} not formatted'
+        f'{len(records) - len(done)} not extracted'
     )
     print(f'written to {out}')
 
 
-def run_local(
-    rows: list[dict], out: Path, formatted: str, cutoff: float, force: bool = False
-) -> None:
+def is_current(dest: Path, source: Path) -> bool:
     """
-    Extract from local or remote files one after another, into a local folder.
-
-    Local formatted files are read in place. Remote ones are downloaded to a folder
-    beside `out`, not into it, so `out` holds only parquets and reads as one table.
-    """
-    out.mkdir(parents=True, exist_ok=True)
-    downloads = out.parent / f'{out.name}_formatted'
-    for row in rows:
-        dest = out / f'{row["file_id"]}.parquet'
-        if dest.exists() and not force:
-            print(f'{row["file_id"]}: exists, skipped')
-            continue
-        source = f'{formatted}/{formatted_name(row["file_id"])}'
-        if source.startswith('gs://'):
-            from cpg_utils import to_path
-
-            local = downloads / formatted_name(row['file_id'])
-            if not local.exists():
-                downloads.mkdir(parents=True, exist_ok=True)
-                to_path(source).download_to(local)
-        else:
-            local = Path(source).expanduser()
-        counts = extract_one(local, dest, row['file_id'], cutoff)
-        print(
-            f'{counts["file_id"]}: {counts["rows_kept"]:,} of {counts["rows_in"]:,} rows'
-        )
-
-
-def is_current(dest, source) -> bool:
-    """
-    Whether hits already written are newer than the formatted file they came from.
+    Return whether hits already written are newer than their formatted file.
 
     After format.py --only <id> --force, the formatted file is newer than its hits,
     so the hits are redone rather than skipped.
 
     Args:
-        dest: the hits parquet
-        source: the formatted file
+        dest: the hits parquet, local or a cloud path
+        source: the formatted file, local or a cloud path
+
+    Returns:
+        True if dest exists and is at least as new as source
     """
     return dest.exists() and dest.stat().st_mtime >= source.stat().st_mtime
 
 
-def run_batch(rows: list[dict], args) -> None:
+def job_storage(source_bytes: int, file_id: str) -> str:
     """
-    One Hail Batch job per formatted file not yet extracted, or re-formatted since.
+    Return the disk to request for a job that reads this formatted file.
+
+    Sized from the file the job actually localises, with room for the parquet it
+    writes. Refuses a size of 0 or less, which would mean the file is broken,
+    rather than falling back to the floor.
+
+    Args:
+        source_bytes: size of the formatted .tsv.gz
+        file_id: for the error message
+
+    Returns:
+        a Hail Batch storage string, e.g. '13Gi'
+
+    Raises:
+        ValueError: if the size is 0 or less
+    """
+    if source_bytes <= 0:
+        raise ValueError(f'{file_id}: formatted file has size {source_bytes}')
+    return f'{int(source_bytes / 2**30 * 3) + 10}Gi'
+
+
+def run_batch(rows: list[dict], args: argparse.Namespace, out: str) -> None:
+    """
+    Submit one Hail Batch job per formatted file not yet extracted, or re-formatted
+    since.
 
     Each job reads one file and writes one parquet, so 336 files take as long as the
     largest single file rather than the sum of all of them.
+
+    Args:
+        rows: files.csv rows
+        args: the parsed command line
+        out: folder for this threshold's hits, from hits_folder
     """
     from cpg_utils import to_path
     from cpg_utils.config import config_retrieve
@@ -470,7 +524,7 @@ def run_batch(rows: list[dict], args) -> None:
     submitted, missing = 0, []
     for row in rows:
         source = to_path(f'{args.formatted}/{formatted_name(row["file_id"])}')
-        dest = to_path(f'{args.out}/{row["file_id"]}.parquet')
+        dest = to_path(f'{out}/{row["file_id"]}.parquet')
         if not source.exists():
             missing.append(row['file_id'])
             continue
@@ -478,11 +532,10 @@ def run_batch(rows: list[dict], args) -> None:
             print(f'{row["file_id"]}: exists, skipped')
             continue
 
-        size_gib = int(row['size_bytes'] or 0) / 2**30
         job = batch.new_bash_job(f'extract {row["file_id"]}')
         job.image(config_retrieve(['workflow', 'driver_image']))
         job.cpu(2)
-        job.storage(f'{int(size_gib * 3) + 10}Gi')
+        job.storage(job_storage(source.stat().st_size, row['file_id']))
         job.command(
             f'python3 -m pip install --quiet {PIP_PACKAGES}\n'
             f"cat > extract.py <<'GWAS_SUMSTATS_SCRIPT'\n{script}\nGWAS_SUMSTATS_SCRIPT\n"
@@ -502,82 +555,123 @@ def run_batch(rows: list[dict], args) -> None:
         batch.run(wait=False)
 
 
-def main():
+def build_parser() -> argparse.ArgumentParser:
+    """
+    Return the command-line parser.
+
+    Returns:
+        the parser for every mode: batch extraction, the chromosome table and one file
+    """
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     parser.add_argument(
         '--files', type=Path, default=FILES_CSV, help='files.csv to read'
     )
-    parser.add_argument('--formatted', default=FORMATTED, help='formatted files folder')
-    parser.add_argument('--out', default=DEFAULT_OUT, help='destination folder')
     parser.add_argument(
-        '--coverage-out',
-        help=f'coverage CSV to write (default {DEFAULT_COVERAGE}); required with --only',
+        '--formatted',
+        default=FORMATTED,
+        help='formatted files folder; the other paths default to places in it',
+    )
+    parser.add_argument(
+        '--out',
+        help='hits parent folder (default hits/ in --formatted); hits go to a '
+        'subfolder per threshold, e.g. p_1e-05',
+    )
+    parser.add_argument(
+        '--stats', help="format.py's per-file stats (default stats/ in --formatted)"
+    )
+    parser.add_argument(
+        '--chromosomes-out',
+        help=f'chromosome table to write (default {CHROMOSOMES_NAME} in --formatted); '
+        'required with --only or another --files',
     )
     parser.add_argument(
         '--threshold',
         type=float,
         default=THRESHOLD,
-        help=f'P value (not -log10 P) to keep at or below (default {THRESHOLD}); '
-        'anything else needs its own --out',
+        help=f'P value (not -log10 P) to keep at or below (default {THRESHOLD})',
     )
     parser.add_argument('--only', nargs='+', help='file_ids to extract')
-    for build, key in LIFTED_BUILDS.items():
-        parser.add_argument(
-            f'--chain-{build.lower()}',
-            help=f'coverage: chain format.py used; default references {key}',
-        )
-    parser.add_argument('--local', action='store_true', help='run here, not on Batch')
     parser.add_argument(
-        '--coverage', action='store_true', help='write the chromosome coverage table'
+        '--chromosomes',
+        action='store_true',
+        help='write the table of chromosomes each file reports; run after extracting',
     )
     parser.add_argument(
         '--force', action='store_true', help='redo files already written; needs --only'
     )
-    parser.add_argument('--file-id', help='job mode: file_id stamped on every row')
-    parser.add_argument('--source', type=Path, help='job mode: input file')
-    parser.add_argument('--dest', type=Path, help='job mode: output parquet')
-    args = parser.parse_args()
+    parser.add_argument(
+        '--file-id', help='one file (a Batch job, or a laptop): file_id for every row'
+    )
+    parser.add_argument('--source', type=Path, help='one file: formatted .tsv.gz')
+    parser.add_argument('--dest', type=Path, help='one file: parquet to write')
+    return parser
 
+
+def check_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    """
+    Refuse argument combinations that would waste a run or overwrite shared output.
+
+    Args:
+        parser: reports the error and exits
+        args: the parsed command line
+    """
+    if not 0 < args.threshold < 1:
+        parser.error(f'--threshold is a P value, so between 0 and 1; got {args.threshold}')
     if args.file_id:
-        counts = extract_one(args.source, args.dest, args.file_id, args.threshold)
-        print(
-            f'{counts["file_id"]}: {counts["rows_kept"]:,} of {counts["rows_in"]:,} '
-            f'rows, {counts["rows_kept_without_p"]:,} of them kept on z'
-        )
         return
-
     if args.force and not args.only:
         parser.error('--force needs --only, so every file is not redone by mistake')
-    if args.coverage and args.only and not args.coverage_out:
+    subset = args.only or args.files.resolve() != FILES_CSV.resolve()
+    if args.chromosomes and subset and not args.chromosomes_out:
         parser.error(
-            '--coverage with --only would replace chromosome_coverage.csv with a '
-            'subset; give an output path: --coverage-out subset.csv'
+            '--chromosomes on a subset of files (--only or another --files) would '
+            f'replace {CHROMOSOMES_NAME} with a partial table; give an output path: '
+            '--chromosomes-out subset.csv'
         )
-    if args.threshold != THRESHOLD and args.out == DEFAULT_OUT:
-        parser.error(
-            f'--threshold {args.threshold} would mix with the {THRESHOLD} hits in '
-            f'{DEFAULT_OUT}; give another --out'
-        )
+
+
+def run_one_file(args: argparse.Namespace) -> None:
+    """
+    Extract one file and print its counts: what each Batch job runs.
+
+    Args:
+        args: the parsed command line, with file_id, source and dest
+    """
+    counts = extract_one(args.source, args.dest, args.file_id, args.threshold)
+    print(
+        f'{counts["file_id"]}: {counts["rows_kept"]:,} of {counts["rows_in"]:,} '
+        f'rows, {counts["rows_kept_without_p"]:,} of them kept on z; '
+        f'{counts["rows_dropped_se_zero"]:,} with no P value dropped for a '
+        'standard error of 0'
+    )
+
+
+def main() -> None:
+    """Run one file, the chromosome table, or the batch extraction."""
+    parser = build_parser()
+    args = parser.parse_args()
+    check_args(parser, args)
+    if args.file_id:
+        run_one_file(args)
+        return
 
     from download import read_files_csv
 
+    formatted = args.formatted.rstrip('/')
+    hits = hits_folder(args.out or f'{formatted}/hits', args.threshold)
     rows = read_files_csv(args.files, args.only)
-    if args.coverage:
-        from cpg_utils.config import reference_path
-
-        chains = {
-            build: getattr(args, f'chain_{build.lower()}') or str(reference_path(key))
-            for build, key in LIFTED_BUILDS.items()
-        }
-        run_coverage(
-            rows, args.coverage_out or DEFAULT_COVERAGE, args.formatted, chains
-        )
-    elif args.local:
-        if args.out.startswith('gs://'):
-            parser.error(f'--local needs a local --out folder, got {args.out}')
-        run_local(rows, Path(args.out), args.formatted, args.threshold, args.force)
+    if args.chromosomes:
+        try:
+            run_chromosomes(
+                rows,
+                args.chromosomes_out or f'{formatted}/{CHROMOSOMES_NAME}',
+                hits,
+                args.stats or f'{formatted}/stats',
+            )
+        except ValueError as error:
+            parser.error(str(error))
     else:
-        run_batch(rows, args)
+        run_batch(rows, args, hits)
 
 
 if __name__ == '__main__':
