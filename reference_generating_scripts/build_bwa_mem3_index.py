@@ -1,5 +1,6 @@
 from argparse import ArgumentParser
 
+from cpg_utils.existence_checks import exists
 from cpg_utils.hail_batch import get_batch
 
 
@@ -12,7 +13,11 @@ def main(fasta: str, outpath: str, image: str):
     Write a new collection of files - the original Fasta, and all adjacent index files.
     """
 
-    assert outpath.endswith('.fasta'), 'this process requires the output to end with .fasta'
+    if not outpath.endswith('.fasta'):
+        raise ValueError('This process requires the output to end with ".fasta".')
+
+    if exists(outpath):
+        raise ValueError(f'Output file {outpath} already exists, choose a new location.')
 
     batch = get_batch('Generate bwa-mem3 fasta index files')
 
