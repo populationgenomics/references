@@ -291,6 +291,15 @@ SOURCES = [
         ),
     ),
     Source(
+        'dragen_hg38_pangenome_ht12',
+        # Illumina's hg38 pangenome hash table (version 12) for DRAGEN 4.5 and 4.6,
+        # unpacked from https://webdata.illumina.com/downloads/software/dragen/resource-files/4.5/hash-tables/hg38-alt_masked.cnv.graph.hla.methyl_cg.rna-12-r6.0-1.tar.gz
+        # and staged in gs://cpg-common-test; its md5sum file lists each file's checksum.
+        src='gs://cpg-common-test/references/dragen/hg38-alt_masked.cnv.graph.hla.methyl_cg.rna-12-r6.0-1',
+        dst='dragen/hg38-alt_masked.cnv.graph.hla.methyl_cg.rna-12-r6.0-1',
+        transfer_cmd=gcs_rsync,
+    ),
+    Source(
         'hg19_fasta',
         # UCSC hg19 fasta, used to bootstrap a picard sequence dictionary for
         # LiftOverIntervalList (hg19 → hg38). See exome_designs/README.md.
