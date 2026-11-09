@@ -570,6 +570,23 @@ SOURCES = [
         files=dict(ref_dir='2.7.10b/hg38', gtf='hg38/hg38.gtf', fasta='hg38/hg38.fa'),
     ),
     Source(
+        'tenx_gex_grch38_2024a',
+        # 10x Genomics' GRCh38-2024-A Cell Ranger reference, for wf-single-cell's
+        # ref_genome_dir, which is this source's dst. Unpacked from
+        # https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCh38-2024-A.tar.gz
+        # (md5 a7b5b7ceefe10e435719edc1a8b8b2fa) and staged in gs://cpg-common-test by
+        # reference_generating_scripts/stage_10x_gex_grch38_2024a.sh. The tarball's
+        # STAR index is not staged.
+        src='gs://cpg-common-test/references/10x/refdata-gex-GRCh38-2024-A',
+        dst='10x/refdata-gex-GRCh38-2024-A',
+        transfer_cmd=gcs_rsync,
+        files=dict(
+            genome_fasta='fasta/genome.fa',
+            genome_fasta_fai='fasta/genome.fa.fai',
+            genes_gtf='genes/genes.gtf.gz',
+        ),
+    ),
+    Source(
         'ancestry',
         # representative sites table for PCA
         # generated using the HGDP+1KG dataset
