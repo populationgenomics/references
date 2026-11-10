@@ -1247,8 +1247,6 @@ SOURCES = [
             # m039 (MXL): child NA19796, father NA19795, mother NA19794
             NA19796_bam='GM19796-W-0/GM19796-W-0.hifi_reads.bam',
             NA19796_pbi='GM19796-W-0/GM19796-W-0.hifi_reads.bam.pbi',
-            NA19795_bam='GM19795-W-0/GM19795-W-0.hifi_reads.bam',
-            NA19795_pbi='GM19795-W-0/GM19795-W-0.hifi_reads.bam.pbi',
             NA19794_bam='GM19794-W-0/GM19794-W-0.hifi_reads.bam',
             NA19794_pbi='GM19794-W-0/GM19794-W-0.hifi_reads.bam.pbi',
             # PEL005 (PEL): child HG01579, father HG01577, mother HG01578
