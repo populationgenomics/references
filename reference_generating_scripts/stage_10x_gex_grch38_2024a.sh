@@ -4,8 +4,8 @@
 # source in references.py is copied into cpg-common-main. The STAR index in the
 # tarball is not staged: wf-single-cell reads only these three files.
 #
-# Requires: curl, tar, gcloud, ~16 GB of free disk under TMPDIR, and write access
-# to gs://cpg-common-test (test access on cpg-common).
+# Requires: curl, tar, gcloud, ~16 GB of free disk under BATCH_TMPDIR (or TMPDIR),
+# and write access to gs://cpg-common-test (test access on cpg-common).
 #
 # Usage: stage_10x_gex_grch38_2024a.sh [gs://destination/prefix]
 
@@ -18,7 +18,8 @@ DEST="${1:-gs://cpg-common-test/references/10x/refdata-gex-GRCh38-2024-A}"
 TOP='refdata-gex-GRCh38-2024-A'
 FILES=(fasta/genome.fa fasta/genome.fa.fai genes/genes.gtf.gz)
 
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/10x-gex.XXXXXX")"
+# BATCH_TMPDIR is the storage-backed scratch on Hail Batch; elsewhere use TMPDIR.
+WORK="$(mktemp -d "${BATCH_TMPDIR:-${TMPDIR:-/tmp}}/10x-gex.XXXXXX")"
 trap 'rm -rf "${WORK}"' EXIT
 
 curl --fail --location --silent --show-error --output "${WORK}/ref.tar.gz" "${URL}"
