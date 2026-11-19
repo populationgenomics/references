@@ -10,11 +10,11 @@ MAIN_OR_TEST=${1:-"main"}
 WRITE_OUTPUT_TO="gs://cpg-common-${MAIN_OR_TEST}/references/alphagenome/avi_snv"
 
 # localise the data
-gcloud storage cp --do-not-decompress gs://cpg-common-main/references/alphagenome/avi_scores_snvs_tabix.zip avi_scores_snvs_tabix.zip
+gcloud storage cp --do-not-decompress gs://cpg-common-main/references/alphagenome/avi_scores_snvs_tabix.zip ${BATCH_TMPDIR}/avi_scores_snvs_tabix.zip
 
 # create unzip location, unzip into it, delete the original archive
 mkdir ${BATCH_TMPDIR}/avi_data
-unzip -d ${BATCH_TMPDIR}/avi_data avi_scores_snvs_tabix.zip && rm avi_scores_snvs_tabix.zip
+unzip -d ${BATCH_TMPDIR}/avi_data ${BATCH_TMPDIR}/avi_scores_snvs_tabix.zip && rm ${BATCH_TMPDIR}/avi_scores_snvs_tabix.zip
 
 # convert the TSV to a HT
 python3 reference_generating_scripts/avi_snv_formatting.py \
